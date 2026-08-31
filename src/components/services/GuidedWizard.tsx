@@ -15,7 +15,7 @@ import type { Lang } from '../../data/services/i18n';
 import { BRAND } from '../../data/services/branding';
 import { ModelPreview, VARIANT_SLOTS, SLOT_DEFAULT_COLORS } from './ModelPreview';
 import type { PreviewMode, VariantSlotsState } from './ModelPreview';
-import { TreeIcon, ChatIcon, MailIcon, GearIcon } from './icons';
+import { TreeIcon, ChatIcon, MailIcon, GearIcon, InfoIcon } from './icons';
 
 type Answers = Record<string, string | number | boolean>;
 
@@ -422,10 +422,25 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
       </div>
       {(qEn?.help ?? q.help) && <div style={{ fontSize: 13, color: 'var(--cx-muted)', marginBottom: 14, lineHeight: 1.45 }}>{qEn?.help ?? q.help}</div>}
 
+      {/* Ciclo 10: el preview usa un asset temporal — nota profesional aclaratoria */}
+      {q.demoAsset && (
+        <div style={{
+          display: 'flex', alignItems: 'flex-start', gap: 7, marginBottom: 14,
+          fontSize: 12, color: 'var(--cx-muted)', lineHeight: 1.45,
+        }}>
+          <span style={{ display: 'inline-flex', flexShrink: 0, marginTop: 1 }}>
+            <InfoIcon size={14} />
+          </span>
+          <span>
+            {en ? EN.wizard.demoAsset : 'Vista con un asset de demostración en desarrollo — en la versión final se representa tu producto con sus propios modelos.'}
+          </span>
+        </div>
+      )}
+
       {/* Preview de tarjetas: acabados con el modelo real (HolyBro X500) */}
       {q.type === 'cards' && q.preview === 'finish' && (
         <div style={{ marginBottom: 14 }}>
-          <ModelPreview mode="finish" finish={(typeof current === 'string' && ['simple', 'variado', 'detallado'].includes(current) ? current : 'variado') as 'simple' | 'variado' | 'detallado'} lang={lang} height={160} />
+          <ModelPreview mode="finish" finish={(typeof current === 'string' && ['simple', 'variado', 'detallado'].includes(current) ? current : 'variado') as 'simple' | 'variado' | 'detallado'} lang={lang} height={240} />
           <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--cx-muted)', marginTop: 2 }}>
             {en ? 'Real model (HolyBro X500) with the selected finish' : 'Modelo real (HolyBro X500) con el acabado elegido'}
           </div>
@@ -616,9 +631,10 @@ function SliderWithPreview({ branchId, questionId, config, value, onChange, lang
       {/* Preview WebGL procedural — reacciona al slider, se puede arrastrar */}
       {mode && (
         <div>
+          {/* ciclo 10: todos los previews a 240px de alto (antes 150/165) */}
           <ModelPreview mode={mode} detail={shown} pieces={value} story={value} surface={value}
             variantSlots={mode === 'variants' ? slots : undefined} estilo={value} lang={lang}
-            height={mode === 'story' ? 165 : mode === 'surface' ? 240 : 150} />
+            height={240} />
           {mode !== 'variants' && (
             <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--cx-muted)', marginTop: 2 }}>{caption}</div>
           )}
@@ -629,10 +645,11 @@ function SliderWithPreview({ branchId, questionId, config, value, onChange, lang
           desbloqueados por el slider, ON/OFF con click, efecto en tiempo real */}
       {mode === 'variants' && <VariantSlotsPanel value={value} lang={lang} slots={slots} setSlots={setSlots} />}
 
-      {/* Valor actual */}
+      {/* Valor actual — ciclo 10: en assembly el máximo se etiqueta "50+"
+          (a 50 el modelo completo es visible, incluida tornillería) */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <strong style={{ fontSize: 24, fontWeight: 700, color: 'var(--cx-accent)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
-          {shown}
+          {shown}{config.preview === 'assembly' && value >= config.max ? '+' : ''}
           <span style={{ fontSize: 14, color: 'var(--cx-muted)', fontWeight: 400, marginLeft: 6 }}>{unit}</span>
         </strong>
         {tierHint && (
@@ -665,10 +682,10 @@ function SliderWithPreview({ branchId, questionId, config, value, onChange, lang
         }} />
       </div>
 
-      {/* Labels min/max */}
+      {/* Labels min/max — ciclo 10: el máximo del assembly se muestra "50+" */}
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--cx-faint)' }}>
         <span>{config.min} {unit}</span>
-        <span>{config.max} {unit}</span>
+        <span>{config.preview === 'assembly' ? `${config.max}+` : config.max} {unit}</span>
       </div>
     </div>
   );

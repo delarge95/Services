@@ -473,9 +473,21 @@ export function CotizadorRedesign() {
         * { box-sizing: border-box; }
         body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Inter, system-ui, sans-serif; }
         @media (max-width: 768px) { .cx-desktop-only { display: none !important; } }
+        /* ciclo 10 — el aside sticky scrollea DENTRO del viewport: sin max-height
+           el final del panel (CTA imprimir/PDF) quedaba fuera de pantalla. */
+        .cx-config-aside {
+          max-height: calc(100vh - 48px);
+          overflow-y: auto;
+          scrollbar-width: thin;
+          scrollbar-color: var(--cx-border-strong) transparent;
+          overscroll-behavior: contain;
+        }
+        .cx-config-aside::-webkit-scrollbar { width: 6px; }
+        .cx-config-aside::-webkit-scrollbar-track { background: transparent; }
+        .cx-config-aside::-webkit-scrollbar-thumb { background: var(--cx-border-strong); border-radius: 3px; }
         @media (max-width: 768px) {
           .cx-config { display: flex !important; flex-direction: column; }
-          .cx-config-aside { position: static !important; width: 100% !important; }
+          .cx-config-aside { position: static !important; width: 100% !important; max-height: none !important; overflow: visible !important; }
         }
         @media (min-width: 769px) { .cx-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important; max-width: 1200px !important; } }
         @media print { [data-noprint] { display: none !important; } body { background: #fff !important; } .cx-root { background: #fff !important; --cx-text: #000; --cx-muted: #555; --cx-card: #fff; --cx-card-solid: #fff; --cx-tile: #f5f5f7; --cx-accent: #0071e3; } }
@@ -630,29 +642,59 @@ export function CotizadorRedesign() {
             }}>
               {quote && tier ? (
                 <>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cx-accent)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-                    {lang === 'en'
-                      ? `${tier} · ${EN.tierNames[tier] ?? ''} ${EN.tierWord}`
-                      : `${tier} · Nivel ${tier === 'XS' ? 'esencial' : tier === 'S' ? 'estándar' : tier === 'M' ? 'profesional' : tier === 'L' ? 'premium' : 'máximo'}`}
-                  </div>
-                  <div style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--cx-text)', lineHeight: 1 }}>
-                    {fmt(currency, quote.totalMin)}
-                  </div>
-                  <div style={{ fontSize: 'clamp(1.2rem, 2vw, 1.6rem)', fontWeight: 500, color: 'var(--cx-muted)', marginTop: 4 }}>
-                    a {fmt(currency, quote.totalMax)}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 24 }}>
-                    <div style={{ padding: 14, borderRadius: 14, background: 'var(--cx-tile)' }}>
-                      <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--cx-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{lang === 'es' ? 'Horas' : EN.hours}</div>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--cx-text)', marginTop: 2 }}>{quote.hoursMin}–{quote.hoursMax}h</div>
-                    </div>
-                    <div style={{ padding: 14, borderRadius: 14, background: 'var(--cx-tile)' }}>
-                      <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--cx-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{lang === 'es' ? 'Entrega' : EN.delivery}</div>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--cx-text)', marginTop: 2 }}>
-                        {svc.entregaDiasEs ? `${svc.entregaDiasEs[0]}–${svc.entregaDiasEs[1]}d` : '—'}
+                  {/* ciclo 10 — precio grande: con extras es EL RANGO DEL PROYECTO
+                      (principal + extras, ya con bundle); el tier solo se muestra
+                      para un servicio sin extras. */}
+                  {extraQuotes.length > 0 && totalProyecto ? (
+                    <>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cx-accent)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                        {lang === 'en' ? EN.yourProject(numServicios) : `Tu proyecto · ${numServicios} servicios`}
                       </div>
-                    </div>
-                  </div>
+                      <div style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--cx-text)', lineHeight: 1 }}>
+                        {fmt(currency, totalProyecto.min)}
+                      </div>
+                      <div style={{ fontSize: 'clamp(1.2rem, 2vw, 1.6rem)', fontWeight: 500, color: 'var(--cx-muted)', marginTop: 4 }}>
+                        a {fmt(currency, totalProyecto.max)}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cx-accent)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+                        {lang === 'en'
+                          ? `${tier} · ${EN.tierNames[tier] ?? ''} ${EN.tierWord}`
+                          : `${tier} · Nivel ${tier === 'XS' ? 'esencial' : tier === 'S' ? 'estándar' : tier === 'M' ? 'profesional' : tier === 'L' ? 'premium' : 'máximo'}`}
+                      </div>
+                      <div style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--cx-text)', lineHeight: 1 }}>
+                        {fmt(currency, quote.totalMin)}
+                      </div>
+                      <div style={{ fontSize: 'clamp(1.2rem, 2vw, 1.6rem)', fontWeight: 500, color: 'var(--cx-muted)', marginTop: 4 }}>
+                        a {fmt(currency, quote.totalMax)}
+                      </div>
+                    </>
+                  )}
+                  {/* ciclo 10 — card HORAS retirada; ENTREGA sola a lo ancho.
+                      Regla de entrega con extras: lo MÁS CONSERVADOR de cada
+                      extremo — min = el mayor de los mínimos, max = el mayor de
+                      los máximos (entregaDiasEs[1]) entre principal y extras. */}
+                  {(() => {
+                    const rangos = [
+                      svc.entregaDiasEs,
+                      ...extraQuotes.map(e => SERVICES.find(s => s.id === e.pick.serviceId)?.entregaDiasEs),
+                    ].filter((r): r is [number, number] => Array.isArray(r));
+                    const dias: [number, number] | null = !rangos.length
+                      ? null
+                      : extraQuotes.length === 0
+                        ? rangos[0]
+                        : [Math.max(...rangos.map(r => r[0])), Math.max(...rangos.map(r => r[1]))];
+                    return (
+                      <div style={{ marginTop: 24, padding: 14, borderRadius: 14, background: 'var(--cx-tile)' }}>
+                        <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--cx-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{lang === 'es' ? 'Entrega' : EN.delivery}</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--cx-text)', marginTop: 2 }}>
+                          {dias ? `${dias[0]}–${dias[1]}d` : '—'}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {extraQuotes.length > 0 && (
                     <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid var(--cx-soft)' }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cx-muted)', marginBottom: 10 }}>{lang === 'es' ? 'Tu proyecto también incluye' : EN.alsoIncludes}</div>
@@ -668,14 +710,10 @@ export function CotizadorRedesign() {
                           {pickNota(e.pick, lang) && <div style={{ fontSize: 11, color: 'var(--cx-muted)', marginTop: 3, lineHeight: 1.4 }}>{pickNota(e.pick, lang)}</div>}
                         </div>
                       ))}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 12 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--cx-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{lang === 'es' ? 'Total proyecto' : EN.totalProject}</span>
-                        <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--cx-accent)', letterSpacing: '-0.02em' }}>
-                          {fmt(currency, totalProyecto!.min)}–{fmt(currency, totalProyecto!.max)}
-                        </span>
-                      </div>
+                      {/* ciclo 10: la fila "Total proyecto" se retira — el rango
+                          del proyecto ya es el precio grande del panel */}
                       {bundle > 0 && (
-                        <div style={{ fontSize: 11.5, color: '#30d158', marginTop: 4, textAlign: 'right' }}>
+                        <div style={{ fontSize: 11.5, color: '#30d158', marginTop: 8 }}>
                           {lang === 'es' ? `Incluye −${bundle}% por agrupar ${numServicios} servicios` : EN.bundleLine(bundle, numServicios)}
                         </div>
                       )}

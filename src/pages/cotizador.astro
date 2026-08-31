@@ -21,6 +21,11 @@ import { CotizadorRedesign } from '../components/services/CotizadorRedesign';
     <style is:global>
       html { background: #fbfbfd; }
       html[data-cx-theme='dark'] { background: #0b0b0f; }
+      /* Ciclo 10 — refuerzo del fondo SIN JS a nivel body: el inline claro es el
+         default de SSR; en oscuro la regla !important lo corrige ANTES de que la
+         isla hidrate (el inline pierde contra !important). */
+      html[data-cx-theme='light'] body { background: #fbfbfd !important; }
+      html[data-cx-theme='dark'] body { background: #0b0b0f !important; }
       /* Vars de tema a nivel documento: nunca dependen de la hidratación del isla */
       html[data-cx-theme='light'] {
         --cx-bg: #fbfbfd; --cx-card: rgba(255,255,255,0.85); --cx-card-solid: #ffffff;
@@ -42,7 +47,7 @@ import { CotizadorRedesign } from '../components/services/CotizadorRedesign';
       }
     </style>
   </head>
-  <body style="margin:0; font-family:-apple-system,'Segoe UI',Inter,system-ui,sans-serif;">
+  <body style="margin:0; font-family:-apple-system,'Segoe UI',Inter,system-ui,sans-serif; background:#fbfbfd;">
     <CotizadorRedesign client:load />
   </body>
 </html>

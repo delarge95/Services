@@ -26,7 +26,7 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { EN, TRIS_ETIQUETAS } from '../../data/services/i18n';
-import { loadHolybroInstance, applyFinish, ensureVariadoSet, revealFrameOnly, droneStepFamily, buildAssemblyReveal, revealAssemblyList } from './holybro';
+import { loadHolybroInstance, applyFinish, ensureVariadoSet, revealFrameOnly, droneStepFamily, buildAssemblyReveal, revealAssemblyList, MAX_SLIDER_PIECES } from './holybro';
 import type { AssemblyEntry } from './holybro';
 import type { FinishKind, VariadoSet } from './holybro';
 import { loadAnvilInstance, applySurfaceMorph, ANVIL_MORPH_NODE } from './anvil';
@@ -139,7 +139,7 @@ const smooth = (x: number) => { const t = Math.max(0, Math.min(1, x)); return t 
 /** Escala de un grupo cuya ventana de aparición es [a, b] sobre el slider d. */
 const grow = (d: number, a: number, b: number) => smooth((d - a) / (b - a));
 
-export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface = 1, variantSel, variantSlots, finish = 'detallado', estilo = 2, hotspots = 0, lang = 'es', height = 150 }: {
+export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface = 1, variantSel, variantSlots, finish = 'detallado', estilo = 2, hotspots = 0, lang = 'es', height = 240 }: {
   mode: PreviewMode;
   /** Slider continuo 1–5 (detail). */
   detail?: number;
@@ -557,6 +557,8 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     // ciclo 8 — explosión con RITMO: 3 s armado → explota → 3,4 s explosionado → une
     let hbCenter = new THREE.Vector3(0, 0, 0);
     let assmList: AssemblyEntry[] = [];
+    // ciclo 10 — entradas que SÍ consumen slider (las `auto` se revelan con los frames)
+    let assmSlider: AssemblyEntry[] = [];
     function startHolybro() {
       if (holybroStarted) return;
       holybroStarted = true;
@@ -566,7 +568,16 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
           holybroReady = root;
           const rev = buildAssemblyReveal(root);
           assmList = rev.list;
+          assmSlider = rev.list.filter(e => !e.auto);
           (window as any).__assmTotal = rev.total;
+          // sonda QA ciclo 10: lista de ensamblaje con cuadrante y posición
+          // (espacio LOCAL del modelo: inmune a la rotación idle del preview)
+          (window as any).__assmList = rev.list.map(e => ({
+            es: e.es, en: e.en, cuadrante: e.cuadrante ?? null, auto: !!e.auto, gate: e.gate ?? null,
+            worldPos: (() => { const p = root.worldToLocal(e.mesh.getWorldPosition(new THREE.Vector3())); return [+p.x.toFixed(3), +p.y.toFixed(3), +p.z.toFixed(3)]; })(),
+            meshes: 1 + (e.with?.length ?? 0),
+            nombres: [e.mesh.name, ...(e.with ?? []).map(m => m.name)],
+          }));
           // finish: drone COMPLETO; assembly: arranca con UNA pieza
           if (stateRef.current.mode === 'finish') {
             revealAssemblyList(assmList, Infinity);
@@ -1018,14 +1029,15 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       }
       if (cur.mode === 'assembly') {
         if (holybroReady && assmList.length) {
-          // ciclo 9 — PIEZA A PIEZA 1:1: la unidad k del slider deja EXACTAMENTE
-          // k meshes visibles (cada mesh una entrada; sin agrupar instancias)
-          const k = Math.max(1, Math.min(assmList.length, Math.round(Math.max(1, Math.min(50, cur.pieces)))));
+          // ciclo 10 — PIEZA A PIEZA por cuadrantes: k = piezas que consumen el
+          // slider (1-50; las instancias de los cuadrantes 2-4 se revelan solas
+          // con los frames y a 50 se ve TODO — etiqueta "50+")
+          const k = Math.max(1, Math.min(MAX_SLIDER_PIECES, Math.round(Math.max(1, Math.min(50, cur.pieces)))));
           if (k !== lastPieceCount) { revealAssemblyList(assmList, k); lastPieceCount = k; lastPiecesChange = performance.now(); }
-          const g = assmList[k - 1];
+          const g = assmSlider[k - 1] ?? assmList[assmList.length - 1];
           if (uiRef.current) {
-            // contador visible para que el 1:1 sea verificable a ojo
-            uiRef.current.textContent = `${cur.lang === 'es' ? g.es : g.en} · ${k}/${assmList.length}`;
+            // contador visible para que el avance sea verificable a ojo
+            uiRef.current.textContent = `${cur.lang === 'es' ? g.es : g.en} · ${k}${k >= MAX_SLIDER_PIECES ? '+' : ''}`;
             uiRef.current.style.opacity = '1';
           }
           let assmVis = 0;
@@ -1033,8 +1045,9 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
           (window as any).__assmVisible = assmVis;
           holybroRoot.rotation.y = t * 0.25;
           // cámara SIEMPRE enfocada en las piezas visibles (lo más grande posible)
+          // ciclo 10: factor 2.4→1.85 (drone ≥55% del ancho con canvas 240px)
           const sph = computeVisibleSphere(holybroReady);
-          const targetDist = Math.max(0.9, Math.min(4.6, sph.radius * 2.4));
+          const targetDist = Math.max(0.85, Math.min(4.2, sph.radius * 1.85));
           assmCamDist += (targetDist - assmCamDist) * 0.06;
           cam.position.set(0, sph.center.y + sph.radius * 0.45, sph.center.z + assmCamDist);
           cam.lookAt(sph.center.x, sph.center.y, sph.center.z);
@@ -1284,15 +1297,13 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       group.rotation.x += (rotX - group.rotation.x) * 0.12;
       if (cur.mode !== 'story' && cur.mode !== 'assembly') {
         // ciclo 8 — AUTO-ENCUADRE por contenido: la cámara se acerca hasta que el
-        // modelo llena el canvas (~2,5× más grande en pantalla).
-        // ciclo 9 — surface: margen MÁS CERRADO solo para el yunque (malla plana,
-        // la esfera de encuadre lo dejaba pequeño); Alexander: "sigue viéndose muy pequeño".
-        // Medido en QA: yunque 3.4×1.45 (proyección diagonal ~3.8) + esfera
-        // corregida + preview surface más alto (240px) → margen 1.06 llena
-        // ~72-74% del ancho del canvas al alinearse (antes ~30%).
+        // modelo llena el canvas. Ciclo 10 — margen 2.35→1.5 (Alexander: "el
+        // drone sigue pequeño"): con canvas 240px el drone llena ~50-70% del
+        // ancho sin cortarse (medido: 1.3 cortaba el finish en los laterales;
+        // el yunque conserva su 1.06 medido en ciclo 9).
         const sph = computeVisibleSphere(group);
-        const margin = cur.mode === 'surface' ? 1.06 : 2.35;
-        const minDist = cur.mode === 'surface' ? 1.0 : 1.3;
+        const margin = cur.mode === 'surface' ? 1.06 : 1.5;
+        const minDist = cur.mode === 'surface' ? 1.0 : 1.2;
         const targetDist = Math.max(minDist, Math.min(7, sph.radius * margin));
         frameDist += (targetDist - frameDist) * 0.08;
         cam.position.set(0, sph.center.y + sph.radius * 0.22, sph.center.z + frameDist);
@@ -1322,7 +1333,10 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
   }, [height]);
 
   return (
-    <div style={{ position: 'relative', width: '100%', maxWidth: 680, margin: '0 auto' }}>
+    // ciclo 10 — horizontal: el canvas sangra 12px por lado (la mitad del padding
+    // 24 de la card) para llegar "casi al borde" sin tocarlo; maxWidth 760 como
+    // techo en layouts anchos. El ResizeObserver adapta el canvas.
+    <div style={{ position: 'relative', width: 'calc(100% + 24px)', maxWidth: 760, margin: '0 -12px' }}>
       <div ref={mountRef} style={{ width: '100%', height, cursor: 'grab' }} aria-hidden="true" />
       <div ref={uiRef} style={{
         position: 'absolute', top: 6, right: 6, fontSize: 11, fontWeight: 600, color: 'var(--cx-muted)',

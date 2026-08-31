@@ -146,6 +146,16 @@ export function MoonIcon({ size = 24, color }: IconProps) {
   );
 }
 
+export function InfoIcon({ size = 24, color }: IconProps) {
+  return (
+    <svg {...base(size)} color={color}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5.5" />
+      <path d="M12 7.6v.2" />
+    </svg>
+  );
+}
+
 /** Mapa nombre→icono para los datos del árbol (decisionTree usa ids, no emojis). */
 const ICONS: Record<string, (p: IconProps) => ReactElement> = {
   globe: GlobeIcon,

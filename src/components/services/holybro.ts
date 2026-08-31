@@ -333,14 +333,51 @@ export function revealFrameOnly(root: THREE.Group) {
 }
 
 
-// ─── Lista de ensamblaje PIEZA A PIEZA (ciclo 9, feedback Alexander) ───
-// El slider N deja EXACTAMENTE N meshes visibles: 1 mesh = 1 pieza, sin
-// agrupar instancias. Orden: 1 motor (sus 2 sub-mallas + su base) → hélice →
-// tubo del brazo → resto de motores/bases/hélices/tubos → frame sup → frame
-// inf → aterrizaje → electrónica → batería → plataforma → tornillería
-// (cada tornillo una entrada).
+// ─── Lista de ensamblaje PIEZA A PIEZA por CUADRANTES (ciclo 10, feedback
+// Alexander) ───
+// Problema ciclo 9: la lista plana de sub-mallas mezclaba cuadrantes (motors
+// [0..1] del traversal eran cuadrantes distintos) — la pieza 3 no coincidía
+// con el brazo del motor inicial. Ciclo 10:
+//   1. Cada pieza es el GRUPO completo (motor multi-primitiva = sus 2
+//      sub-mallas en una entrada) y las piezas del mismo cuadrante van juntas:
+//      motor → base → hélice → tubo del brazo.
+//   2. INSTANCIAS AUTOMÁTICAS: solo el cuadrante 1 (−x,−z) consume slider.
+//      Los cuadrantes 2-4 son entradas `auto` que se revelan solas al
+//      completarse los frames superior + inferior (campo `with` + flag `auto`).
+//   3. Slider 1-50: a 50 se ve TODO (incluida tornillería) — el máximo se
+//      etiqueta "50+".
 
-export interface AssemblyEntry { mesh: THREE.Mesh; es: string; en: string }
+/** Máximo del slider de piezas (decisionTree): a este valor todo es visible. */
+export const MAX_SLIDER_PIECES = 50;
+
+/** Cuadrante del brazo según la posición mundo (x=izq/der, z=frente/atrás). */
+export type Quadrante = '(-x,-z)' | '(+x,-z)' | '(+x,+z)' | '(-x,+z)';
+/** Orden de revelado de los cuadrantes (motor 1 primero, sentido horario visto desde arriba). */
+export const QUADRANTE_ORDER: Quadrante[] = ['(-x,-z)', '(+x,-z)', '(+x,+z)', '(-x,+z)'];
+
+export interface AssemblyEntry {
+  mesh: THREE.Mesh;
+  es: string;
+  en: string;
+  /** Meshes que se revelan JUNTAS con `mesh` sin consumir slider extra
+   *  (el motor/base/hélice completos son grupos multi-primitiva de 2 sub-mallas). */
+  with?: THREE.Mesh[];
+  /** Cuadrante del brazo (solo motor/base/hélice/tubo del brazo). */
+  cuadrante?: Quadrante;
+  /** true = NO consume slider: se revela junto con los frames sup+inf
+   *  (instancias de los cuadrantes 2-4). */
+  auto?: boolean;
+  /** Marcado interno del gate de revelado automático (última entrada del frame
+   *  inferior define cuándo aparecen las instancias). */
+  gate?: 'top' | 'bottom';
+}
+
+/** Cuadrante de una posición mundo (tolerancia: piezas centradas → undefined). */
+const QUAD_TOL = 0.02;
+function quadOfPos(x: number, z: number): Quadrante | undefined {
+  if (Math.abs(x) < QUAD_TOL && Math.abs(z) < QUAD_TOL) return undefined;
+  return `(${x < 0 ? '-' : '+'}x,${z < 0 ? '-' : '+'}z)` as Quadrante;
+}
 
 /** Buckets de montaje. Los regex van sobre el nombre EFECTIVO (meshEffectiveName):
  *  las meshes hijas de nodos multi-primitiva heredan el nombre del MESH del GLB
@@ -365,51 +402,148 @@ const ASSEMBLY_BUCKETS: Array<{ re: RegExp; es: string; en: string }> = [
 const HARDWARE_LABEL = { es: 'Tornillería', en: 'Hardware' };
 
 /**
- * Lista PLANA de meshes individuales en orden de ensamblaje (grandes →
- * pequeñas). Cada mesh aparece UNA vez: el slider k revela las primeras k.
+ * Agrupa las meshes de un bucket en PIEZAS: los grupos multi-primitiva del GLB
+ * (cada motor/base/hélice es un nodo GRUPO con sub-mallas hijas) forman UNA
+ * pieza — la clave es el objeto padre compartido. Mallas sueltas (parent = raíz
+ * o grupos con muchas mallas, p.ej. un contenedor del bucket entero) cuentan
+ * una por una.
+ */
+function pieceMeshes(arr: THREE.Mesh[], root: THREE.Object3D): THREE.Mesh[][] {
+  const byParent = new Map<THREE.Object3D, THREE.Mesh[]>();
+  for (const m of arr) {
+    const p = m.parent ?? root;
+    if (p === root) { byParent.set(m, [m]); continue; } // sin grupo: 1 mesh = 1 pieza
+    const g = byParent.get(p);
+    if (g) g.push(m); else byParent.set(p, [m]);
+  }
+  const groups: THREE.Mesh[][] = [];
+  for (const [, meshes] of byParent) {
+    if (meshes.length > 6) { // contenedor demasiado grande: son piezas sueltas
+      for (const m of meshes) groups.push([m]);
+    } else groups.push(meshes);
+  }
+  return groups;
+}
+
+/**
+ * Lista de ensamblaje en orden (ciclo 10): cuadrante (−x,−z) completo (motor →
+ * base → hélice → tubo del brazo), luego los cuadrantes 2-4 como entradas
+ * automáticas (mismo patrón), y después tubos del frame → frame superior →
+ * frame inferior → tren → electrónica → batería → plataforma → tornillería.
+ * Devuelve además el total de MESHES (para el contador 1:1 y QA).
  */
 export function buildAssemblyReveal(root: THREE.Group): { list: AssemblyEntry[]; total: number } {
+  root.updateMatrixWorld(true);
   const buckets: THREE.Mesh[][] = ASSEMBLY_BUCKETS.map(() => []);
   const hardware: THREE.Mesh[] = [];
+  let total = 0;
   root.traverse(o => {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
+    total++;
     const name = meshEffectiveName(m);
     const bi = ASSEMBLY_BUCKETS.findIndex(b => b.re.test(name));
     if (bi < 0) hardware.push(m);
     else buckets[bi].push(m);
   });
   const [motors, mounts, props, tubes300, tubes, top, bottom, landing, elec, battery, platform] = buckets;
-  const entries = (arr: THREE.Mesh[], es: string, en: string): AssemblyEntry[] =>
-    arr.map(mesh => ({ mesh, es, en }));
-  const list: AssemblyEntry[] = [
-    // pieza 1: UN motor completo (2 sub-mallas) + su base → UNA hélice completa
-    // (2 sub-mallas) → un tubo del brazo
-    ...entries(motors.slice(0, 2), 'Motor', 'Motor'),
-    ...entries(mounts.slice(0, 1), 'Base del motor', 'Motor mount'),
-    ...entries(props.slice(0, 2), 'Hélice', 'Propeller'),
-    ...entries(tubes300.slice(0, 1), 'Tubo del brazo', 'Arm tube'),
-    // resto de motores y bases
-    ...entries(motors.slice(2), 'Motor', 'Motor'),
-    ...entries(mounts.slice(1), 'Base del motor', 'Motor mount'),
-    // resto de hélices y tubos
-    ...entries(props.slice(2), 'Hélice', 'Propeller'),
-    ...entries(tubes300.slice(1), 'Tubo del brazo', 'Arm tube'),
-    ...entries(tubes, 'Tubo del frame', 'Frame tube'),
-    // resto del ensamblaje
-    ...entries(top, 'Frame superior', 'Top frame'),
-    ...entries(bottom, 'Frame inferior', 'Bottom frame'),
-    ...entries(landing, 'Tren de aterrizaje', 'Landing gear'),
-    ...entries(elec, 'Electrónica', 'Electronics'),
-    ...entries(battery, 'Batería', 'Battery'),
-    ...entries(platform, 'Plataforma superior', 'Top platform'),
-    // tornillería: cada instancia una entrada (en orden de traversal)
-    ...entries(hardware, HARDWARE_LABEL.es, HARDWARE_LABEL.en),
-  ];
-  return { list, total: list.length };
+
+  // Piezas por familia (grupos multi-primitiva agrupados por nodo padre)
+  const motorPieces = pieceMeshes(motors, root);
+  const mountPieces = pieceMeshes(mounts, root);
+  const propPieces = pieceMeshes(props, root);
+
+  // Cuadrante de cada pieza: posición de la primera sub-malla en el espacio
+  // LOCAL del modelo (worldToLocal: inmune a la rotación idle del preview).
+  // Las sub-mallas heredan la traslación del grupo multi-primitiva.
+  const quadOfPiece = (meshes: THREE.Mesh[]): Quadrante | undefined => {
+    const p = root.worldToLocal(meshes[0].getWorldPosition(new THREE.Vector3()));
+    return quadOfPos(p.x, p.z);
+  };
+
+  // Tubos del brazo (TUBE300): 2 mallas largas que cruzan el CENTRO (x≈0) —
+  // no tienen cuadrante por posición. Asignación (documentada en
+  // docs/cotizador/assembly-order-ciclo10.md, a verificar en Blender):
+  //   1er tubo (traversal, translation z≈−0.03) → cuadrante 1 (−x,−z)
+  //   2do tubo (z≈+0.03) → cuadrante 3 (+x,+z) — diagonales opuestas del chasis X
+  const tubeQuad: Quadrante[] = ['(-x,-z)', '(+x,+z)'];
+
+  // Piezas indexadas por cuadrante
+  const byQuad = (pieces: THREE.Mesh[][]) => {
+    const map = new Map<Quadrante, THREE.Mesh[]>();
+    for (const piece of pieces) {
+      const q = quadOfPiece(piece);
+      if (q && !map.has(q)) map.set(q, piece);
+    }
+    return map;
+  };
+  const motorQ = byQuad(motorPieces);
+  const mountQ = byQuad(mountPieces);
+  const propQ = byQuad(propPieces);
+  const tubeQ = new Map<Quadrante, THREE.Mesh[]>();
+  tubes300.forEach((m, i) => {
+    const q = tubeQuad[i] ?? QUADRANTE_ORDER[QUADRANTE_ORDER.length - 1];
+    if (!tubeQ.has(q)) tubeQ.set(q, [m]);
+  });
+
+  /** Entradas de UN cuadrante: motor → base → hélice → tubo (si existe). */
+  const pushQuad = (q: Quadrante, auto: boolean) => {
+    const push = (piece: THREE.Mesh[] | undefined, es: string, en: string) => {
+      if (!piece?.length) return;
+      list.push(auto
+        ? { mesh: piece[0], es, en, with: piece.slice(1), cuadrante: q, auto: true }
+        : { mesh: piece[0], es, en, with: piece.slice(1), cuadrante: q });
+    };
+    push(motorQ.get(q), 'Motor', 'Motor');
+    push(mountQ.get(q), 'Base del motor', 'Motor mount');
+    push(propQ.get(q), 'Hélice', 'Propeller');
+    push(tubeQ.get(q), 'Tubo del brazo', 'Arm tube');
+  };
+
+  const list: AssemblyEntry[] = [];
+  // Cuadrante 1 (−x,−z): consume slider (piezas 1-4)
+  pushQuad(QUADRANTE_ORDER[0], false);
+  // Cuadrantes 2-4: instancias automáticas (se revelan con los frames)
+  for (let i = 1; i < QUADRANTE_ORDER.length; i++) pushQuad(QUADRANTE_ORDER[i], true);
+  // Frame: tubos cortos del centro → frame superior (gate) → frame inferior (gate)
+  const entries = (arr: THREE.Mesh[], es: string, en: string, extra?: Partial<AssemblyEntry>): AssemblyEntry[] =>
+    arr.map(mesh => ({ mesh, es, en, ...extra }));
+  list.push(...entries(tubes, 'Tubo del frame', 'Frame tube'));
+  list.push(...entries(top, 'Frame superior', 'Top frame', { gate: 'top' }));
+  list.push(...entries(bottom, 'Frame inferior', 'Bottom frame', { gate: 'bottom' }));
+  list.push(...entries(landing, 'Tren de aterrizaje', 'Landing gear'));
+  list.push(...entries(elec, 'Electrónica', 'Electronics'));
+  list.push(...entries(battery, 'Batería', 'Battery'));
+  list.push(...entries(platform, 'Plataforma superior', 'Top platform'));
+  // tornillería: cada instancia una entrada (en orden de traversal)
+  list.push(...entries(hardware, HARDWARE_LABEL.es, HARDWARE_LABEL.en));
+  return { list, total };
 }
 
-/** Revela las primeras k piezas (1 mesh = 1 entrada). k ≥ total → todo visible. */
+/**
+ * Revelado (ciclo 10): k = piezas que consume el slider (1-50, solo cuadrante
+ * 1 + frame + resto del ensamblaje). Las entradas `auto` (instancias de los
+ * cuadrantes 2-4) se revelan cuando están revelados el frame superior Y el
+ * inferior. k ≥ 50 → TODO visible (incluida tornillería).
+ */
 export function revealAssemblyList(list: AssemblyEntry[], k: number) {
-  list.forEach((e, i) => { e.mesh.visible = i < k; });
+  // rango del gate: última entrada del frame inferior (o del superior si no
+  // hubiera bucket inferior) entre las entradas que SÍ consumen slider
+  let rank = 0, lastTop = 0, lastBottom = 0;
+  for (const e of list) {
+    if (e.auto) continue;
+    rank++;
+    if (e.gate === 'top') lastTop = rank;
+    if (e.gate === 'bottom') lastBottom = rank;
+  }
+  const gate = lastBottom || lastTop || Infinity;
+  const framesDone = k >= gate;
+  const all = k >= MAX_SLIDER_PIECES;
+  let r = 0;
+  for (const e of list) {
+    if (!e.auto) r++;
+    const vis = all || (e.auto ? framesDone : r <= k);
+    e.mesh.visible = vis;
+    if (e.with) for (const m of e.with) m.visible = vis;
+  }
 }

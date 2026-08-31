@@ -46,6 +46,10 @@ export interface TreeQuestion {
   };
   /** Preview para preguntas de tarjetas (no slider). */
   preview?: 'finish';
+  /** Ciclo 10: el preview usa un asset temporal de demostración → la QuestionCard
+   *  muestra una nota profesional aclarando que la versión final usa los modelos
+   *  del producto del cliente. */
+  demoAsset?: boolean;
   /** Si es expandible como "opciones avanzadas". */
   advanced?: boolean;
   advancedOptions?: AdvancedOption[];
@@ -122,6 +126,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
         id: 'nivel-detalle',
         question: '¿Qué nivel de detalle necesitas?',
         help: 'Más detalle = más horas de modelado. Para web, el nivel 3 suele ser suficiente.',
+        demoAsset: true,
         type: 'slider',
         slider: { min: 1, max: 5, step: 0.1, unit: 'nivel', preview: 'detail-level', continuous: true,
           tierMap: [{max:1,tier:'XS'},{max:2,tier:'S'},{max:3,tier:'M'},{max:4,tier:'L'},{max:5,tier:'XL'}] },
@@ -218,6 +223,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
         id: 'nivel-detalle',
         question: '¿Qué nivel de detalle necesitas?',
         help: 'Más detalle = más horas de modelado. Para web, el nivel 3 suele ser suficiente.',
+        demoAsset: true,
         type: 'slider',
         slider: { min: 1, max: 5, step: 0.1, unit: 'nivel', preview: 'detail-level', continuous: true,
           tierMap: [{max:1,tier:'XS'},{max:2,tier:'S'},{max:3,tier:'M'},{max:4,tier:'L'},{max:5,tier:'XL'}] },
@@ -308,6 +314,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
         id: 'nivel-detalle',
         question: '¿Qué nivel de detalle necesita el modelo?',
         help: 'Para scrollytelling el 3D se ve en movimiento: el nivel 2-3 suele bastar.',
+        demoAsset: true,
         type: 'slider',
         slider: { min: 1, max: 5, step: 0.1, unit: 'nivel', preview: 'detail-level', continuous: true,
           tierMap: [{max:1,tier:'XS'},{max:2,tier:'S'},{max:3,tier:'M'},{max:4,tier:'L'},{max:5,tier:'XL'}] },

@@ -20,6 +20,8 @@ export const EN = {
   configurePrice: 'Adjust the variables to see the price',
   hours: 'Hours',
   delivery: 'Delivery',
+  // ciclo 10: con extras el precio grande es el rango del PROYECTO completo
+  yourProject: (n: number) => `Your project · ${n} services`,
   includes: 'Includes',
   alsoIncludes: 'Your project also includes',
   totalProject: 'Project total',
@@ -72,6 +74,8 @@ export const EN = {
     piecePlural: 'parts in the assembly',
     detailCaptions: ['Sketch — geometry only', 'Base — simple shapes', 'Web — production ready', 'High — fine details', 'Max — photoreal'],
     exploded: 'Exploded view',
+    // ciclo 10: nota del asset temporal en los previews de nivel de detalle
+    demoAsset: 'Preview uses a work-in-progress demo asset — the final version shows your product with its own models.',
   },
   cta: {
     whatsapp: 'Send via WhatsApp',
