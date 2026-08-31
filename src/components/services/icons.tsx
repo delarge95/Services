@@ -129,6 +129,15 @@ export function SunIcon({ size = 24, color }: IconProps) {
   );
 }
 
+export function HomeIcon({ size = 24, color }: IconProps) {
+  return (
+    <svg {...base(size)} color={color}>
+      <path d="M4 11.2 12 4l8 7.2" />
+      <path d="M6 9.8V20h12V9.8" />
+    </svg>
+  );
+}
+
 export function MoonIcon({ size = 24, color }: IconProps) {
   return (
     <svg {...base(size)} color={color}>

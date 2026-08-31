@@ -265,13 +265,25 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
       {
         id: 'cantidad-piezas',
         question: '¿Cuántas piezas o partes tiene tu producto?',
-        help: 'Una pieza es más simple que un ensamblaje de 20.',
+        help: 'Las instancias de una misma pieza cuentan una vez (40 tornillos = 1 tipo).',
         type: 'slider',
-        slider: { min: 1, max: 50, step: 1, unit: 'piezas', preview: 'piece-count',
+        slider: { min: 1, max: 50, step: 1, unit: 'piezas', preview: 'assembly',
           tierMap: [{max:5,tier:'S'},{max:15,tier:'M'},{max:30,tier:'L'},{max:50,tier:'XL'}] },
         advancedOptions: [
           { id: 'piezas-moviles', label: '¿Hay piezas móviles o articuladas?', help: 'Articulaciones requieren rigging.', type: 'select',
             options: [{id:'ninguna',label:'No, todo rígido'},{id:'algunas',label:'Sí, 1-5 móviles'},{id:'muchas',label:'Sí, 6+ móviles'}] },
+        ],
+      },
+      {
+        id: 'materiales-acabado',
+        question: '¿Qué acabados tiene tu producto?',
+        help: 'Compara en el modelo real: clay simple, materiales variados o texturizado completo.',
+        preview: 'finish',
+        type: 'cards',
+        options: [
+          { id: 'simple', label: 'Simple', desc: 'Un solo color o material uniforme' },
+          { id: 'variado', label: 'Variado', desc: 'Metal, plástico, goma, pintura' },
+          { id: 'detallado', label: 'Detallado', desc: 'Texturas, logos, grabados, desgaste' },
         ],
       },
       {
@@ -302,7 +314,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
         help: 'Cada escena es una "parada" del scroll donde el 3D muestra algo diferente.',
         type: 'slider',
         slider: {
-          min: 1, max: 11, step: 1, unit: 'escenas', preview: 'story',
+          min: 1, max: 15, step: 1, unit: 'escenas', preview: 'story',
           tierMap: [
             { max: 4, tier: 'S' },
             { max: 7, tier: 'L' },
@@ -332,6 +344,34 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
         type: 'slider',
         slider: { min: 1, max: 5, step: 0.1, unit: 'nivel', preview: 'detail-level', continuous: true,
           tierMap: [{max:1,tier:'XS'},{max:2,tier:'S'},{max:3,tier:'M'},{max:4,tier:'L'},{max:5,tier:'XL'}] },
+      },
+      {
+        id: 'superficie',
+        question: '¿Cómo es la superficie de tu producto?',
+        help: 'De formas duras y prismáticas a curvas orgánicas. El extremo esculpido se acota en discovery.',
+        type: 'slider',
+        slider: { min: 1, max: 5, step: 0.1, unit: 'superficie', preview: 'surface-morph', continuous: true,
+          tierMap: [{max:2,tier:'S'},{max:3,tier:'M'},{max:4,tier:'L'},{max:5,tier:'XL'}] },
+      },
+      {
+        id: 'cantidad-piezas',
+        question: '¿Cuántas piezas o partes tiene tu producto?',
+        help: 'Las instancias de una misma pieza cuentan una vez (40 tornillos = 1 tipo).',
+        type: 'slider',
+        slider: { min: 1, max: 50, step: 1, unit: 'piezas', preview: 'assembly',
+          tierMap: [{max:5,tier:'S'},{max:15,tier:'M'},{max:30,tier:'L'},{max:50,tier:'XL'}] },
+      },
+      {
+        id: 'materiales-acabado',
+        question: '¿Qué acabados tiene tu producto?',
+        help: 'Compara en el modelo real: clay simple, materiales variados o texturizado completo.',
+        preview: 'finish',
+        type: 'cards',
+        options: [
+          { id: 'simple', label: 'Simple', desc: 'Un solo color o material uniforme' },
+          { id: 'variado', label: 'Variado', desc: 'Metal, plástico, goma, pintura' },
+          { id: 'detallado', label: 'Detallado', desc: 'Texturas, logos, grabados, desgaste' },
+        ],
       },
       {
         id: 'tono-historia',
@@ -368,6 +408,34 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
         type: 'slider',
         slider: { min: 2, max: 50, step: 1, unit: 'variantes', preview: 'variant-swirl',
           tierMap: [{max:10,tier:'S'},{max:25,tier:'M'},{max:50,tier:'L'}] },
+      },
+      {
+        id: 'superficie',
+        question: '¿Cómo es la superficie de tu producto?',
+        help: 'De formas duras y prismáticas a curvas orgánicas. El extremo esculpido se acota en discovery.',
+        type: 'slider',
+        slider: { min: 1, max: 5, step: 0.1, unit: 'superficie', preview: 'surface-morph', continuous: true,
+          tierMap: [{max:2,tier:'S'},{max:3,tier:'M'},{max:4,tier:'L'},{max:5,tier:'XL'}] },
+      },
+      {
+        id: 'cantidad-piezas',
+        question: '¿Cuántas piezas o partes tiene tu producto?',
+        help: 'Las instancias de una misma pieza cuentan una vez (40 tornillos = 1 tipo).',
+        type: 'slider',
+        slider: { min: 1, max: 50, step: 1, unit: 'piezas', preview: 'assembly',
+          tierMap: [{max:5,tier:'S'},{max:15,tier:'M'},{max:30,tier:'L'},{max:50,tier:'XL'}] },
+      },
+      {
+        id: 'materiales-acabado',
+        question: '¿Qué acabados tiene tu producto?',
+        help: 'Compara en el modelo real: clay simple, materiales variados o texturizado completo.',
+        preview: 'finish',
+        type: 'cards',
+        options: [
+          { id: 'simple', label: 'Simple', desc: 'Un solo color o material uniforme' },
+          { id: 'variado', label: 'Variado', desc: 'Metal, plástico, goma, pintura' },
+          { id: 'detallado', label: 'Detallado', desc: 'Texturas, logos, grabados, desgaste' },
+        ],
       },
       {
         id: 'modelo-existente',

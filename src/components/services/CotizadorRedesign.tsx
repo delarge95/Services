@@ -20,9 +20,7 @@ import { bundlePct, esquemaPago, RONDAS_NOTA } from '../../lib/services/quoteSum
 import { QuoteCta } from './QuoteCta';
 import { GuidedWizard } from './GuidedWizard';
 import { RefDropzone } from './RefDropzone';
-import { SunIcon, MoonIcon } from './icons';
-import { ModelPreview } from './ModelPreview';
-import type { PreviewMode } from './ModelPreview';
+import { SunIcon, MoonIcon, HomeIcon, GearIcon } from './icons';
 
 /** Etiqueta/nota de un pick en el idioma activo (fallback: español). */
 const pickLabel = (p: WizardPick, lang: Lang) => (lang === 'en' ? EXTRA_LABELS_EN[p.labelEs] ?? p.labelEs : p.labelEs);
@@ -32,6 +30,14 @@ const pickNota = (p: WizardPick, lang: Lang) => (lang === 'en' ? p.notaEs ? EXTR
 function ThemeIcon({ dark }: { dark: boolean }) {
   return dark ? <SunIcon size={16} /> : <MoonIcon size={16} />;
 }
+
+/** Variables que el wizard YA pregunta (ocultas en el panel de configuración;
+ *  se editan con el botón 'Editar detalles' → menú anterior con respuestas). */
+const WIZARD_INFORMED: Record<string, string[]> = {
+  'WEB-01': ['numHotspots'],
+  'WEB-05': ['numSecciones'],
+  'WEB-04': ['numVariantes', 'auth', 'fuenteDatos'],
+};
 
 type Val = number | string | boolean;
 type Urgency = 'none' | '72h' | '24h';
@@ -279,28 +285,6 @@ function VariableControl({ v, value, onValue, lang, serviceId }: {
   );
 }
 
-/** Agrupa variables de un servicio en secciones colapsables con título humano. */
-const VAR_GROUP_RULES: Array<{ titleEs: string; titleEn: string; match: RegExp }> = [
-  { titleEs: 'Modelo', titleEn: 'Model', match: /polígono|pieza|parte|superficie|material|geometría|textura|complejidad|calidad|fuente del modelo|de dónde viene el modelo/i },
-  { titleEs: 'Visor', titleEn: 'Viewer', match: /visita|interacción|shader|efecto|animación|estado|loop|rig|hotspot|punto de información/i },
-  { titleEs: 'Entrega', titleEn: 'Delivery', match: /escena|sección|variante|sku|producto|entrega|plataforma|dónde va|dónde va a correr|login|auth|datos|filtro|cms|api|idioma|acción|flujo|proceso|duración|shot|simulación|audio|imagen|resolución|set dressing|tamaño|bridge|scores|leaderboard|mecánica|slide|tiene 3d|presupuesto/i },
-];
-function groupVariables(vars: ServiceVariable[]): Array<{ titleEs: string; titleEn: string; vars: ServiceVariable[] }> {
-  // pocos variables → un único grupo sin desglose
-  if (vars.length <= 3) return [{ titleEs: 'Configuración', titleEn: 'Settings', vars }];
-  const groups = new Map<number, ServiceVariable[]>();
-  for (const v of vars) {
-    const gi = VAR_GROUP_RULES.findIndex(r => r.match.test(v.preguntaEs));
-    const idx = gi < 0 ? VAR_GROUP_RULES.length : gi;
-    if (!groups.has(idx)) groups.set(idx, []);
-    groups.get(idx)!.push(v);
-  }
-  return [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([idx, list]) => {
-    const rule = VAR_GROUP_RULES[idx] ?? { titleEs: 'Configuración', titleEn: 'Settings' };
-    return { titleEs: rule.titleEs, titleEn: rule.titleEn, vars: list };
-  });
-}
-
 // ═══════════════════════════════════════════════════════════════
 // MAIN — Rediseño completo
 // ═══════════════════════════════════════════════════════════════
@@ -322,6 +306,12 @@ export function CotizadorRedesign() {
   const [familyFilter, setFamilyFilter] = useState<string>('todas');
   /** Tema claro/oscuro (persistido; respeta prefers-color-scheme la primera vez). */
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  /** true si se llegó por el wizard (historial con draft) → muestra 'Editar detalles'. */
+  const [canEditDetails, setCanEditDetails] = useState(false);
+  useEffect(() => {
+    const st = window.history.state;
+    setCanEditDetails(!!(st && st.cx === 'cotizador' && st.draft));
+  }, [serviceId]);
 
   useEffect(() => {
     try {
@@ -357,11 +347,20 @@ export function CotizadorRedesign() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
+  /** #15: volver a la página principal (nivel 1 del wizard), sin configs colgadas. */
+  const goHome = () => {
+    setMode('guided'); setServiceId(''); setVals({}); setExtras([]);
+    setUnsure({}); setFirstClient(true); setUrgency('none');
+    if (typeof window !== 'undefined') window.history.replaceState({ cx: 'cotizador' }, '');
+  };
+
   const svc = WEB3D.find(s => s.id === serviceId);
   // ocultarEnConfig (ciclo 8/WEB-04): la variable existe y su valor viene del
   // wizard vía planWebApp, pero no se muestra en el panel por redundante.
   const variables: ServiceVariable[] = serviceId
-    ? (SERVICE_VARIABLES[serviceId]?.variables ?? []).filter(v => !v.ocultarEnConfig)
+    ? (SERVICE_VARIABLES[serviceId]?.variables ?? [])
+      .filter(v => !v.ocultarEnConfig)
+      .filter(v => !(WIZARD_INFORMED[serviceId] ?? []).includes(v.id)) // ya se preguntó en el wizard (#6)
     : [];
   const tier = useMemo(() => serviceId ? derivarTier(serviceId, vals) : null, [serviceId, vals]);
   // D1 ciclo 2.1: urgencia alineada a docs (+30/+50); descuento lanzamiento −25% se conserva.
@@ -375,19 +374,6 @@ export function CotizadorRedesign() {
   }, [svc, tier, currency, quoteOpts]);
 
   /** Aplica el plan del wizard: principal en configuración, resto como líneas extra. */
-  /** Sección 3: qué preview mostrar en el panel de configuración según el servicio. */
-  const configPreview: { mode: PreviewMode; detail?: number; story?: number; hotspots?: number; variantSel?: { c: number; m: number; a: number } } | null = (() => {
-    if (!svc) return null;
-    switch (svc.id) {
-      case 'WEB-05':
-        return { mode: 'story' as const, story: typeof vals.numSecciones === 'number' ? vals.numSecciones : 5 };
-      case 'WEB-04':
-        return { mode: 'variants' as const, variantSel: { c: 2, m: 1, a: 1 } };
-      default:
-        return { mode: 'detail' as const, detail: 3 };
-    }
-  })();
-
   const applyPlan = (plan: WizardQuotePlan) => {
     const principal = plan.picks[0];
     if (!principal) return;
@@ -496,7 +482,16 @@ export function CotizadorRedesign() {
         padding: '20px 32px', position: 'relative', zIndex: 2,
         borderBottom: '1px solid var(--cx-border)',
       }}>
-        <strong style={{ fontSize: 16, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.02em' }}>{BRAND.name}</strong>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button onClick={goHome} aria-label={lang === 'es' ? 'Inicio' : 'Home'} title={lang === 'es' ? 'Inicio' : 'Home'}
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', background: 'var(--cx-tile)', border: 'none', cursor: 'pointer', color: 'var(--cx-text)' }}>
+            <HomeIcon size={16} />
+          </button>
+          <button onClick={goHome}
+            style={{ fontSize: 16, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.02em', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit' }}>
+            {BRAND.name}
+          </button>
+        </div>
         <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           <button onClick={() => { setMode('guided'); setServiceId(''); }}
             style={{ font: '600 14px inherit', color: mode === 'guided' ? 'var(--cx-accent)' : 'var(--cx-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
@@ -540,44 +535,31 @@ export function CotizadorRedesign() {
               </button>
               <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: 0 }}>{lang === 'en' ? (CATALOG_EN[svc.id]?.name ?? svc.nameEs) : svc.nameEs}</h2>
 
-              {/* Sección 3: el preview del servicio reacciona a los sliders de configuración */}
-              {configPreview && (
-                <div style={{
-                  background: 'var(--cx-card)', backdropFilter: 'blur(12px)',
-                  border: '1px solid var(--cx-border)', borderRadius: 20, padding: '16px 20px 10px',
-                }}>
-                  <ModelPreview mode={configPreview.mode} detail={configPreview.detail} story={configPreview.story}
-                    hotspots={configPreview.hotspots} variantSel={configPreview.variantSel} lang={lang} height={150} />
-                  <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--cx-muted)', marginTop: 2 }}>
-                    {lang === 'es' ? 'El modelo reacciona en vivo a tus sliders' : 'The model reacts live to your sliders'}
-                  </div>
-                </div>
+              {/* #6: 'Editar detalles' despliega el menú anterior (wizard) con
+                  todas las configuraciones hechas y las respuestas conservadas */}
+              {canEditDetails && variables.length > 0 && (
+                <button
+                  onClick={() => { if (typeof window !== 'undefined') window.history.back(); }}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
+                    padding: '10px 22px', borderRadius: 999,
+                    font: '600 14px inherit', color: 'var(--cx-accent)',
+                    background: 'none', border: '1px solid var(--cx-accent-border)', cursor: 'pointer',
+                  }}>
+                  <GearIcon size={16} /> {lang === 'es' ? 'Editar detalles' : 'Edit details'}
+                </button>
               )}
 
+              {/* Ajustes restantes (solo los que el wizard no pregunta) */}
               {variables.length > 0 && (
                 <div style={{
                   background: 'var(--cx-card)', backdropFilter: 'blur(12px)',
                   border: '1px solid var(--cx-border)', borderRadius: 20, padding: 20,
-                  display: 'flex', flexDirection: 'column', gap: 6,
+                  display: 'flex', flexDirection: 'column', gap: 22,
                 }}>
-                  {groupVariables(variables).map((g, gi) => (
-                    <details key={g.titleEs} open={gi === 0} style={{ borderRadius: 12, overflow: 'hidden' }}>
-                      <summary style={{
-                        cursor: 'pointer', listStyle: 'none', userSelect: 'none',
-                        padding: '12px 14px', background: 'var(--cx-tile)', borderRadius: 10,
-                        fontSize: 14, fontWeight: 600, color: 'var(--cx-text)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      }}>
-                        <span>{lang === 'en' ? g.titleEn : g.titleEs}</span>
-                        <span style={{ fontSize: 12, color: 'var(--cx-faint)', fontWeight: 500 }}>{g.vars.length}</span>
-                      </summary>
-                      <div style={{ padding: '16px 4px 8px', display: 'flex', flexDirection: 'column', gap: 22 }}>
-                        {g.vars.map(v => (
-                          <VariableControl key={v.id} v={v} value={vals[v.id]} lang={lang} serviceId={serviceId}
-                            onValue={(n) => { setVals(p => ({ ...p, [v.id]: n })); setUnsure(p => { const q = { ...p }; delete q[v.id]; return q; }); }} />
-                        ))}
-                      </div>
-                    </details>
+                  {variables.map(v => (
+                    <VariableControl key={v.id} v={v} value={vals[v.id]} lang={lang} serviceId={serviceId}
+                      onValue={(n) => { setVals(p => ({ ...p, [v.id]: n })); setUnsure(p => { const q = { ...p }; delete q[v.id]; return q; }); }} />
                   ))}
                 </div>
               )}

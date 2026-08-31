@@ -78,7 +78,7 @@ export function loadHolybroInstance(): Promise<THREE.Group> {
 
 // Ciclo 6: el clay anterior (0xd8cfc4) salía quemado/blanco con el iluminado
 // de finish. Gris medio más oscuro (#847e77) para leer bordes y curvas.
-const clayMat = () => new THREE.MeshStandardMaterial({ color: 0x7a746d, roughness: 0.9, metalness: 0.0, flatShading: true });
+const clayMat = () => new THREE.MeshStandardMaterial({ color: 0x615f66, roughness: 0.92, metalness: 0.0, flatShading: true });
 const presetMats = () => [
   new THREE.MeshStandardMaterial({ color: 0x2b2b2f, roughness: 0.55, metalness: 0.25 }), // plástico negro
   new THREE.MeshStandardMaterial({ color: 0x8f9297, roughness: 0.35, metalness: 0.85 }), // aluminio
@@ -207,10 +207,10 @@ const hash = (s: string) => [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) |
  * Expresiones sobre los nombres de nodo del GLB del X500.
  */
 export const HOLYBRO_STEPS: Array<{ match: RegExp; es: string; en: string }> = [
-  { match: /DJ-2216-KV880_001|HMX5V-DIGAI-DIANJIZUO-MUJU_001/i, es: 'Motor', en: 'Motor' },
-  { match: /propeller(?!_instance)/i, es: 'Hélice', en: 'Propeller' },
-  { match: /CARBON-FIBER-TUBE300_001/i, es: 'Tubo del brazo', en: 'Arm tube' },
-  { match: /TOP-PLATE|CARBON-FIBER-TUBE|DJ-2216-KV880|HMX5V-DIGAI|propeller_instance|HMX5V-GUAN-DINGWEI/i, es: 'Frame superior (instancias ×4)', en: 'Top frame (×4 instances)' },
+  { match: /DJ-2216-KV880|HMX5V-DIGAI-DIANJIZUO-MUJU/i, es: 'Motor', en: 'Motor' },
+  { match: /propeller/i, es: 'Hélice', en: 'Propeller' },
+  { match: /CARBON-FIBER-TUBE300/i, es: 'Tubo del brazo', en: 'Arm tube' },
+  { match: /TOP-PLATE|CARBON-FIBER-TUBE|DJ-2216-KV880|HMX5V|propeller_instance/i, es: 'Frame superior (instancias ×4)', en: 'Top frame (×4 instances)' },
   { match: /BOTTOM-PLATE|JIA-GUAN|GUAN-CHENG|JIA-LIANJIE/i, es: 'Frame inferior', en: 'Bottom frame' },
   { match: /PYLONS-X500|MAO-JIAO|JIAO-EVA|HUAN-GUIJIAO|JIAO-LIANJIE/i, es: 'Tren de aterrizaje', en: 'Landing gear' },
   { match: /PIXHAWK|IMU|PCB|GPS|TELEMETRY|XT60|BM06B|TOU-|DIKE-|MIANKE|GAI-GUANGLIU|ZHIJIA-CAMERA|GAN-GPSV5|GPSV5-ZHIJIA|GPS-ZHIJIA|x500v2_gps|x500v2_telemetry/i, es: 'Electrónica', en: 'Electronics' },
@@ -273,6 +273,8 @@ export function buildPieceOrder(root: THREE.Group): PieceGroup[] {
       g = { meshes: [], step: (m.userData.step as number) ?? HOLYBRO_STEPS.length - 1 };
       map.set(key, g);
     }
+    // step del grupo = MÍNIMO de sus miembros (un motor .002 es tan motor como el _001)
+    g.step = Math.min(g.step, (m.userData.step as number) ?? HOLYBRO_STEPS.length - 1);
     g.meshes.push(m);
   });
   return [...map.values()].sort((a, b) => a.step - b.step);
@@ -283,6 +285,48 @@ export function revealPieces(order: PieceGroup[], k: number) {
   order.forEach((g, i) => {
     const vis = i < k;
     for (const m of g.meshes) m.visible = vis;
+  });
+}
+
+// ─── Stages de ensamblaje MOTOR-PRIMERO (ciclo 7, feedback Alexander) ───
+// 1 motor → +hélice → +tubo → frame superior (×4 instancias) → frame inferior
+// → aterrizaje → electrónica → batería → plataforma → tornillería (instancias).
+
+export const ASSEMBLY_STAGE_PREDICATES: RegExp[] = [
+  /DJ-2216-KV880_001|HMX5V-DIGAI-DIANJIZUO-MUJU_001/i,   // 0: UN motor con su base
+  /x500v2_propeller_low/i,                                 // 1: UNA hélice
+  /CARBON-FIBER-TUBE300_001/i,                             // 2: UN tubo del brazo
+  /TOP-PLATE|CARBON-FIBER-TUBE|DJ-2216-KV880|HMX5V|propeller_instance|propeller_low/i, // 3: frame superior + instancias ×4
+  /BOTTOM-PLATE|JIA-GUAN|GUAN-CHENG|JIA-LIANJIE/i,         // 4: frame inferior
+  /PYLONS-X500|MAO-JIAO|JIAO-EVA|HUAN-GUIJIAO|JIAO-LIANJIE/i, // 5: tren de aterrizaje
+  /PIXHAWK|IMU|PCB|GPS|TELEMETRY|XT60|BM06B|TOU-|DIKE-|MIANKE|GAI-GUANGLIU|ZHIJIA-CAMERA|GAN-GPSV5|GPSV5-ZHIJIA|GPS-ZHIJIA|x500v2_gps|x500v2_telemetry/i, // 6: electrónica
+  /battery|BATTERY/i,                                      // 7: batería
+  /PLATFORM-PLAT|X500-TAO/i,                               // 8: plataforma superior
+  /./i,                                                    // 9: tornillería (instancias)
+];
+
+export const ASSEMBLY_STAGE_NAMES = HOLYBRO_STEPS;
+
+/** Marca cada mesh con userData.assmStage (0-9) según los stages de ensamblaje. */
+export function tagAssemblyStages(root: THREE.Group) {
+  root.traverse(o => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const name = m.name ?? '';
+    for (let i = 0; i < ASSEMBLY_STAGE_PREDICATES.length; i++) {
+      if (ASSEMBLY_STAGE_PREDICATES[i].test(name)) { m.userData.assmStage = i; break; }
+    }
+  });
+}
+
+/** Revelado por stages: visible si assmStage <= k-1 (k = 1..10). */
+export function revealAssemblyStages(root: THREE.Group, k: number) {
+  root.traverse(o => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const st = m.userData.assmStage as number | undefined;
+    if (st === undefined) return;
+    m.visible = st <= k - 1;
   });
 }
 

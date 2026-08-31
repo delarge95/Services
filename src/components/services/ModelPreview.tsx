@@ -26,8 +26,8 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { EN, TRIS_ETIQUETAS } from '../../data/services/i18n';
-import { loadHolybroInstance, applyFinish, buildPieceOrder, revealPieces, ensureVariadoSet, revealFrameOnly, droneStepFamily, HOLYBRO_STEPS } from './holybro';
-import type { FinishKind, PieceGroup, VariadoSet } from './holybro';
+import { loadHolybroInstance, applyFinish, ensureVariadoSet, revealFrameOnly, droneStepFamily, tagAssemblyStages, revealAssemblyStages, ASSEMBLY_STAGE_NAMES } from './holybro';
+import type { FinishKind, VariadoSet } from './holybro';
 import { loadAnvilInstance, applySurfaceMorph, ANVIL_MORPH_NODE } from './anvil';
 import type { Lang } from '../../data/services/i18n';
 
@@ -40,7 +40,7 @@ export type PreviewMode = 'detail' | 'pieces' | 'story' | 'variants' | 'surface'
 // ═══════════════════════════════════════════════════════════════
 export type VariantSlotKind = 'color' | 'toggle' | 'luz';
 export type ColorTarget = 'all' | 'motors' | 'propellers' | 'frames';
-export type SlotFx = 'explode' | 'clip' | 'filter' | 'xray' | 'lineart' | 'flight' | 'isolate' | 'battery' | 'electronics' | 'platform';
+export type SlotFx = 'explode' | 'clip' | 'filter' | 'xray' | 'lineart' | 'flight' | 'battery' | 'electronics' | 'platform';
 
 export interface VariantSlot {
   id: string;
@@ -70,7 +70,6 @@ export const VARIANT_SLOTS: VariantSlot[] = [
   { id: 'luz-estudio', es: 'Luz de estudio', en: 'Studio lighting', kind: 'luz' },
   { id: 'luz-natural', es: 'Luz natural', en: 'Natural lighting', kind: 'luz' },
   { id: 'luz-dramatica', es: 'Luz dramática', en: 'Dramatic lighting', kind: 'luz' },
-  { id: 'aislamiento-piezas', es: 'Aislamiento de piezas', en: 'Part isolation', kind: 'toggle', fx: 'isolate' },
 ];
 
 export interface VariantSlotsState {
@@ -82,8 +81,6 @@ export interface VariantSlotsState {
   filterFrame: boolean;
   filterMotors: boolean;
   filterPropellers: boolean;
-  /** aislamiento-piezas: familia enfocada (null = ninguna). */
-  isolate: 'frame' | 'motors' | 'propellers' | null;
 }
 
 /** Hex por defecto de cada slot de color. */
@@ -99,12 +96,9 @@ export const STORY_ANIMS = [
   { es: 'Giro', en: 'Spin', glyph: '↻' },
   { es: 'Explosión', en: 'Explode', glyph: '✦' },
   { es: 'Primer plano', en: 'Close-up', glyph: '⌕' },
-  { es: 'Órbita', en: 'Orbit', glyph: '◐' },
   { es: 'Salto', en: 'Hop', glyph: '↑' },
   { es: 'Despliegue', en: 'Deploy', glyph: '✳' },
   { es: 'Tumble', en: 'Tumble', glyph: '⟳' },
-  { es: 'Presentación', en: 'Showcase', glyph: '★' },
-  { es: 'Giro inverso', en: 'Reverse spin', glyph: '↺' },
   { es: 'Pulso', en: 'Pulse', glyph: '◉' },
   { es: 'Despegue', en: 'Takeoff', glyph: '▲' },
 ] as const;
@@ -529,14 +523,11 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     group.add(holybroRoot);
     let holybroStarted = false;
     let holybroReady: THREE.Group | null = null;
-    let hbOrder: PieceGroup[] = [];
     let variadoSet: VariadoSet | null = null;
     let lastFinish: FinishKind | null = null;
     let lastPieceCount = -1;
-    // ciclo 6 — vista explosionada en assembly (al idle 3s)
+    // ciclo 7 — explosión ACTIVA: ciclo continuo desarma ↔ arma tras el idle
     let hbCenter = new THREE.Vector3(0, 0, 0);
-    let assmExplode = 0;
-    let assmExplodeTarget = 0;
     function startHolybro() {
       if (holybroStarted) return;
       holybroStarted = true;
@@ -544,10 +535,10 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         .then(root => {
           holybroRoot.add(root);
           holybroReady = root;
-          hbOrder = buildPieceOrder(root);
-          revealPieces(hbOrder, hbOrder.length);
-          // posición base de cada pieza (para la explosión al idle) y centro del drone
-          hbOrder.forEach(g => g.meshes.forEach(m => { m.userData.assmHome = m.position.clone(); }));
+          tagAssemblyStages(root);
+          revealAssemblyStages(root, ASSEMBLY_STAGE_NAMES.length);
+          // posición base de cada pieza (para la explosión) y centro del drone
+          root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) m.userData.assmHome = m.position.clone(); });
           hbCenter = new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());
           // UNA sola aplicación inicial: assembly usa presets 'variado',
           // finish usa el acabado elegido (o 'detallado' por defecto)
@@ -577,6 +568,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     let storyDroneStarted = false;
     let storyDroneReady: THREE.Group | null = null;
     let storyDroneVariado: VariadoSet | null = null;
+    let storyCenter = new THREE.Vector3(0, 0, 0);
     function startStoryDrone() {
       if (storyDroneStarted) return;
       storyDroneStarted = true;
@@ -585,6 +577,9 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
           storyDroneRoot.add(root);
           storyDroneReady = root;
           applyFinish(root, 'variado', null);
+          // hogares por mesh para la explosión REAL del story (ciclo 7)
+          root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) m.userData.storyHome = m.position.clone(); });
+          storyCenter = new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());
           storyDroneRoot.visible = stateRef.current.mode === 'story';
           if (stateRef.current.mode === 'story') prod.visible = false;
           return ensureVariadoSet(root).then(set => {
@@ -614,7 +609,6 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       }
       return m;
     };
-    const dimVariantMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2f, metalness: 0.4, roughness: 0.6 });
     const variantEdgesGroup = new THREE.Group();
     variantDroneRoot.add(variantEdgesGroup);
     const variantEdges: THREE.LineSegments[] = [];
@@ -625,8 +619,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     const colorTargetOf = (step: number | undefined): ColorTarget | 'other' => {
       if (step === 0) return 'motors';
       if (step === 1) return 'propellers';
-      if (step === 3 || step === 4) return 'frames';
-      return 'other';
+      return 'frames'; // tubos + frames + tren + tornillería: set visible, tiñe con frame
     };
 
     function startVariantDrone() {
@@ -732,19 +725,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh && m.material) (m.material as THREE.Material).clippingPlanes = []; });
       }
 
-      // ── 5. aislamiento de piezas: atenúa las familias no enfocadas ──
-      const iso = s.on[16] ? s.isolate : null;
-      if (iso) {
-        root.traverse(o => {
-          const m = o as THREE.Mesh;
-          if (!m.isMesh) return;
-          const fam = droneStepFamily(m.userData.step as number | undefined);
-          const focus = (iso === 'frame' && fam === 'frame') || (iso === 'motors' && fam === 'motors') || (iso === 'propellers' && fam === 'propellers');
-          if (!focus && m.visible) m.material = dimVariantMat;
-        });
-      }
-
-      // ── 6. luces (excluyentes) ──
+      // ── 5. luces (excluyentes) ──
       applyLuzPreset(s.on[13] ? 0 : s.on[14] ? 1 : s.on[15] ? 2 : -1);
     };
 
@@ -883,7 +864,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       const tl = timelineRef.current;
       if (tl) {
         if (cur.mode === 'story') {
-          const n = Math.max(1, Math.min(STORY_ANIMS.length, Math.round(cur.story)));
+          const n = Math.max(1, Math.round(cur.story));
           if (tl.childElementCount !== n) {
             tl.replaceChildren();
             for (let i = 0; i < n; i++) {
@@ -891,8 +872,8 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
               chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:999px;border:1px solid var(--cx-border);background:var(--cx-card-solid);color:var(--cx-muted);white-space:nowrap;transition:all .25s;pointer-events:auto;cursor:pointer;';
               chip.addEventListener('click', () => {
                 // seleccionar momento: salta a reproducirlo; el ciclo continúa desde ahí
-                storyActive = i;
-                storyT0 = performance.now() / 1000 - i * STORY_DURATION;
+                storyActive = Math.min(i, STORY_ANIMS.length - 1);
+                storyT0 = performance.now() / 1000 - storyActive * STORY_DURATION;
                 lastStoryCount = n;
               });
               tl.appendChild(chip);
@@ -901,8 +882,10 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
           const kids = Array.from(tl.children) as HTMLElement[];
           kids.forEach((chip, i) => {
             const anim = STORY_ANIMS[i];
-            const name = cur.lang === 'es' ? anim.es : anim.en;
-            const text = `${anim.glyph} ${name}`;
+            const name = anim
+              ? (cur.lang === 'es' ? anim.es : anim.en)
+              : `+${i - STORY_ANIMS.length + 1}`;
+            const text = anim ? `${anim.glyph} ${name}` : name;
             if (chip.textContent !== text) chip.textContent = text;
             const active = i === storyActive;
             chip.style.borderColor = active ? 'var(--cx-accent)' : 'var(--cx-border)';
@@ -988,46 +971,37 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         holybroRoot.rotation.y = t * 0.25;
       }
       if (cur.mode === 'assembly') {
-        if (holybroReady && hbOrder.length) {
-          // Revelado POR PIEZAS: el slider (1-50) reparte el total de piezas
-          // únicas del GLB de forma progresiva (instancias cuentan una vez y
-          // se revelan juntas). Orden: pasos de montaje grandes → pequeñas.
-          const total = hbOrder.length;
-          const k = Math.max(1, Math.min(total, Math.round((Math.max(1, Math.min(50, cur.pieces)) / 50) * total)));
-          if (k !== lastPieceCount) { revealPieces(hbOrder, k); lastPieceCount = k; lastPiecesChange = performance.now(); }
-          const stepName = HOLYBRO_STEPS[Math.min(hbOrder[Math.min(k, total) - 1].step, HOLYBRO_STEPS.length - 1)];
+        if (holybroReady) {
+          // ciclo 7 — revelado por STAGES motor-primero: el slider (1-50) mapea a
+          // los 10 stages (1 motor → hélice → tubo → frame ×4 → ... → tornillería).
+          const k = Math.max(1, Math.min(ASSEMBLY_STAGE_NAMES.length, Math.ceil(Math.max(1, Math.min(50, cur.pieces)) / 5)));
+          if (k !== lastPieceCount) { revealAssemblyStages(holybroReady, k); lastPieceCount = k; lastPiecesChange = performance.now(); }
+          const stageName = ASSEMBLY_STAGE_NAMES[Math.min(k, ASSEMBLY_STAGE_NAMES.length) - 1];
           if (uiRef.current) {
-            uiRef.current.textContent = cur.lang === 'es' ? stepName.es : stepName.en;
+            uiRef.current.textContent = cur.lang === 'es' ? stageName.es : stageName.en;
             uiRef.current.style.opacity = '1';
           }
           holybroRoot.rotation.y = t * 0.25;
-          // ciclo 6 — encuadre dinámico: la cámara AMPLÍA su encuadre según el
-          // bbox de las piezas visibles (zoom cerrado al inicio, conjunto completo
-          // al final). Ease exponencial sobre la distancia objetivo.
+          // encuadre dinámico por bbox de piezas visibles
           const sph = computeVisibleSphere(holybroReady);
           const targetDist = Math.max(1.25, Math.min(4.6, sph.radius * 3.4));
           assmCamDist += (targetDist - assmCamDist) * 0.055;
           cam.position.set(0, 0.95, assmCamDist);
           cam.lookAt(sph.center.x, sph.center.y * 0.6 + 0.15, sph.center.z);
-          // ciclo 6 — vista explosionada: tras ~3s de inactividad las piezas
-          // visibles se separan radialmente (proporcional a su distancia al centro);
-          // se recomponen al volver a mover el slider.
+          // ciclo 7 — explosión ACTIVA: tras 3 s de inactividad el ensamblaje entra
+          // en un ciclo continuo desarma ↔ arma (el cliente ve ambas vistas).
           const idle = (performance.now() - lastPiecesChange) / 1000;
-          assmExplodeTarget = idle > 3 ? 1 : 0;
-          assmExplode += (assmExplodeTarget - assmExplode) * 0.05;
-          const e = assmExplode * assmExplode * (3 - 2 * assmExplode);
-          for (const g of hbOrder) {
-            for (const m of g.meshes) {
-              const home = m.userData.assmHome as THREE.Vector3 | undefined;
-              if (!home) continue;
-              const dir = home.clone().sub(hbCenter);
-              const target = home.clone().add(dir.clone().normalize().multiplyScalar(dir.length() * 0.85 * e));
-              m.position.lerp(target, 0.12);
-            }
-          }
+          const e = idle > 3 ? 0.5 - 0.5 * Math.cos(((idle - 3) * Math.PI * 2) / 3.6) : 0;
+          holybroReady.traverse(o => {
+            const m = o as THREE.Mesh;
+            if (!m.isMesh || !m.visible) return;
+            const home = m.userData.assmHome as THREE.Vector3 | undefined;
+            if (!home) return;
+            const dir = home.clone().sub(hbCenter);
+            const target = home.clone().add(dir.clone().normalize().multiplyScalar(dir.length() * 0.85 * e));
+            m.position.lerp(target, 0.12);
+          });
         }
-      } else if (cur.mode !== 'detail' && uiRef.current && uiRef.current.textContent && uiRef.current.textContent.startsWith('≈') === false && cur.mode !== 'hotspots') {
-        // limpia la etiqueta de paso si salimos de assembly (el resto lo gestiona renderUi)
       }
       if (cur.mode === 'hotspots') {
         markerGroup.visible = true;
@@ -1057,8 +1031,8 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       if (cur.mode === 'pieces') {
         if (cur.pieces !== builtPieces) { syncParts(Math.min(MAX_VISIBLE, Math.max(1, cur.pieces))); builtPieces = cur.pieces; }
         const idle = (performance.now() - lastPiecesChange) / 1000;
-        explodeTarget = idle > 3 ? 1 : 0;
-        explode += (explodeTarget - explode) * 0.06;
+        // ciclo 7 — desarma ↔ arma en ciclo (no queda estático desarmado)
+        explode = idle > 3 ? 0.5 - 0.5 * Math.cos(((idle - 3) * Math.PI * 2) / 3.2) : 0;
         const e = explode * explode * (3 - 2 * explode);
         for (const part of sats) {
           const age = Math.min(1, (performance.now() - part.born) / 380);
@@ -1070,9 +1044,10 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         }
       }
       if (cur.mode === 'story') {
-        const n = Math.max(1, Math.min(STORY_ANIMS.length, Math.round(cur.story)));
+        // ciclo 7: más escenas que las del catálogo → las extra son chips '+N'
+        const n = Math.max(1, Math.round(cur.story));
         if (n !== lastStoryCount) {
-          storyActive = n - 1;
+          storyActive = Math.min(n, STORY_ANIMS.length) - 1;
           storyT0 = performance.now() / 1000 - storyActive * STORY_DURATION;
           lastStoryCount = n;
         }
@@ -1081,25 +1056,45 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         storyActive = idx;
         const p = (elapsed % STORY_DURATION) / STORY_DURATION;
         const ease = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
-        // reset base del drone HolyBro (ciclo 6: el story usa el drone real)
+        // reset base del drone HolyBro
         storyDroneRoot.position.set(0, 0, 0);
         storyDroneRoot.rotation.set(0, 0, 0);
         storyDroneRoot.scale.set(1, 1, 1);
         cam.position.set(0, 1.0, 4.8);
         cam.lookAt(0, 0.15, 0);
+        // hélices girando sobre su eje vertical (despegue/giro/extra)
+        const spinProps = (k: number) => {
+          if (!storyDroneReady) return;
+          storyDroneReady.traverse(o => {
+            const m = o as THREE.Mesh;
+            if (m.isMesh && /propeller/i.test(m.name ?? '')) m.rotation.y += k;
+          });
+        };
         switch (idx) {
-          case 0: storyDroneRoot.rotation.y = ease * Math.PI * 2; break;
-          case 1: { const k = Math.sin(p * Math.PI); storyDroneRoot.scale.setScalar(1 + k * 0.35); break; }
+          case 0: spinProps(0.35); storyDroneRoot.rotation.y = ease * Math.PI * 2; break;
+          case 1: {
+            // ciclo 7 — Explosión REAL: la vista explosionada de las piezas del HolyBro
+            const k = Math.sin(p * Math.PI);
+            if (storyDroneReady) {
+              storyDroneReady.traverse(o => {
+                const m = o as THREE.Mesh;
+                if (!m.isMesh) return;
+                const home = m.userData.storyHome as THREE.Vector3 | undefined;
+                if (!home) return;
+                const dir = home.clone().sub(storyCenter);
+                const target = home.clone().add(dir.clone().normalize().multiplyScalar(dir.length() * 1.1 * k));
+                m.position.lerp(target, 0.18);
+              });
+            }
+            break;
+          }
           case 2: cam.position.set(0.5, 0.9, 3.2 - Math.sin(p * Math.PI) * 0.8); cam.lookAt(0, 0.3, 0); break;
-          case 3: { const a = 0.6 + ease * Math.PI; cam.position.set(Math.sin(a) * 4.6, 1.0, Math.cos(a) * 4.6); cam.lookAt(0, 0.15, 0); break; }
-          case 4: { const k = Math.abs(Math.sin(p * Math.PI * 2)); storyDroneRoot.position.y = k * 0.6; storyDroneRoot.scale.set(1 + (1 - k) * 0.1, 1 - (1 - k) * 0.15, 1 + (1 - k) * 0.1); break; }
-          case 5: { const k = Math.sin(p * Math.PI); storyDroneRoot.scale.setScalar(1 + k * 0.5); storyDroneRoot.rotation.y = ease * Math.PI; break; }
-          case 6: storyDroneRoot.rotation.x = ease * Math.PI * 1.4; storyDroneRoot.rotation.y = ease * 0.8; break;
-          case 7: { const k = Math.sin(p * Math.PI); cam.position.set(0, 1.0 + k * 0.6, 4.8 - k * 1.2); storyDroneRoot.position.y = k * 0.3; storyDroneRoot.rotation.y = ease * Math.PI * 2.5; break; }
-          case 8: storyDroneRoot.rotation.y = -ease * Math.PI * 2; break;
-          case 9: { const k = Math.sin(p * Math.PI * 3); storyDroneRoot.scale.setScalar(1 + k * 0.06); break; }
-          case 10: {
-            // Despegue (ciclo 6): spin-up con vibración → aceleración hacia arriba → levitación estable
+          case 3: { const k = Math.abs(Math.sin(p * Math.PI * 2)); storyDroneRoot.position.y = k * 0.6; storyDroneRoot.scale.set(1 + (1 - k) * 0.1, 1 - (1 - k) * 0.15, 1 + (1 - k) * 0.1); break; }
+          case 4: { const k = Math.sin(p * Math.PI); storyDroneRoot.scale.setScalar(1 + k * 0.5); storyDroneRoot.rotation.y = ease * Math.PI; break; }
+          case 5: storyDroneRoot.rotation.x = ease * Math.PI * 1.4; storyDroneRoot.rotation.y = ease * 0.8; break;
+          case 6: { const k = Math.sin(p * Math.PI * 3); storyDroneRoot.scale.setScalar(1 + k * 0.06); break; }
+          case 7: {
+            // Despegue: spin-up con vibración → subida → levitación, hélices girando
             const spinUp = smooth(Math.min(1, p / 0.35));
             const climb = smooth(Math.max(0, (p - 0.25) / 0.5));
             const vibe = spinUp * (1 - climb) * 0.03;
@@ -1107,10 +1102,12 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
             storyDroneRoot.position.y = climb >= 1 ? 1.1 + Math.sin(t * 2.2) * 0.06 : y;
             storyDroneRoot.rotation.z = Math.sin(t * 40) * vibe * 0.4;
             storyDroneRoot.rotation.x = Math.sin(t * 33) * vibe * 0.4;
+            spinProps(0.25 + climb * 0.65);
             break;
           }
+          default: spinProps(0.3); break; // escenas extra (+N): giro suave con hélices
         }
-        if (idx !== 9) accentMat.emissiveIntensity = 0;
+        if (idx !== 6) accentMat.emissiveIntensity = 0;
       }
       if (cur.mode === 'surface') {
         if (anvilReady) {
@@ -1232,7 +1229,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
   }, [height]);
 
   return (
-    <div style={{ position: 'relative', width: '100%', maxWidth: 320, margin: '0 auto' }}>
+    <div style={{ position: 'relative', width: '100%', maxWidth: 680, margin: '0 auto' }}>
       <div ref={mountRef} style={{ width: '100%', height, cursor: 'grab' }} aria-hidden="true" />
       <div ref={uiRef} style={{
         position: 'absolute', top: 6, right: 6, fontSize: 11, fontWeight: 600, color: 'var(--cx-muted)',
