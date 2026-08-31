@@ -225,7 +225,7 @@ export const HOLYBRO_STEPS: Array<{ match: RegExp; es: string; en: string }> = [
  */
 export function tagAssemblySteps(root: THREE.Group) {
   root.traverse(o => {
-    const name = o.name ?? '';
+    const name = (o as THREE.Mesh).isMesh ? meshEffectiveName(o as THREE.Mesh) : (o.name ?? '');
     for (let i = 0; i < HOLYBRO_STEPS.length; i++) {
       if (HOLYBRO_STEPS[i].match.test(name)) { o.userData.step = i; break; }
     }
@@ -248,6 +248,18 @@ export function revealSteps(root: THREE.Group, n: number) {
 export const piezaKey = (name: string) => {
   const k = name.replace(/[.\-_]?\d+([.\-_]low)?([.\-_]PRIM)?$/i, '').trim();
   return k || name;
+};
+
+/**
+ * Nombre EFECTIVO de una mesh (ciclo 9): las meshes hijas de nodos
+ * multi-primitiva heredan el nombre del MESH del GLB, que puede ser genérico —
+ * en el X500 las 4 hélices son grupos 'x500v2_propeller*' cuyas sub-mallas se
+ * llaman 'mesh.002'/'mesh.002_1' (sin rastro de "propeller"). El nombre de la
+ * pieza está en el nodo PADRE: se usa como fallback cuando el propio es genérico.
+ */
+export const meshEffectiveName = (m: THREE.Mesh): string => {
+  const n = m.name ?? '';
+  return /^mesh([.\d_]+)?$/i.test(n) && m.parent?.name ? m.parent.name : n;
 };
 
 export interface PieceGroup {
@@ -288,48 +300,6 @@ export function revealPieces(order: PieceGroup[], k: number) {
   });
 }
 
-// ─── Stages de ensamblaje MOTOR-PRIMERO (ciclo 7, feedback Alexander) ───
-// 1 motor → +hélice → +tubo → frame superior (×4 instancias) → frame inferior
-// → aterrizaje → electrónica → batería → plataforma → tornillería (instancias).
-
-export const ASSEMBLY_STAGE_PREDICATES: RegExp[] = [
-  /DJ-2216-KV880_001|HMX5V-DIGAI-DIANJIZUO-MUJU_001/i,   // 0: UN motor con su base
-  /x500v2_propeller_low/i,                                 // 1: UNA hélice
-  /CARBON-FIBER-TUBE300_001/i,                             // 2: UN tubo del brazo
-  /TOP-PLATE|CARBON-FIBER-TUBE|DJ-2216-KV880|HMX5V|propeller_instance|propeller_low/i, // 3: frame superior + instancias ×4
-  /BOTTOM-PLATE|JIA-GUAN|GUAN-CHENG|JIA-LIANJIE/i,         // 4: frame inferior
-  /PYLONS-X500|MAO-JIAO|JIAO-EVA|HUAN-GUIJIAO|JIAO-LIANJIE/i, // 5: tren de aterrizaje
-  /PIXHAWK|IMU|PCB|GPS|TELEMETRY|XT60|BM06B|TOU-|DIKE-|MIANKE|GAI-GUANGLIU|ZHIJIA-CAMERA|GAN-GPSV5|GPSV5-ZHIJIA|GPS-ZHIJIA|x500v2_gps|x500v2_telemetry/i, // 6: electrónica
-  /battery|BATTERY/i,                                      // 7: batería
-  /PLATFORM-PLAT|X500-TAO/i,                               // 8: plataforma superior
-  /./i,                                                    // 9: tornillería (instancias)
-];
-
-export const ASSEMBLY_STAGE_NAMES = HOLYBRO_STEPS;
-
-/** Marca cada mesh con userData.assmStage (0-9) según los stages de ensamblaje. */
-export function tagAssemblyStages(root: THREE.Group) {
-  root.traverse(o => {
-    const m = o as THREE.Mesh;
-    if (!m.isMesh) return;
-    const name = m.name ?? '';
-    for (let i = 0; i < ASSEMBLY_STAGE_PREDICATES.length; i++) {
-      if (ASSEMBLY_STAGE_PREDICATES[i].test(name)) { m.userData.assmStage = i; break; }
-    }
-  });
-}
-
-/** Revelado por stages: visible si assmStage <= k-1 (k = 1..10). */
-export function revealAssemblyStages(root: THREE.Group, k: number) {
-  root.traverse(o => {
-    const m = o as THREE.Mesh;
-    if (!m.isMesh) return;
-    const st = m.userData.assmStage as number | undefined;
-    if (st === undefined) return;
-    m.visible = st <= k - 1;
-  });
-}
-
 // ─── Familias del drone (ciclo 6, variantes) ───
 // Clasifica una pieza por su paso de montaje para los filtros/colores/aislamiento
 // del configurador web-app. El "frame" agrupa tubos + frames + tren de aterrizaje.
@@ -363,53 +333,83 @@ export function revealFrameOnly(root: THREE.Group) {
 }
 
 
-// ─── Lista de ensamblaje pieza-a-pieza (ciclo 8, feedback Alexander) ───
-// El slider 1-50 revela grupos 1:1: 1 = el motor, 2 = +hélice, 3 = +tubo,
-// 4 = frame superior completo (instancias ×4)… y de ahí cada tipo de tornillería.
+// ─── Lista de ensamblaje PIEZA A PIEZA (ciclo 9, feedback Alexander) ───
+// El slider N deja EXACTAMENTE N meshes visibles: 1 mesh = 1 pieza, sin
+// agrupar instancias. Orden: 1 motor (sus 2 sub-mallas + su base) → hélice →
+// tubo del brazo → resto de motores/bases/hélices/tubos → frame sup → frame
+// inf → aterrizaje → electrónica → batería → plataforma → tornillería
+// (cada tornillo una entrada).
 
-export interface AssemblyGroup { meshes: THREE.Mesh[]; es: string; en: string }
+export interface AssemblyEntry { mesh: THREE.Mesh; es: string; en: string }
 
-export function buildAssemblyReveal(root: THREE.Group): { list: AssemblyGroup[]; total: number } {
-  const pick = (re: RegExp): THREE.Mesh[] => {
-    const out: THREE.Mesh[] = [];
-    root.traverse(o => {
-      const m = o as THREE.Mesh;
-      if (m.isMesh && re.test(m.name ?? '')) out.push(m);
-    });
-    return out;
-  };
-  const list: AssemblyGroup[] = [
-    { meshes: pick(/DJ-2216-KV880_001|HMX5V-DIGAI-DIANJIZUO-MUJU_001/i), es: 'Motor', en: 'Motor' },
-    { meshes: pick(/x500v2_propeller_low/i), es: 'Hélice', en: 'Propeller' },
-    { meshes: pick(/CARBON-FIBER-TUBE300_001/i), es: 'Tubo del brazo', en: 'Arm tube' },
-    { meshes: [...pick(/TOP-PLATE/i), ...pick(/CARBON-FIBER-TUBE/i), ...pick(/DJ-2216-KV880\.00/i), ...pick(/HMX5V/i), ...pick(/propeller_instance/i)], es: 'Frame superior (instancias ×4)', en: 'Top frame (×4 instances)' },
-    { meshes: [...pick(/BOTTOM-PLATE/i), ...pick(/JIA-GUAN/i), ...pick(/GUAN-CHENG/i), ...pick(/JIA-LIANJIE/i)], es: 'Frame inferior', en: 'Bottom frame' },
-    { meshes: [...pick(/PYLONS-X500/i), ...pick(/MAO-JIAO/i), ...pick(/JIAO-EVA/i), ...pick(/HUAN-GUIJIAO/i), ...pick(/JIAO-LIANJIE/i)], es: 'Tren de aterrizaje', en: 'Landing gear' },
-    { meshes: [...pick(/PIXHAWK|IMU|PCB|GPS|TELEMETRY|XT60|BM06B|TOU-|DIKE-|MIANKE|GAI-GUANGLIU|ZHIJIA-CAMERA|GAN-GPSV5|GPSV5-ZHIJIA|GPS-ZHIJIA|x500v2_gps|x500v2_telemetry/i)], es: 'Electrónica', en: 'Electronics' },
-    { meshes: pick(/battery|BATTERY/i), es: 'Batería', en: 'Battery' },
-    { meshes: [...pick(/PLATFORM-PLAT/i), ...pick(/X500-TAO/i)], es: 'Plataforma superior', en: 'Top platform' },
-  ];
-  // Tornillería: cada TIPO de pieza (nombre normalizado) es un grupo individual
-  const seen = new Set<string>();
+/** Buckets de montaje. Los regex van sobre el nombre EFECTIVO (meshEffectiveName):
+ *  las meshes hijas de nodos multi-primitiva heredan el nombre del MESH del GLB
+ *  (los 4 motores son grupos 'DJ-2216-KV880.*_low' con meshes 'DJ-2216-KV880.019';
+ *  las 4 hélices son grupos 'x500v2_propeller*' con meshes genéricas 'mesh.002'),
+ *  no el sufijo de instancia del nodo. Orden de prueba = prioridad. */
+const ASSEMBLY_BUCKETS: Array<{ re: RegExp; es: string; en: string }> = [
+  { re: /DJ-2216-KV880/i, es: 'Motor', en: 'Motor' },
+  { re: /HMX5V-DIGAI-DIANJIZUO/i, es: 'Base del motor', en: 'Motor mount' },
+  { re: /propeller/i, es: 'Hélice', en: 'Propeller' },
+  { re: /CARBON-FIBER-TUBE300/i, es: 'Tubo del brazo', en: 'Arm tube' },
+  { re: /CARBON-FIBER-TUBE/i, es: 'Tubo del frame', en: 'Frame tube' },
+  { re: /TOP-PLATE/i, es: 'Frame superior', en: 'Top frame' },
+  { re: /BOTTOM-PLATE|JIA-GUAN|GUAN-CHENG|JIA-LIANJIE/i, es: 'Frame inferior', en: 'Bottom frame' },
+  { re: /PYLONS-X500|MAO-JIAO|JIAO-EVA|HUAN-GUIJIAO|JIAO-LIANJIE/i, es: 'Tren de aterrizaje', en: 'Landing gear' },
+  // OJO: 'X500-TAO-XT60' cae en electrónica (como en HOLYBRO_STEPS, mismo orden)
+  { re: /PIXHAWK|IMU|PCB|GPS|TELEMETRY|XT60|BM06B|TOU-|DIKE-|MIANKE|GAI-GUANGLIU|ZHIJIA-CAMERA|GAN-GPSV5|GPSV5-ZHIJIA|GPS-ZHIJIA|x500v2_gps|x500v2_telemetry/i, es: 'Electrónica', en: 'Electronics' },
+  { re: /battery/i, es: 'Batería', en: 'Battery' },
+  { re: /PLATFORM-PLAT|X500-TAO/i, es: 'Plataforma superior', en: 'Top platform' },
+];
+
+const HARDWARE_LABEL = { es: 'Tornillería', en: 'Hardware' };
+
+/**
+ * Lista PLANA de meshes individuales en orden de ensamblaje (grandes →
+ * pequeñas). Cada mesh aparece UNA vez: el slider k revela las primeras k.
+ */
+export function buildAssemblyReveal(root: THREE.Group): { list: AssemblyEntry[]; total: number } {
+  const buckets: THREE.Mesh[][] = ASSEMBLY_BUCKETS.map(() => []);
+  const hardware: THREE.Mesh[] = [];
   root.traverse(o => {
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
-    const st = m.userData.step as number | undefined;
-    if (st !== 9) return;
-    const k = piezaKey(m.name ?? '');
-    if (seen.has(k)) return;
-    seen.add(k);
-    const meshes: THREE.Mesh[] = [];
-    root.traverse(o2 => {
-      const m2 = o2 as THREE.Mesh;
-      if (m2.isMesh && piezaKey(m2.name ?? '') === k) meshes.push(m2);
-    });
-    list.push({ meshes, es: 'Tornillería', en: 'Hardware' });
+    const name = meshEffectiveName(m);
+    const bi = ASSEMBLY_BUCKETS.findIndex(b => b.re.test(name));
+    if (bi < 0) hardware.push(m);
+    else buckets[bi].push(m);
   });
+  const [motors, mounts, props, tubes300, tubes, top, bottom, landing, elec, battery, platform] = buckets;
+  const entries = (arr: THREE.Mesh[], es: string, en: string): AssemblyEntry[] =>
+    arr.map(mesh => ({ mesh, es, en }));
+  const list: AssemblyEntry[] = [
+    // pieza 1: UN motor completo (2 sub-mallas) + su base → UNA hélice completa
+    // (2 sub-mallas) → un tubo del brazo
+    ...entries(motors.slice(0, 2), 'Motor', 'Motor'),
+    ...entries(mounts.slice(0, 1), 'Base del motor', 'Motor mount'),
+    ...entries(props.slice(0, 2), 'Hélice', 'Propeller'),
+    ...entries(tubes300.slice(0, 1), 'Tubo del brazo', 'Arm tube'),
+    // resto de motores y bases
+    ...entries(motors.slice(2), 'Motor', 'Motor'),
+    ...entries(mounts.slice(1), 'Base del motor', 'Motor mount'),
+    // resto de hélices y tubos
+    ...entries(props.slice(2), 'Hélice', 'Propeller'),
+    ...entries(tubes300.slice(1), 'Tubo del brazo', 'Arm tube'),
+    ...entries(tubes, 'Tubo del frame', 'Frame tube'),
+    // resto del ensamblaje
+    ...entries(top, 'Frame superior', 'Top frame'),
+    ...entries(bottom, 'Frame inferior', 'Bottom frame'),
+    ...entries(landing, 'Tren de aterrizaje', 'Landing gear'),
+    ...entries(elec, 'Electrónica', 'Electronics'),
+    ...entries(battery, 'Batería', 'Battery'),
+    ...entries(platform, 'Plataforma superior', 'Top platform'),
+    // tornillería: cada instancia una entrada (en orden de traversal)
+    ...entries(hardware, HARDWARE_LABEL.es, HARDWARE_LABEL.en),
+  ];
   return { list, total: list.length };
 }
 
-/** Revela los primeros k grupos de la lista (el resto oculto). */
-export function revealAssemblyList(list: AssemblyGroup[], k: number) {
-  list.forEach((g, i) => { for (const m of g.meshes) m.visible = i < k; });
+/** Revela las primeras k piezas (1 mesh = 1 entrada). k ≥ total → todo visible. */
+export function revealAssemblyList(list: AssemblyEntry[], k: number) {
+  list.forEach((e, i) => { e.mesh.visible = i < k; });
 }

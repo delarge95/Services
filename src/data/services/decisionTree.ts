@@ -150,12 +150,8 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
         type: 'slider',
         slider: { min: 1, max: 50, step: 1, unit: 'piezas', preview: 'assembly',
           tierMap: [{max:5,tier:'S'},{max:15,tier:'M'},{max:30,tier:'L'},{max:50,tier:'XL'}] },
-        advancedOptions: [
-          { id: 'piezas-moviles', label: '¿Hay piezas móviles o articuladas?', help: 'Articulaciones requieren rigging.', type: 'select',
-            options: [{id:'ninguna',label:'No, todo rígido'},{id:'algunas',label:'Sí, 1-5 móviles'},{id:'muchas',label:'Sí, 6+ móviles'}] },
-          { id: 'piezas-desmontables', label: '¿Necesitas vista explosionada?', help: 'Ver el interior o separar partes.', type: 'select',
-            options: [{id:'no',label:'No, solo exterior'},{id:'estatica',label:'Sí, explosionada estática'},{id:'interactiva',label:'Sí, desarmable interactivo'}] },
-        ],
+        // ciclo 9: 'piezas-moviles'/'piezas-desmontables' retiradas (informativas,
+        // no movían el precio — ver auditoria-precios-ciclo7.md §2/§5).
       },
       {
         id: 'materiales-acabado',
@@ -168,28 +164,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
           { id: 'variado', label: 'Variado', desc: 'Metal, plástico, goma, pintura' },
           { id: 'detallado', label: 'Detallado', desc: 'Texturas, logos, grabados, desgaste' },
         ],
-        advancedOptions: [
-          { id: 'pbr', label: 'Materiales PBR (físicamente correctos)', help: 'PBR simula la luz de forma realista.', type: 'select',
-            options: [{id:'no',label:'No, colores planos'},{id:'basico',label:'Sí, básico'},{id:'completo',label:'Sí, completo (metal+rugosidad+normal+AO)'}] },
-          { id: 'iluminacion', label: 'Iluminación del modelo', type: 'select',
-            options: [{id:'env',label:'Ambiental (limpia)'},{id:'estudio',label:'Estudio (3 luces)'},{id:'hdri',label:'HDRI (entorno realista)'}] },
-        ],
-      },
-      {
-        id: 'interaccion-visual',
-        question: '¿Qué puede hacer el visitante con el modelo?',
-        type: 'cards',
-        options: [
-          { id: 'rotar', label: 'Solo rotarlo', desc: 'Vista 360° con mouse o dedo' },
-          { id: 'rotar-zoom', label: 'Rotar y hacer zoom', desc: 'También acercarse a detalles' },
-          { id: 'auto', label: 'Rotación automática', desc: 'Gira solo, sin interacción' },
-        ],
-        advancedOptions: [
-          { id: 'fondo', label: 'Fondo del visor', type: 'select',
-            options: [{id:'transparente',label:'Transparente (integrado en tu web)'},{id:'solido',label:'Color solido'},{id:'gradiente',label:'Gradiente suave'},{id:'entorno',label:'Entorno HDRI'}] },
-          { id: 'interfaz', label: 'Interfaz del visor', type: 'select',
-            options: [{id:'limpio',label:'Limpio (sin controles)'},{id:'controles',label:'Con controles (zoom, reset)'},{id:'hotspots',label:'Con puntos de información (hotspots)'}] },
-        ],
+        // ciclo 9: 'pbr'/'iluminacion' retiradas (informativas).
       },
       {
         id: 'donde-mostrar',
@@ -201,12 +176,10 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
           { id: 'feria', label: 'En pantalla táctil (feria)' },
           { id: 'movil', label: 'En app móvil (WebView)' },
         ],
-        advancedOptions: [
-          { id: 'cms', label: 'Plataforma / CMS de tu web', type: 'select',
-            options: [{id:'wordpress',label:'WordPress'},{id:'shopify',label:'Shopify'},{id:'wix',label:'Wix / Squarespace'},{id:'custom',label:'Código propio'},{id:'nosabe',label:'No sé'}] },
-          { id: 'rendimiento', label: 'Prioridad', help: 'Móvil = velocidad, PC = calidad.', type: 'select',
-            options: [{id:'velocidad',label:'Velocidad primero (<2s carga)'},{id:'balance',label:'Balance'},{id:'calidad',label:'Calidad máxima'}] },
-        ],
+        // ciclo 9: 'cms'/'rendimiento' retiradas (informativas). La pregunta se
+        // conserva: 'feria'/'movil' suben el target del visor a Desktop + móvil.
+        // ciclo 9: 'interaccion-visual' (rotar/rotar-zoom/auto) retirada COMPLETA
+        // — las tres opciones cotizaban igual y no aportaba al precio.
       },
     ],
   },
@@ -269,10 +242,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
         type: 'slider',
         slider: { min: 1, max: 50, step: 1, unit: 'piezas', preview: 'assembly',
           tierMap: [{max:5,tier:'S'},{max:15,tier:'M'},{max:30,tier:'L'},{max:50,tier:'XL'}] },
-        advancedOptions: [
-          { id: 'piezas-moviles', label: '¿Hay piezas móviles o articuladas?', help: 'Articulaciones requieren rigging.', type: 'select',
-            options: [{id:'ninguna',label:'No, todo rígido'},{id:'algunas',label:'Sí, 1-5 móviles'},{id:'muchas',label:'Sí, 6+ móviles'}] },
-        ],
+        // ciclo 9: 'piezas-moviles' retirada (informativa).
       },
       {
         id: 'materiales-acabado',
@@ -296,10 +266,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
           { id: 'feria', label: 'Pantalla táctil en feria/evento' },
           { id: 'app', label: 'Aplicación web completa' },
         ],
-        advancedOptions: [
-          { id: 'rendimiento', label: 'Prioridad', help: 'Móvil = velocidad, PC = calidad.', type: 'select',
-            options: [{id:'velocidad',label:'Velocidad primero (<2s carga)'},{id:'balance',label:'Balance'},{id:'calidad',label:'Calidad máxima'}] },
-        ],
+        // ciclo 9: 'rendimiento' retirada (informativa).
       },
     ],
   },
@@ -373,16 +340,9 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
           { id: 'detallado', label: 'Detallado', desc: 'Texturas, logos, grabados, desgaste' },
         ],
       },
-      {
-        id: 'tono-historia',
-        question: '¿Cómo se cuenta la historia?',
-        type: 'cards',
-        options: [
-          { id: 'camara-vuela', label: 'La cámara vuela', desc: 'Recorridos cinematográficos alrededor del producto' },
-          { id: 'producto-transforma', label: 'El producto se transforma', desc: 'Se ensambla, cambia de color o estado con el scroll' },
-          { id: 'texto-guia', label: 'Texto + 3D de fondo', desc: 'El mensaje manda; el 3D acompaña sutil' },
-        ],
-      },
+      // ciclo 9: 'tono-historia' retirada por decisión de producto — la historia
+      // se cuenta igual (cámara/transformación/texto son decisión de diseño, no
+      // del cliente) y la pregunta no movía el precio (auditoria-precios-ciclo7.md §2).
     ],
   },
   'web-app': {

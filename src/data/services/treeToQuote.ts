@@ -154,8 +154,9 @@ function extrasPorModeloExistente(a: Answers): WizardPick | null {
 function planVerModelo(a: Answers): WizardQuotePlan {
   const extra = extrasPorModeloExistente(a);
   const creaModelo = str(a, 'modelo-existente') === 'no-crear';
-  const hotspots = str(a, 'interfaz') === 'hotspots' ? 8 : 0;
-  const visor = pickVisor(a, hotspots);
+  // ciclo 9: la pregunta 'interaccion-visual' (y su avanzado 'interfaz') se
+  // retiró del árbol; los hotspots se ajustan en el panel de configuración.
+  const visor = pickVisor(a, 0);
   const picks: WizardPick[] = [visor];
   if (creaModelo) picks.push(pickModeloDesdeCero(a));
   else if (extra) picks.push(extra);

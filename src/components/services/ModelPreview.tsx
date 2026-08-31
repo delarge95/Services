@@ -26,8 +26,8 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { EN, TRIS_ETIQUETAS } from '../../data/services/i18n';
-import { loadHolybroInstance, applyFinish, ensureVariadoSet, revealFrameOnly, droneStepFamily, tagAssemblyStages, buildAssemblyReveal, revealAssemblyList } from './holybro';
-import type { AssemblyGroup } from './holybro';
+import { loadHolybroInstance, applyFinish, ensureVariadoSet, revealFrameOnly, droneStepFamily, buildAssemblyReveal, revealAssemblyList } from './holybro';
+import type { AssemblyEntry } from './holybro';
 import type { FinishKind, VariadoSet } from './holybro';
 import { loadAnvilInstance, applySurfaceMorph, ANVIL_MORPH_NODE } from './anvil';
 import type { Lang } from '../../data/services/i18n';
@@ -35,13 +35,15 @@ import type { Lang } from '../../data/services/i18n';
 export type PreviewMode = 'detail' | 'pieces' | 'story' | 'variants' | 'surface' | 'finish' | 'assembly' | 'hotspots' | 'shader-dial';
 
 // ═══════════════════════════════════════════════════════════════
-// Variantes (ciclo 6): 17 SLOTS sobre el DRONE HolyBro (solo el FRAME al
+// Variantes (ciclo 6): 14 SLOTS sobre el DRONE HolyBro (solo el FRAME al
 // inicio; batería/electrónica/plataforma se añaden como piezas desbloqueables).
-// Se desbloquean con el slider, se activan/apagan en vivo.
+// Se desbloquean con el slider, se activan/apagan en vivo. Ciclo 9: se retiran
+// 'filtros-piezas' y 'color-cuaternario' (feedback Alexander); el estado
+// inicial es BLANCO plano hasta encender el color base.
 // ═══════════════════════════════════════════════════════════════
 export type VariantSlotKind = 'color' | 'toggle' | 'luz';
 export type ColorTarget = 'all' | 'motors' | 'propellers' | 'frames';
-export type SlotFx = 'explode' | 'clip' | 'filter' | 'xray' | 'lineart' | 'flight' | 'battery' | 'electronics' | 'platform';
+export type SlotFx = 'explode' | 'clip' | 'xray' | 'lineart' | 'flight' | 'battery' | 'electronics' | 'platform';
 
 export interface VariantSlot {
   id: string;
@@ -59,9 +61,7 @@ export const VARIANT_SLOTS: VariantSlot[] = [
   { id: 'vista-explosionada', es: 'Vista explosionada', en: 'Exploded view', kind: 'toggle', fx: 'explode' },
   { id: 'color-secundario', es: 'Color secundario', en: 'Secondary color', kind: 'color', colorTarget: 'motors' },
   { id: 'color-terciario', es: 'Color terciario', en: 'Tertiary color', kind: 'color', colorTarget: 'propellers' },
-  { id: 'color-cuaternario', es: 'Color cuaternario', en: 'Quaternary color', kind: 'color', colorTarget: 'frames' },
   { id: 'cortes-transversales', es: 'Corte transversal', en: 'Cross-section', kind: 'toggle', fx: 'clip' },
-  { id: 'filtros-piezas', es: 'Filtros de piezas', en: 'Part filters', kind: 'toggle', fx: 'filter' },
   { id: 'pieza-adicional-1', es: 'Batería', en: 'Battery', kind: 'toggle', fx: 'battery' },
   { id: 'pieza-adicional-2', es: 'Electrónica', en: 'Electronics', kind: 'toggle', fx: 'electronics' },
   { id: 'pieza-adicional-3', es: 'Plataforma superior', en: 'Top platform', kind: 'toggle', fx: 'platform' },
@@ -73,15 +73,31 @@ export const VARIANT_SLOTS: VariantSlot[] = [
   { id: 'luz-dramatica', es: 'Luz dramática', en: 'Dramatic lighting', kind: 'luz' },
 ];
 
+/** Índices de slots por id (ciclo 9: los accesos por índice se rompían al
+ *  reordenar los slots — ahora todo se busca por id y se valida en runtime). */
+const SLOT_IDX = (id: string) => {
+  const i = VARIANT_SLOTS.findIndex(s => s.id === id);
+  if (i < 0) throw new Error(`VariantSlot '${id}' no existe`);
+  return i;
+};
+const IDX_BASE = SLOT_IDX('color-base');
+const IDX_EXPLODE = SLOT_IDX('vista-explosionada');
+const IDX_SEC = SLOT_IDX('color-secundario');
+const IDX_TER = SLOT_IDX('color-terciario');
+const IDX_CLIP = SLOT_IDX('cortes-transversales');
+const IDX_BAT = SLOT_IDX('pieza-adicional-1');
+const IDX_ELE = SLOT_IDX('pieza-adicional-2');
+const IDX_PLA = SLOT_IDX('pieza-adicional-3');
+const IDX_XRAY = SLOT_IDX('shader-xray');
+const IDX_LINEART = SLOT_IDX('shader-lineart');
+const IDX_FLIGHT = SLOT_IDX('animacion-vuelo');
+const IDX_LUZ0 = VARIANT_SLOTS.findIndex(s => s.kind === 'luz');
+
 export interface VariantSlotsState {
   /** ON/OFF por slot (índice = posición en VARIANT_SLOTS). */
   on: boolean[];
   /** Color hex por slot de color (clave = slot.id). */
   colors: Record<string, string>;
-  /** filtros-piezas: familias visibles. */
-  filterFrame: boolean;
-  filterMotors: boolean;
-  filterPropellers: boolean;
 }
 
 /** Hex por defecto de cada slot de color. */
@@ -89,8 +105,12 @@ export const SLOT_DEFAULT_COLORS: Record<string, string> = {
   'color-base': '#22262c',
   'color-secundario': '#0071e3',
   'color-terciario': '#c9b99a',
-  'color-cuaternario': '#8f9297',
 };
+
+/** Blanco PLANO del estado inicial (color-base OFF, ciclo 9): el drone nace
+ *  blanco uniforme (#eef0f2, rugosidad 0.5, metal 0.05) hasta encender el base. */
+const BLANK_HEX = '#eef0f2';
+const blankMat = () => new THREE.MeshStandardMaterial({ color: 0xeef0f2, roughness: 0.5, metalness: 0.05 });
 
 /** Catálogo de animaciones del modo story (1.3 replante). */
 export const STORY_ANIMS = [
@@ -503,6 +523,10 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         key.intensity = 2.4;
         hemi.intensity = 1.2;
         renderer.toneMappingExposure = 1.0;
+        // reentrar sin remount: finish vuelve a revelar TODO (idempotente),
+        // assembly recalcula las k piezas del slider
+        finishRevealed = false;
+        if (m === 'assembly') lastPieceCount = -1;
         startHolybro();
       } else {
         key.intensity = 1.4;
@@ -527,9 +551,12 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     let variadoSet: VariadoSet | null = null;
     let lastFinish: FinishKind | null = null;
     let lastPieceCount = -1;
+    // ciclo 9 — el modo finish comparte la instancia con assembly: al cargar (o
+    // al reentrar sin remount) debe dejar TODO visible, no solo 1 pieza.
+    let finishRevealed = false;
     // ciclo 8 — explosión con RITMO: 3 s armado → explota → 3,4 s explosionado → une
     let hbCenter = new THREE.Vector3(0, 0, 0);
-    let assmList: AssemblyGroup[] = [];
+    let assmList: AssemblyEntry[] = [];
     function startHolybro() {
       if (holybroStarted) return;
       holybroStarted = true;
@@ -537,10 +564,16 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         .then(root => {
           holybroRoot.add(root);
           holybroReady = root;
-          tagAssemblyStages(root);
           const rev = buildAssemblyReveal(root);
           assmList = rev.list;
-          revealAssemblyList(assmList, 1);
+          (window as any).__assmTotal = rev.total;
+          // finish: drone COMPLETO; assembly: arranca con UNA pieza
+          if (stateRef.current.mode === 'finish') {
+            revealAssemblyList(assmList, Infinity);
+            finishRevealed = true;
+          } else {
+            revealAssemblyList(assmList, 1);
+          }
           // posición base de cada pieza (para la explosión) y centro del drone
           root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) m.userData.assmHome = m.position.clone(); });
           hbCenter = new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());
@@ -600,7 +633,6 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     group.add(variantDroneRoot);
     let variantDroneStarted = false;
     let variantDroneReady: THREE.Group | null = null;
-    let variantVariado: VariadoSet | null = null;
     let lastVariantKey = '';
     let varExplode = 0;
     let varFlightT0 = -1;
@@ -618,12 +650,12 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     const variantEdges: THREE.LineSegments[] = [];
 
     /** Clasifica una mesh del drone para los targets de color.
-     *  base=todas · secundario=motores · terciario=hélices · cuaternario=frame
-     *  superior/inferior. Tubos y tren de aterrizaje caen en 'other' (solo base). */
+     *  base=todas · secundario=motores · terciario=hélices. El resto (tubos,
+     *  frames, tren, tornillería) cae en 'frames' (set visible del frame). */
     const colorTargetOf = (step: number | undefined): ColorTarget | 'other' => {
       if (step === 0) return 'motors';
       if (step === 1) return 'propellers';
-      return 'frames'; // tubos + frames + tren + tornillería: set visible, tiñe con frame
+      return 'frames';
     };
 
     function startVariantDrone() {
@@ -638,13 +670,10 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
           root.traverse(o => { if ((o as THREE.Mesh).isMesh) (window as any).__variantMeshCount++; });
           revealFrameOnly(root); // estado inicial: solo el frame
           root.traverse(o => { if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).userData.variantHome = (o as THREE.Mesh).position.clone(); });
-          applyFinish(root, 'variado', null);
           variantDroneRoot.visible = false;
-          return ensureVariadoSet(root).then(set => {
-            variantVariado = set;
-            applyFinish(root, 'variado', set);
-            // snapshot del material 'variado' por mesh (para restaurar al quitar colores)
-            root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) m.userData.variadoMat = m.material; });
+          return ensureVariadoSet(root).then(() => {
+            // ciclo 9: ya no se aplican materiales 'variado' en variants — todo
+            // material lo fija applyVariantSlots (blanco plano o tinte por slot).
             // overlays de aristas para shader-lineart (solo meshes principales)
             root.traverse(o => {
               const m = o as THREE.Mesh;
@@ -669,8 +698,9 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       if (key === lastVariantKey) return;
       lastVariantKey = key;
       (window as any).__variantSlotsApplied = key;
+      const on = (id: string) => !!s.on[SLOT_IDX(id)];
 
-      // ── 1. visibilidad: frame + piezas extra + filtros ──
+      // ── 1. visibilidad: frame + piezas extra desbloqueables ──
       // Solo meshes: si tocara grupos, el nodo raíz (paso catch-all de
       // tornillería) quedaría oculto y arrastraría a TODO el drone.
       root.traverse(o => {
@@ -680,46 +710,40 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         if (step === undefined) return;
         const fam = droneStepFamily(step);
         let vis = fam === 'motors' || fam === 'propellers' || fam === 'frame';
-        if (s.on[7]) vis = vis || fam === 'battery';       // pieza-adicional-1
-        if (s.on[8]) vis = vis || fam === 'electronics';   // pieza-adicional-2
-        if (s.on[9]) vis = vis || fam === 'platform';      // pieza-adicional-3
-        // filtros-piezas: si activo, las familias apagadas se ocultan
-        if (s.on[6]) {
-          if (fam === 'frame') vis = vis && s.filterFrame;
-          if (fam === 'motors') vis = vis && s.filterMotors;
-          if (fam === 'propellers') vis = vis && s.filterPropellers;
-        }
+        if (on('pieza-adicional-1')) vis = vis || fam === 'battery';
+        if (on('pieza-adicional-2')) vis = vis || fam === 'electronics';
+        if (on('pieza-adicional-3')) vis = vis || fam === 'platform';
         m.visible = vis;
       });
 
-      // ── 2. colores: base plano para TODO; los acentos van coloreando sets ──
-      const colorOrder: Array<[number, ColorTarget]> = [
-        [0, 'all'], [2, 'motors'], [3, 'propellers'], [4, 'frames'],
-      ];
-      const baseOn = s.on[0];
-      const baseHex = s.colors[VARIANT_SLOTS[0].id] ?? '#22262c';
+      // ── 2. colores (ciclo 9): blanco plano con base OFF; los acentos tiñen su
+      // set SOLO si su slot está ON; con base ON el drone se tiñe del base y los
+      // acentos van coloreando sets por encima. ──
+      const baseOn = on('color-base');
+      const baseHex = s.colors['color-base'] ?? '#22262c';
+      const secOn = on('color-secundario');
+      const terOn = on('color-terciario');
+      const secHex = s.colors['color-secundario'];
+      const terHex = s.colors['color-terciario'];
       root.traverse(o => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
         const tgt = colorTargetOf(m.userData.step as number | undefined);
-        // sin base activa → materiales originales (variado); con base → plano
-        let hex: string | null = baseOn ? baseHex : null;
-        for (const [idx, target] of colorOrder) {
-          if (idx === 0 || !s.on[idx]) continue;
-          if (target === 'all' || target === tgt) hex = s.colors[VARIANT_SLOTS[idx].id] ?? hex;
-        }
-        m.material = hex ? tintMat(hex) : (m.userData.variadoMat as THREE.Material ?? m.userData.origMat as THREE.Material ?? m.material);
+        let hex = baseOn ? baseHex : BLANK_HEX;
+        if (secOn && tgt === 'motors') hex = secHex ?? hex;
+        if (terOn && tgt === 'propellers') hex = terHex ?? hex;
+        m.material = tintMat(hex);
       });
 
       // ── 3. shaders ──
-      const xrayOn = s.on[10], lineartOn = s.on[11];
+      const xrayOn = on('shader-xray'), lineartOn = on('shader-lineart');
       if (xrayOn) {
         root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) m.material = xrayMat; });
       }
       variantEdges.forEach(e => { e.visible = lineartOn; });
 
       // ── 4. corte transversal (clipping plane) ──
-      if (s.on[5]) {
+      if (on('cortes-transversales')) {
         const plane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
         renderer.clippingPlanes = [plane];
         renderer.localClippingEnabled = true;
@@ -730,7 +754,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       }
 
       // ── 5. luces (excluyentes) ──
-      applyLuzPreset(s.on[13] ? 0 : s.on[14] ? 1 : s.on[15] ? 2 : -1);
+      applyLuzPreset(on('luz-estudio') ? 0 : on('luz-natural') ? 1 : on('luz-dramatica') ? 2 : -1);
     };
 
     // ── Hotspots (sección 3): marcadores que pulsan sobre el producto ──
@@ -912,9 +936,17 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       const centers: THREE.Vector3[] = [];
       const radii: number[] = [];
       let cx = 0, cy = 0, cz = 0;
+      // ciclo 9: una mesh cuenta SOLO si toda su cadena de ancestros es visible
+      // (antes, subtrees ocultos — cubo morph, hub, prod… — inflaban la esfera
+      // y alejaban la cámara del contenido real)
+      const isShown = (o: THREE.Object3D | null): boolean => {
+        let p = o;
+        while (p) { if (!p.visible) return false; p = p.parent; }
+        return true;
+      };
       root.traverse(o => {
         const m = o as THREE.Mesh;
-        if (!m.isMesh || !m.visible) return;
+        if (!m.isMesh || !m.visible || !isShown(m)) return;
         const geo = m.geometry;
         if (!geo.boundingSphere) geo.computeBoundingSphere();
         const bs = geo.boundingSphere;
@@ -972,19 +1004,33 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         if (bodyMat.metalness > 0.5 || bodyMat.roughness < 0.3) { bodyMat.metalness = 0.3; bodyMat.roughness = 0.4; }
       }
       if (cur.mode === 'finish') {
+        // ciclo 9: reentrada sin remount (o cambio de modo) — asegura visibilidad
+        // completa UNA vez (assembly la necesita a 1 pieza, finish la comparte)
+        if (holybroReady && assmList.length && !finishRevealed) {
+          revealAssemblyList(assmList, Infinity);
+          finishRevealed = true;
+        }
         if (holybroReady && cur.finish !== lastFinish) { applyFinish(holybroReady, cur.finish, variadoSet); lastFinish = cur.finish; }
+        let finVis = 0;
+        if (holybroReady) holybroReady.traverse(o => { if ((o as THREE.Mesh).isMesh && o.visible) finVis++; });
+        (window as any).__finishVisible = finVis;
         holybroRoot.rotation.y = t * 0.25;
       }
       if (cur.mode === 'assembly') {
         if (holybroReady && assmList.length) {
-          // ciclo 8 — PIEZA A PIEZA: cada unidad del slider añade SU pieza (1:1)
+          // ciclo 9 — PIEZA A PIEZA 1:1: la unidad k del slider deja EXACTAMENTE
+          // k meshes visibles (cada mesh una entrada; sin agrupar instancias)
           const k = Math.max(1, Math.min(assmList.length, Math.round(Math.max(1, Math.min(50, cur.pieces)))));
           if (k !== lastPieceCount) { revealAssemblyList(assmList, k); lastPieceCount = k; lastPiecesChange = performance.now(); }
-          const g = assmList[Math.min(k, assmList.length) - 1];
+          const g = assmList[k - 1];
           if (uiRef.current) {
-            uiRef.current.textContent = cur.lang === 'es' ? g.es : g.en;
+            // contador visible para que el 1:1 sea verificable a ojo
+            uiRef.current.textContent = `${cur.lang === 'es' ? g.es : g.en} · ${k}/${assmList.length}`;
             uiRef.current.style.opacity = '1';
           }
+          let assmVis = 0;
+          holybroReady.traverse(o => { if ((o as THREE.Mesh).isMesh && o.visible) assmVis++; });
+          (window as any).__assmVisible = assmVis;
           holybroRoot.rotation.y = t * 0.25;
           // cámara SIEMPRE enfocada en las piezas visibles (lo más grande posible)
           const sph = computeVisibleSphere(holybroReady);
@@ -1061,26 +1107,56 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         const elapsed = performance.now() / 1000 - storyT0;
         const idx = Math.floor(elapsed / STORY_DURATION) % n;
         storyActive = idx;
+        // sonda QA ciclo 9: escena activa + desplazamiento máximo de las meshes
+        // respecto a su home (la explosión lo sube; las demás escenas deben
+        // encontrarlo ~0 — las piezas se resetean a home cada frame)
+        (window as any).__storyScene = idx;
+        let maxOff = 0;
+        if (storyDroneReady) storyDroneReady.traverse(o => {
+          const m = o as THREE.Mesh;
+          if (!m.isMesh) return;
+          const home = m.userData.storyHome as THREE.Vector3 | undefined;
+          if (!home) return;
+          const d = m.position.distanceToSquared(home);
+          if (d > maxOff) maxOff = d;
+        });
+        (window as any).__storyMaxOffset = Math.sqrt(maxOff);
         const p = (elapsed % STORY_DURATION) / STORY_DURATION;
         const ease = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
         // reset base del drone HolyBro
         storyDroneRoot.position.set(0, 0, 0);
         storyDroneRoot.rotation.set(0, 0, 0);
         storyDroneRoot.scale.set(1, 1, 1);
+        // ciclo 9: también las MESHES individuales — la explosión (escena 1)
+        // desplaza las piezas con un lerp que nunca llega exactamente a home;
+        // sin este reset el drone arrastraba las piezas corridas a las escenas 2+.
+        if (storyDroneReady) {
+          storyDroneReady.traverse(o => {
+            const m = o as THREE.Mesh;
+            if (!m.isMesh) return;
+            const home = m.userData.storyHome as THREE.Vector3 | undefined;
+            if (home && m.position.distanceToSquared(home) > 1e-10) m.position.copy(home);
+          });
+        }
         cam.position.set(0, 1.0, 4.8);
         cam.lookAt(0, 0.15, 0);
         // hélices girando sobre su eje vertical (despegue/giro/extra)
+        // ciclo 9: por nombre efectivo — las sub-mallas 'mesh.002' de las
+        // hélices llevan el nombre real en el nodo padre
         const spinProps = (k: number) => {
           if (!storyDroneReady) return;
           storyDroneReady.traverse(o => {
             const m = o as THREE.Mesh;
-            if (m.isMesh && /propeller/i.test(m.name ?? '')) m.rotation.y += k;
+            if (m.isMesh && (/propeller/i.test(m.name ?? '') || /propeller/i.test(m.parent?.name ?? ''))) m.rotation.y += k;
           });
         };
         switch (idx) {
           case 0: spinProps(0.35); storyDroneRoot.rotation.y = ease * Math.PI * 2; break;
           case 1: {
             // ciclo 7 — Explosión REAL: la vista explosionada de las piezas del HolyBro
+            // ciclo 9: posición DETERMINÍSTICA (copy, no lerp) — el reset de home
+            // por frame amortiguaría el lerp acumulativo a solo su primer 18%;
+            // el desplazamiento sigue la envolvente k = sin(p·π) de la escena.
             const k = Math.sin(p * Math.PI);
             if (storyDroneReady) {
               storyDroneReady.traverse(o => {
@@ -1090,7 +1166,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
                 if (!home) return;
                 const dir = home.clone().sub(storyCenter);
                 const target = home.clone().add(dir.clone().normalize().multiplyScalar(dir.length() * 1.1 * k));
-                m.position.lerp(target, 0.18);
+                m.position.copy(target);
               });
             }
             break;
@@ -1117,6 +1193,8 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         if (idx !== 6) accentMat.emissiveIntensity = 0;
       }
       if (cur.mode === 'surface') {
+        // sonda QA ciclo 9: indica si el GLB real del yunque cargó (vs fallback)
+        (window as any).__surfaceAnvil = !!anvilReady;
         if (anvilReady) {
           // yunque real: influencias de morph continuas y bidireccionales
           if (Math.abs(cur.surface - lastAnvilT) > 0.004) { applySurfaceMorph(anvilReady, cur.surface); lastAnvilT = cur.surface; }
@@ -1145,8 +1223,16 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
               if (cnt++ < 5) (window as any).__variantFinalMats.push(`${m.name}:${m.material ? ((m.material as THREE.MeshStandardMaterial).color ? '#'+(m.material as THREE.MeshStandardMaterial).color.getHexString() : 'noColor') : 'null'}:op${m.material ? (m.material as THREE.MeshStandardMaterial).opacity : '?'}`);
             });
           }
-          // vista explosionada (slot 1): separación radial continua con ease
-          const wantExplode = cur.variantSlots.on[1] ? 1 : 0;
+          // sonda QA ciclo 9: las hélices DEBEN verse en el estado inicial blanco
+          (window as any).__variantPropVisible = false;
+          if (variantDroneReady) {
+            variantDroneReady.traverse(o => {
+              const m = o as THREE.Mesh;
+              if (m.isMesh && m.visible && (/propeller/i.test(m.name ?? '') || /propeller/i.test(m.parent?.name ?? ''))) (window as any).__variantPropVisible = true;
+            });
+          }
+          // vista explosionada (slot por id): separación radial continua con ease
+          const wantExplode = cur.variantSlots.on[IDX_EXPLODE] ? 1 : 0;
           varExplode += (wantExplode - varExplode) * 0.06;
           const e = varExplode * varExplode * (3 - 2 * varExplode);
           if (variantDroneReady) {
@@ -1161,8 +1247,8 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
               m.position.lerp(target, 0.12);
             });
           }
-          // animación de vuelo (slot 12): spin-up de hélices + levitación
-          if (cur.variantSlots.on[12]) {
+          // animación de vuelo (slot por id): spin-up de hélices + levitación
+          if (cur.variantSlots.on[IDX_FLIGHT]) {
             if (varFlightT0 < 0) varFlightT0 = t;
             const ft = t - varFlightT0;
             const spin = Math.min(1, ft / 0.8);
@@ -1199,8 +1285,15 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       if (cur.mode !== 'story' && cur.mode !== 'assembly') {
         // ciclo 8 — AUTO-ENCUADRE por contenido: la cámara se acerca hasta que el
         // modelo llena el canvas (~2,5× más grande en pantalla).
+        // ciclo 9 — surface: margen MÁS CERRADO solo para el yunque (malla plana,
+        // la esfera de encuadre lo dejaba pequeño); Alexander: "sigue viéndose muy pequeño".
+        // Medido en QA: yunque 3.4×1.45 (proyección diagonal ~3.8) + esfera
+        // corregida + preview surface más alto (240px) → margen 1.06 llena
+        // ~72-74% del ancho del canvas al alinearse (antes ~30%).
         const sph = computeVisibleSphere(group);
-        const targetDist = Math.max(1.3, Math.min(7, sph.radius * 2.35));
+        const margin = cur.mode === 'surface' ? 1.06 : 2.35;
+        const minDist = cur.mode === 'surface' ? 1.0 : 1.3;
+        const targetDist = Math.max(minDist, Math.min(7, sph.radius * margin));
         frameDist += (targetDist - frameDist) * 0.08;
         cam.position.set(0, sph.center.y + sph.radius * 0.22, sph.center.z + frameDist);
         cam.lookAt(sph.center.x, sph.center.y, sph.center.z);

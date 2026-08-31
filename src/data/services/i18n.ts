@@ -158,12 +158,7 @@ export const TREE_EN = {
           question: 'How many parts or pieces does your product have?',
           help: 'One part is simpler than a 20-part assembly.',
           unit: 'parts',
-          advanced: {
-            'piezas-moviles': { label: 'Are there moving or articulated parts?', help: 'Joints require rigging.',
-              options: { ninguna: 'No, all rigid', algunas: 'Yes, 1–5 moving', muchas: 'Yes, 6+ moving' } },
-            'piezas-desmontables': { label: 'Do you need an exploded view?', help: 'See the inside or separate parts.',
-              options: { no: 'No, exterior only', estatica: 'Yes, static exploded view', interactiva: 'Yes, interactive disassembly' } },
-          },
+          // ciclo 9: advanced (piezas-moviles / piezas-desmontables) retirado.
         },
         'materiales-acabado': {
           question: 'What finishes does your product have?',
@@ -172,27 +167,9 @@ export const TREE_EN = {
             variado: { label: 'Varied', desc: 'Metal, plastic, rubber, paint' },
             detallado: { label: 'Detailed', desc: 'Textures, logos, engravings, wear' },
           },
-          advanced: {
-            pbr: { label: 'PBR materials (physically based)', help: 'PBR simulates light realistically.',
-              options: { no: 'No, flat colors', basico: 'Yes, basic', completo: 'Yes, full (metal+roughness+normal+AO)' } },
-            iluminacion: { label: 'Model lighting',
-              options: { env: 'Ambient (clean)', estudio: 'Studio (3 lights)', hdri: 'HDRI (realistic environment)' } },
-          },
+          // ciclo 9: advanced (pbr / iluminacion) retirado.
         },
-        'interaccion-visual': {
-          question: 'What can the visitor do with the model?',
-          options: {
-            rotar: { label: 'Just rotate it', desc: '360° view with mouse or finger' },
-            'rotar-zoom': { label: 'Rotate and zoom', desc: 'Also zoom into details' },
-            auto: { label: 'Automatic rotation', desc: 'Spins on its own, no interaction' },
-          },
-          advanced: {
-            fondo: { label: 'Viewer background',
-              options: { transparente: 'Transparent (blends into your site)', solido: 'Solid color', gradiente: 'Soft gradient', entorno: 'HDRI environment' } },
-            interfaz: { label: 'Viewer interface',
-              options: { limpio: 'Clean (no controls)', controles: 'With controls (zoom, reset)', hotspots: 'With hotspots (part info)' } },
-          },
-        },
+        // ciclo 9: 'interaccion-visual' retirada del árbol (no aportaba al precio).
         'donde-mostrar': {
           question: 'Where will you show the 3D model?',
           options: {
@@ -201,12 +178,7 @@ export const TREE_EN = {
             feria: { label: 'On a touch screen (trade show)' },
             movil: { label: 'In a mobile app (WebView)' },
           },
-          advanced: {
-            cms: { label: 'Your website platform / CMS',
-              options: { wordpress: 'WordPress', shopify: 'Shopify', wix: 'Wix / Squarespace', custom: 'Custom code', nosabe: 'Don’t know' } },
-            rendimiento: { label: 'Priority', help: 'Mobile = speed, PC = quality.',
-              options: { velocidad: 'Speed first (<2s load)', balance: 'Balanced', calidad: 'Maximum quality' } },
-          },
+          // ciclo 9: advanced (cms / rendimiento) retirado.
         },
       },
     },
@@ -253,10 +225,7 @@ export const TREE_EN = {
             feria: { label: 'Touch screen at a trade show/event' },
             app: { label: 'Full web application' },
           },
-          advanced: {
-            rendimiento: { label: 'Priority', help: 'Mobile = speed, PC = quality.',
-              options: { velocidad: 'Speed first (<2s load)', balance: 'Balanced', calidad: 'Maximum quality' } },
-          },
+          // ciclo 9: advanced (rendimiento) retirado.
         },
       },
     },
@@ -274,14 +243,7 @@ export const TREE_EN = {
           help: 'In scrollytelling the 3D is seen in motion: level 2–3 is usually enough.',
           unit: 'level',
         },
-        'tono-historia': {
-          question: 'How is the story told?',
-          options: {
-            'camara-vuela': { label: 'The camera flies', desc: 'Cinematic shots around the product' },
-            'producto-transforma': { label: 'The product transforms', desc: 'It assembles, changes color or state on scroll' },
-            'texto-guia': { label: 'Text + background 3D', desc: 'The message leads; the 3D subtly follows' },
-          },
-        },
+        // ciclo 9: 'tono-historia' retirada del árbol (no aportaba al precio).
       },
     },
     'web-app': {

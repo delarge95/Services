@@ -42,13 +42,13 @@ describe('treeToQuote: ver-modelo', () => {
     expect(plan.picks[1].vals['numTexturas']).toBe(6);
   });
 
-  it('hotspots en interfaz avanzada → numHotspots 8 en el visor', () => {
+  it('ciclo 9: respuesta residual de la pregunta retirada "interfaz" se ignora (hotspots se ajustan en config)', () => {
     const plan = planFromTreeAnswers('web-3d', 'ver-modelo', {
       'modelo-existente': 'si-tengo',
       'formato-archivo': 'gltf',
-      'interfaz': 'hotspots',
+      'interfaz': 'hotspots', // la pregunta se retiró del árbol; el plan no la lee
     });
-    expect(plan.picks[0].vals['numHotspots']).toBe(8);
+    expect(plan.picks[0].vals['numHotspots']).toBe(0);
   });
 });
 
@@ -209,7 +209,7 @@ describe('treeToQuote: ciclo 5 — pregunta estilo retirada (RTA-05 desacoplado)
 
 describe('treeToQuote: consistencia con el motor de cotización', () => {
   const escenarios: Array<[string, string, Record<string, string | number | boolean>]> = [
-    ['ver-modelo', 'ver-modelo', { 'modelo-existente': 'si-tengo', 'formato-archivo': 'step', 'cantidad-piezas': 25, 'interfaz': 'hotspots', 'donde-mostrar': 'feria' }],
+    ['ver-modelo', 'ver-modelo', { 'modelo-existente': 'si-tengo', 'formato-archivo': 'step', 'cantidad-piezas': 25, 'donde-mostrar': 'feria' }],
     ['ver-modelo sin modelo', 'ver-modelo', { 'modelo-existente': 'no-crear', 'nivel-detalle': 4, 'cantidad-piezas': 30, 'materiales-acabado': 'detallado' }],
     ['interactivo app', 'interactivo', { 'tipo-interactividad': 'configurar', 'modelo-existente': 'no-crear', 'nivel-detalle': 2 }],
     ['scrollytelling', 'scrollytelling', { 'escenas': 9, 'modelo-para-scroll': 'no' }],

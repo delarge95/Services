@@ -379,11 +379,11 @@ function tipFor(q: TreeQuestion, en: boolean): string {
       ? 'Shows how detail grows on a sample model as the level rises. Drag the model to spin it.'
       : 'Muestra cómo crece el detalle de un modelo de muestra al subir el nivel. Arrastra el modelo para girarlo.',
     assembly: en
-      ? 'Real drone (HolyBro X500): each step adds a part; instances count once. After 3 s idle it alternates assembled/exploded.'
-      : 'Dron real (HolyBro X500): cada paso añade una pieza; las instancias cuentan una vez. Tras 3 s sin mover el slider alterna armado/explosionado.',
+      ? 'Real drone (HolyBro X500): each unit of the slider adds exactly one part. After 3 s idle it alternates assembled/exploded.'
+      : 'Dron real (HolyBro X500): cada unidad del slider añade exactamente una pieza. Tras 3 s sin mover el slider alterna armado/explosionado.',
     'piece-count': en
-      ? 'Real drone (HolyBro X500): each step adds a part; instances count once. After 3 s idle it alternates assembled/exploded.'
-      : 'Dron real (HolyBro X500): cada paso añade una pieza; las instancias cuentan una vez. Tras 3 s sin mover el slider alterna armado/explosionado.',
+      ? 'Real drone (HolyBro X500): each unit of the slider adds exactly one part. After 3 s idle it alternates assembled/exploded.'
+      : 'Dron real (HolyBro X500): cada unidad del slider añade exactamente una pieza. Tras 3 s sin mover el slider alterna armado/explosionado.',
     story: en
       ? 'The animations are examples of the moments your page will play on scroll. Click a moment to view it.'
       : 'Las animaciones son ejemplos de los momentos que tu página reproducirá al hacer scroll. Haz click en un momento para verlo.',
@@ -550,9 +550,6 @@ function SliderWithPreview({ branchId, questionId, config, value, onChange, lang
   const [slots, setSlots] = useState<VariantSlotsState>({
     on: VARIANT_SLOTS.map((_, i) => defaultSlotOn(i)),
     colors: { ...SLOT_DEFAULT_COLORS },
-    filterFrame: true,
-    filterMotors: true,
-    filterPropellers: true,
   });
   const tierHint = config.tierMap?.find(t => value <= t.max)?.tier ?? '';
   const preview = config.preview;
@@ -598,8 +595,8 @@ function SliderWithPreview({ branchId, questionId, config, value, onChange, lang
   } else if (preview === 'assembly') {
     mode = 'assembly';
     caption = en
-      ? 'Real model (HolyBro X500): big parts first, instances count once'
-      : 'Modelo real (HolyBro X500): primero las piezas grandes; las instancias cuentan una vez';
+      ? 'Real model (HolyBro X500): each unit of the slider adds exactly one part'
+      : 'Modelo real (HolyBro X500): cada unidad del slider añade exactamente una pieza';
   } else if (preview === 'shader-dial') {
     mode = 'shader-dial';
     const caps = en
@@ -621,7 +618,7 @@ function SliderWithPreview({ branchId, questionId, config, value, onChange, lang
         <div>
           <ModelPreview mode={mode} detail={shown} pieces={value} story={value} surface={value}
             variantSlots={mode === 'variants' ? slots : undefined} estilo={value} lang={lang}
-            height={mode === 'story' ? 165 : 150} />
+            height={mode === 'story' ? 165 : mode === 'surface' ? 240 : 150} />
           {mode !== 'variants' && (
             <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--cx-muted)', marginTop: 2 }}>{caption}</div>
           )}
@@ -680,25 +677,13 @@ function SliderWithPreview({ branchId, questionId, config, value, onChange, lang
 /** Colores de los swatches de los slots de color (ES/EN iguales, hex). */
 const SLOT_COLORS = ['#3a3f47', '#eef0f2', '#0071e3', '#ff6b57', '#2e7d4f', '#c9b99a'];
 
-/** Familias del drone para filtros/aislamiento. */
-const FAMILIES = [
-  { id: 'frame', es: 'Frame', en: 'Frame' },
-  { id: 'motors', es: 'Motores', en: 'Motors' },
-  { id: 'propellers', es: 'Hélices', en: 'Propellers' },
-] as const;
-
-/** Estado inicial de un slot (ciclo 6): el COLOR BASE y el FILTRO nacen activos;
- *  los colores secundario/terciario/cuaternario (acentos opcionales) y los FX
- *  (explosión/corte/xray/lineart/vuelo/aislamiento) y las piezas adicionales
- *  (batería/electrónica/plataforma) nacen APAGADOS — si no, el drone arrancaría
- *  explotado/cortado/en rayos-X y con batería (contradice el frame inicial).
- *  Luces excluyentes: solo la primera nace activa. El base es el único color
- *  activo para que su toggle tiña (o destiña) TODO el drone, no solo los huecos. */
+/** Estado inicial de un slot (ciclo 9): TODO nace apagado EXCEPTO la primera
+ *  luz (excluyentes) — el drone arranca BLANCO PLANO y cada capacidad se
+ *  enciende a mano; el color base tiñe el drone completo al activarse. */
 const defaultSlotOn = (i: number) => {
   const s = VARIANT_SLOTS[i];
   if (s.kind === 'luz') return i === VARIANT_SLOTS.findIndex(x => x.kind === 'luz');
-  if (s.kind === 'color') return i === VARIANT_SLOTS.findIndex(x => x.kind === 'color');
-  return s.fx === 'filter';
+  return false;
 };
 
 /**
@@ -738,12 +723,6 @@ function VariantSlotsPanel({ value, lang, slots, setSlots }: {
   });
 
   const setSlotColor = (slotId: string, color: string) => setSlots(sl => ({ ...sl, colors: { ...sl.colors, [slotId]: color } }));
-  const toggleFamily = (fam: 'frame' | 'motors' | 'propellers') => setSlots(sl => ({
-    ...sl,
-    filterFrame: fam === 'frame' ? !sl.filterFrame : sl.filterFrame,
-    filterMotors: fam === 'motors' ? !sl.filterMotors : sl.filterMotors,
-    filterPropellers: fam === 'propellers' ? !sl.filterPropellers : sl.filterPropellers,
-  }));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -792,23 +771,6 @@ function VariantSlotsPanel({ value, lang, slots, setSlots }: {
           </span>
         )}
       </div>
-
-      {/* Filtros de familia (solo si el slot está activo) */}
-      {slots.on[VARIANT_SLOTS.findIndex(x => x.fx === 'filter')] && (
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
-          {FAMILIES.map(f => {
-            const on = f.id === 'frame' ? slots.filterFrame : f.id === 'motors' ? slots.filterMotors : slots.filterPropellers;
-            return (
-              <button key={f.id} onClick={() => toggleFamily(f.id)}
-                style={{
-                  fontSize: 11, fontWeight: 600, padding: '4px 12px', borderRadius: 999, cursor: 'pointer', font: 'inherit',
-                  border: on ? '1.5px solid var(--cx-accent)' : '1px solid var(--cx-border-strong)',
-                  background: on ? 'var(--cx-accent-soft)' : 'var(--cx-card-solid)', color: on ? 'var(--cx-accent)' : 'var(--cx-muted)',
-                }}>{en ? f.en : f.es}</button>
-            );
-          })}
-        </div>
-      )}
 
       <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--cx-muted)', marginTop: 2 }}>
         {en
