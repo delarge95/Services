@@ -9,8 +9,40 @@ import { CotizadorRedesign } from '../components/services/CotizadorRedesign';
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Cotizador de proyectos 3D — Alexander Woodcock</title>
     <meta name="description" content="Rango orientativo de costo y tiempo para tus proyectos 3D." />
+    <script is:inline>
+      /* Tema ANTES del primer pintado (evita flash blanco en modo oscuro). */
+      try {
+        var t = localStorage.getItem('cx-theme');
+        if (!t) t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.cxTheme = t;
+        document.documentElement.style.background = t === 'dark' ? '#0b0b0f' : '#fbfbfd';
+      } catch (e) { /* sin almacenamiento */ }
+    </script>
+    <style is:global>
+      html { background: #fbfbfd; }
+      html[data-cx-theme='dark'] { background: #0b0b0f; }
+      /* Vars de tema a nivel documento: nunca dependen de la hidratación del isla */
+      html[data-cx-theme='light'] {
+        --cx-bg: #fbfbfd; --cx-card: rgba(255,255,255,0.85); --cx-card-solid: #ffffff;
+        --cx-tile: #f5f5f7; --cx-text: #1d1d1f; --cx-muted: #86868b; --cx-faint: #aeaeb2;
+        --cx-border: rgba(0,0,0,0.05); --cx-border-strong: rgba(0,0,0,0.10); --cx-soft: rgba(0,0,0,0.06);
+        --cx-accent: #0071e3; --cx-accent-hover: #0077ed; --cx-accent-soft: #e8f0fe;
+        --cx-accent-border: rgba(0,113,227,0.3);
+        --cx-shadow-card: 0 2px 16px rgba(0,0,0,0.03); --cx-shadow-hover: 0 8px 24px rgba(0,0,0,0.06);
+        --cx-shadow-knob: 0 2px 8px rgba(0,0,0,0.15); --cx-obj-shadow: rgba(29,29,31,0.14);
+      }
+      html[data-cx-theme='dark'] {
+        --cx-bg: #0b0b0f; --cx-card: rgba(28,28,32,0.82); --cx-card-solid: #1c1c21;
+        --cx-tile: #26262c; --cx-text: #f5f5f7; --cx-muted: #98989d; --cx-faint: #6e6e73;
+        --cx-border: rgba(255,255,255,0.09); --cx-border-strong: rgba(255,255,255,0.16); --cx-soft: rgba(255,255,255,0.12);
+        --cx-accent: #2997ff; --cx-accent-hover: #40a3ff; --cx-accent-soft: rgba(41,151,255,0.16);
+        --cx-accent-border: rgba(41,151,255,0.4);
+        --cx-shadow-card: 0 2px 16px rgba(0,0,0,0.45); --cx-shadow-hover: 0 8px 24px rgba(0,0,0,0.5);
+        --cx-shadow-knob: 0 2px 8px rgba(0,0,0,0.6); --cx-obj-shadow: rgba(0,0,0,0.65);
+      }
+    </style>
   </head>
-  <body style="margin:0; background:#f8f9fb; font-family:'Inter','Segoe UI',system-ui,sans-serif;">
-    <CotizadorRedesign client:load {...{ currency: 'USD' as const }} />
+  <body style="margin:0; font-family:-apple-system,'Segoe UI',Inter,system-ui,sans-serif;">
+    <CotizadorRedesign client:load />
   </body>
 </html>

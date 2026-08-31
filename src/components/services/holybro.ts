@@ -361,3 +361,55 @@ export function revealFrameOnly(root: THREE.Group) {
     m.visible = fam === 'motors' || fam === 'propellers' || fam === 'frame';
   });
 }
+
+
+// ─── Lista de ensamblaje pieza-a-pieza (ciclo 8, feedback Alexander) ───
+// El slider 1-50 revela grupos 1:1: 1 = el motor, 2 = +hélice, 3 = +tubo,
+// 4 = frame superior completo (instancias ×4)… y de ahí cada tipo de tornillería.
+
+export interface AssemblyGroup { meshes: THREE.Mesh[]; es: string; en: string }
+
+export function buildAssemblyReveal(root: THREE.Group): { list: AssemblyGroup[]; total: number } {
+  const pick = (re: RegExp): THREE.Mesh[] => {
+    const out: THREE.Mesh[] = [];
+    root.traverse(o => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh && re.test(m.name ?? '')) out.push(m);
+    });
+    return out;
+  };
+  const list: AssemblyGroup[] = [
+    { meshes: pick(/DJ-2216-KV880_001|HMX5V-DIGAI-DIANJIZUO-MUJU_001/i), es: 'Motor', en: 'Motor' },
+    { meshes: pick(/x500v2_propeller_low/i), es: 'Hélice', en: 'Propeller' },
+    { meshes: pick(/CARBON-FIBER-TUBE300_001/i), es: 'Tubo del brazo', en: 'Arm tube' },
+    { meshes: [...pick(/TOP-PLATE/i), ...pick(/CARBON-FIBER-TUBE/i), ...pick(/DJ-2216-KV880\.00/i), ...pick(/HMX5V/i), ...pick(/propeller_instance/i)], es: 'Frame superior (instancias ×4)', en: 'Top frame (×4 instances)' },
+    { meshes: [...pick(/BOTTOM-PLATE/i), ...pick(/JIA-GUAN/i), ...pick(/GUAN-CHENG/i), ...pick(/JIA-LIANJIE/i)], es: 'Frame inferior', en: 'Bottom frame' },
+    { meshes: [...pick(/PYLONS-X500/i), ...pick(/MAO-JIAO/i), ...pick(/JIAO-EVA/i), ...pick(/HUAN-GUIJIAO/i), ...pick(/JIAO-LIANJIE/i)], es: 'Tren de aterrizaje', en: 'Landing gear' },
+    { meshes: [...pick(/PIXHAWK|IMU|PCB|GPS|TELEMETRY|XT60|BM06B|TOU-|DIKE-|MIANKE|GAI-GUANGLIU|ZHIJIA-CAMERA|GAN-GPSV5|GPSV5-ZHIJIA|GPS-ZHIJIA|x500v2_gps|x500v2_telemetry/i)], es: 'Electrónica', en: 'Electronics' },
+    { meshes: pick(/battery|BATTERY/i), es: 'Batería', en: 'Battery' },
+    { meshes: [...pick(/PLATFORM-PLAT/i), ...pick(/X500-TAO/i)], es: 'Plataforma superior', en: 'Top platform' },
+  ];
+  // Tornillería: cada TIPO de pieza (nombre normalizado) es un grupo individual
+  const seen = new Set<string>();
+  root.traverse(o => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    const st = m.userData.step as number | undefined;
+    if (st !== 9) return;
+    const k = piezaKey(m.name ?? '');
+    if (seen.has(k)) return;
+    seen.add(k);
+    const meshes: THREE.Mesh[] = [];
+    root.traverse(o2 => {
+      const m2 = o2 as THREE.Mesh;
+      if (m2.isMesh && piezaKey(m2.name ?? '') === k) meshes.push(m2);
+    });
+    list.push({ meshes, es: 'Tornillería', en: 'Hardware' });
+  });
+  return { list, total: list.length };
+}
+
+/** Revela los primeros k grupos de la lista (el resto oculto). */
+export function revealAssemblyList(list: AssemblyGroup[], k: number) {
+  list.forEach((g, i) => { for (const m of g.meshes) m.visible = i < k; });
+}

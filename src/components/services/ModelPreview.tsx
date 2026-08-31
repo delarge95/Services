@@ -26,7 +26,8 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { EN, TRIS_ETIQUETAS } from '../../data/services/i18n';
-import { loadHolybroInstance, applyFinish, ensureVariadoSet, revealFrameOnly, droneStepFamily, tagAssemblyStages, revealAssemblyStages, ASSEMBLY_STAGE_NAMES } from './holybro';
+import { loadHolybroInstance, applyFinish, ensureVariadoSet, revealFrameOnly, droneStepFamily, tagAssemblyStages, buildAssemblyReveal, revealAssemblyList } from './holybro';
+import type { AssemblyGroup } from './holybro';
 import type { FinishKind, VariadoSet } from './holybro';
 import { loadAnvilInstance, applySurfaceMorph, ANVIL_MORPH_NODE } from './anvil';
 import type { Lang } from '../../data/services/i18n';
@@ -85,9 +86,9 @@ export interface VariantSlotsState {
 
 /** Hex por defecto de cada slot de color. */
 export const SLOT_DEFAULT_COLORS: Record<string, string> = {
-  'color-base': '#eef0f2',
-  'color-secundario': '#3a3f47',
-  'color-terciario': '#0071e3',
+  'color-base': '#22262c',
+  'color-secundario': '#0071e3',
+  'color-terciario': '#c9b99a',
   'color-cuaternario': '#8f9297',
 };
 
@@ -526,8 +527,9 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     let variadoSet: VariadoSet | null = null;
     let lastFinish: FinishKind | null = null;
     let lastPieceCount = -1;
-    // ciclo 7 — explosión ACTIVA: ciclo continuo desarma ↔ arma tras el idle
+    // ciclo 8 — explosión con RITMO: 3 s armado → explota → 3,4 s explosionado → une
     let hbCenter = new THREE.Vector3(0, 0, 0);
+    let assmList: AssemblyGroup[] = [];
     function startHolybro() {
       if (holybroStarted) return;
       holybroStarted = true;
@@ -536,7 +538,9 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
           holybroRoot.add(root);
           holybroReady = root;
           tagAssemblyStages(root);
-          revealAssemblyStages(root, ASSEMBLY_STAGE_NAMES.length);
+          const rev = buildAssemblyReveal(root);
+          assmList = rev.list;
+          revealAssemblyList(assmList, 1);
           // posición base de cada pieza (para la explosión) y centro del drone
           root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) m.userData.assmHome = m.position.clone(); });
           hbCenter = new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());
@@ -688,24 +692,24 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         m.visible = vis;
       });
 
-      // ── 2. colores (base→secundario→terciario→cuaternario; el último gana) ──
+      // ── 2. colores: base plano para TODO; los acentos van coloreando sets ──
       const colorOrder: Array<[number, ColorTarget]> = [
         [0, 'all'], [2, 'motors'], [3, 'propellers'], [4, 'frames'],
       ];
-      const dbgColors: string[] = [];
+      const baseOn = s.on[0];
+      const baseHex = s.colors[VARIANT_SLOTS[0].id] ?? '#22262c';
       root.traverse(o => {
         const m = o as THREE.Mesh;
         if (!m.isMesh) return;
         const tgt = colorTargetOf(m.userData.step as number | undefined);
-        let hex: string | null = null;
+        // sin base activa → materiales originales (variado); con base → plano
+        let hex: string | null = baseOn ? baseHex : null;
         for (const [idx, target] of colorOrder) {
-          if (!s.on[idx]) continue;
-          if (target === 'all' || target === tgt) hex = s.colors[VARIANT_SLOTS[idx].id] ?? null;
+          if (idx === 0 || !s.on[idx]) continue;
+          if (target === 'all' || target === tgt) hex = s.colors[VARIANT_SLOTS[idx].id] ?? hex;
         }
         m.material = hex ? tintMat(hex) : (m.userData.variadoMat as THREE.Material ?? m.userData.origMat as THREE.Material ?? m.material);
-        if (m.visible && dbgColors.length < 12) dbgColors.push(`${m.name}:step${m.userData.step}:tgt=${tgt}:${hex ?? 'variado'}`);
       });
-      (window as any).__variantColors = dbgColors;
 
       // ── 3. shaders ──
       const xrayOn = s.on[10], lineartOn = s.on[11];
@@ -930,6 +934,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
 
     // ── Loop ──
     let raf = 0;
+    let frameDist = 4.8;
     const start = performance.now();
     const loop = () => {
       raf = requestAnimationFrame(loop);
@@ -971,34 +976,36 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         holybroRoot.rotation.y = t * 0.25;
       }
       if (cur.mode === 'assembly') {
-        if (holybroReady) {
-          // ciclo 7 — revelado por STAGES motor-primero: el slider (1-50) mapea a
-          // los 10 stages (1 motor → hélice → tubo → frame ×4 → ... → tornillería).
-          const k = Math.max(1, Math.min(ASSEMBLY_STAGE_NAMES.length, Math.ceil(Math.max(1, Math.min(50, cur.pieces)) / 5)));
-          if (k !== lastPieceCount) { revealAssemblyStages(holybroReady, k); lastPieceCount = k; lastPiecesChange = performance.now(); }
-          const stageName = ASSEMBLY_STAGE_NAMES[Math.min(k, ASSEMBLY_STAGE_NAMES.length) - 1];
+        if (holybroReady && assmList.length) {
+          // ciclo 8 — PIEZA A PIEZA: cada unidad del slider añade SU pieza (1:1)
+          const k = Math.max(1, Math.min(assmList.length, Math.round(Math.max(1, Math.min(50, cur.pieces)))));
+          if (k !== lastPieceCount) { revealAssemblyList(assmList, k); lastPieceCount = k; lastPiecesChange = performance.now(); }
+          const g = assmList[Math.min(k, assmList.length) - 1];
           if (uiRef.current) {
-            uiRef.current.textContent = cur.lang === 'es' ? stageName.es : stageName.en;
+            uiRef.current.textContent = cur.lang === 'es' ? g.es : g.en;
             uiRef.current.style.opacity = '1';
           }
           holybroRoot.rotation.y = t * 0.25;
-          // encuadre dinámico por bbox de piezas visibles
+          // cámara SIEMPRE enfocada en las piezas visibles (lo más grande posible)
           const sph = computeVisibleSphere(holybroReady);
-          const targetDist = Math.max(1.25, Math.min(4.6, sph.radius * 3.4));
-          assmCamDist += (targetDist - assmCamDist) * 0.055;
-          cam.position.set(0, 0.95, assmCamDist);
-          cam.lookAt(sph.center.x, sph.center.y * 0.6 + 0.15, sph.center.z);
-          // ciclo 7 — explosión ACTIVA: tras 3 s de inactividad el ensamblaje entra
-          // en un ciclo continuo desarma ↔ arma (el cliente ve ambas vistas).
+          const targetDist = Math.max(0.9, Math.min(4.6, sph.radius * 2.4));
+          assmCamDist += (targetDist - assmCamDist) * 0.06;
+          cam.position.set(0, sph.center.y + sph.radius * 0.45, sph.center.z + assmCamDist);
+          cam.lookAt(sph.center.x, sph.center.y, sph.center.z);
+          // ciclo 8 — RITMO con pausas: 3 s armado → explota (1 s) → 3,4 s explosionado → une (1 s) → repite
           const idle = (performance.now() - lastPiecesChange) / 1000;
-          const e = idle > 3 ? 0.5 - 0.5 * Math.cos(((idle - 3) * Math.PI * 2) / 3.6) : 0;
+          let e = 0;
+          if (idle > 3) {
+            const ph = (idle - 3) % 8.4;
+            e = ph < 3 ? 0 : ph < 4 ? smooth(ph - 3) : ph < 7.4 ? 1 : 1 - smooth(ph - 7.4);
+          }
           holybroReady.traverse(o => {
             const m = o as THREE.Mesh;
             if (!m.isMesh || !m.visible) return;
             const home = m.userData.assmHome as THREE.Vector3 | undefined;
             if (!home) return;
             const dir = home.clone().sub(hbCenter);
-            const target = home.clone().add(dir.clone().normalize().multiplyScalar(dir.length() * 0.85 * e));
+            const target = home.clone().add(dir.clone().normalize().multiplyScalar(dir.length() * 0.95 * e));
             m.position.lerp(target, 0.12);
           });
         }
@@ -1190,20 +1197,13 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       group.rotation.y += (rotY - group.rotation.y) * 0.12;
       group.rotation.x += (rotX - group.rotation.x) * 0.12;
       if (cur.mode !== 'story' && cur.mode !== 'assembly') {
-        // ciclo 6 — presencia global más grande por modo (antes todo a 6.1).
-        // finish se mantiene en 4.5; assembly/story gestionan su propia cámara.
-        const camByMode: Record<string, [number, number]> = {
-          detail: [4.8, 1.0],
-          surface: [4.6, 0.95],
-          finish: [4.3, 0.95],
-          variants: [5.0, 1.1],
-          hotspots: [5.0, 1.1],
-          pieces: [5.0, 1.1],
-          'shader-dial': [5.0, 1.1],
-        };
-        const [dist, cy] = camByMode[cur.mode] ?? [5.0, 1.1];
-        cam.position.set(0, cy, dist);
-        cam.lookAt(0, 0.15, 0);
+        // ciclo 8 — AUTO-ENCUADRE por contenido: la cámara se acerca hasta que el
+        // modelo llena el canvas (~2,5× más grande en pantalla).
+        const sph = computeVisibleSphere(group);
+        const targetDist = Math.max(1.3, Math.min(7, sph.radius * 2.35));
+        frameDist += (targetDist - frameDist) * 0.08;
+        cam.position.set(0, sph.center.y + sph.radius * 0.22, sph.center.z + frameDist);
+        cam.lookAt(sph.center.x, sph.center.y, sph.center.z);
       }
       renderer.render(scene, cam);
       renderUi();

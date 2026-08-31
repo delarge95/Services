@@ -31,7 +31,7 @@ type BranchEn = {
 const branchEn = (id: string): BranchEn | undefined =>
   (TREE_EN.branches as Record<string, BranchEn | undefined>)[id];
 
-export function GuidedWizard({ onComplete, lang = 'es' }: { onComplete?: (plan: WizardQuotePlan) => void; lang?: Lang }) {
+export function GuidedWizard({ onComplete, lang = 'es', homeSignal = 0 }: { onComplete?: (plan: WizardQuotePlan, answers?: Record<string, string | number | boolean>) => void; lang?: Lang; homeSignal?: number }) {
   const [level, setLevel] = useState(1);
   const [rootChoice, setRootChoice] = useState('');
   const [subChoice, setSubChoice] = useState('');
@@ -42,17 +42,6 @@ export function GuidedWizard({ onComplete, lang = 'es' }: { onComplete?: (plan: 
 
   // ── Historial del navegador (ciclo 6): el botón atrás del navegador navega
   // entre pasos del wizard en vez de salir de /cotizador. Solo en cliente. ──
-
-  // Restaura el paso desde history.state al montar (p.ej. volver de config → nivel 3).
-  useEffect(() => {
-    const st = window.history.state;
-    if (st && st.cx === 'cotizador' && st.level && !st.config) {
-      setLevel(st.level);
-      setRootChoice(st.rootChoice ?? '');
-      setSubChoice(st.subChoice ?? '');
-      setAnswers(st.answers ?? {});
-    }
-  }, []);
 
   // push/replace history al cambiar de paso (y actualiza answers en el nivel 3).
   useEffect(() => {
@@ -89,6 +78,13 @@ export function GuidedWizard({ onComplete, lang = 'es' }: { onComplete?: (plan: 
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
+
+  // #1: home → reset total del wizard (aunque esté montado en nivel 3)
+  useEffect(() => {
+    if (homeSignal > 0) {
+      setLevel(1); setRootChoice(''); setSubChoice(''); setAnswers({}); setShowAdvanced(false);
+    }
+  }, [homeSignal]);
 
   const branch: TreeBranch | null = useMemo(() => {
     if (rootChoice === 'web-3d' && subChoice) return WEB3D_BRANCHES[subChoice] ?? null;
@@ -278,7 +274,7 @@ export function GuidedWizard({ onComplete, lang = 'es' }: { onComplete?: (plan: 
               if (typeof window !== 'undefined') {
                 window.history.pushState({ cx: 'cotizador', config: plan.picks[0]?.serviceId, draft: { rootChoice, subChoice, answers }, plan }, '');
               }
-              onComplete?.(plan);
+              onComplete?.(plan, answers);
             }}
             style={{
               marginTop: 32, width: '100%', padding: '16px', borderRadius: 999,
@@ -299,25 +295,131 @@ export function GuidedWizard({ onComplete, lang = 'es' }: { onComplete?: (plan: 
 
       <style>{`
         @keyframes cardIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+        .cx-tip:hover .cx-tip-box, .cx-tip:focus .cx-tip-box { opacity: 1 !important; visibility: visible !important; }
       `}</style>
     </div>
   );
 }
 
+// ═══ Editor inline (ciclo 8, #4): todas las configuraciones del wizard en
+// UNA sola card compacta, con las respuestas conservadas y previews 3D. ═══
+export function WizardEditInline({ rootChoice, subChoice, initialAnswers, lang = 'es', onApply, onClose }: {
+  rootChoice: string; subChoice: string;
+  initialAnswers: Record<string, string | number | boolean>;
+  lang?: Lang;
+  onApply?: (answers: Record<string, string | number | boolean>) => void;
+  onClose?: () => void;
+}) {
+  const [answers, setAnswers] = useState<Answers>(initialAnswers);
+  const branch: TreeBranch | null = WEB3D_BRANCHES[subChoice] ?? null;
+  const en = lang === 'en';
+  const set = (id: string, val: string | number | boolean) => setAnswers(p => ({ ...p, [id]: val }));
+
+  return (
+    <div style={{
+      background: 'var(--cx-card)', backdropFilter: 'blur(12px)',
+      border: '1px solid var(--cx-accent-border)', borderRadius: 20, padding: 24,
+      display: 'flex', flexDirection: 'column', gap: 20,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <strong style={{ fontSize: 15, color: 'var(--cx-text)' }}>
+          {en ? 'Edit your configurations' : 'Edita tus configuraciones'}
+        </strong>
+        <button onClick={() => onClose?.()}
+          style={{ font: '600 13px inherit', color: 'var(--cx-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+          {en ? 'Close ✕' : 'Cerrar ✕'}
+        </button>
+      </div>
+      {branch ? branch.questions.map(q => (
+        <QuestionCard key={q.id} q={q} answers={answers} onAnswer={set} lang={lang} branchId={branch.id} compact />
+      )) : (
+        <span style={{ fontSize: 13, color: 'var(--cx-muted)' }}>{en ? 'No questions for this branch.' : 'Sin preguntas para esta rama.'}</span>
+      )}
+      <button
+        onClick={() => onApply?.(answers)}
+        style={{
+          padding: '13px', borderRadius: 999, background: '#0071e3', color: '#fff', border: 'none',
+          font: '700 15px inherit', cursor: 'pointer',
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = 'var(--cx-accent-hover)'}
+        onMouseLeave={e => e.currentTarget.style.background = '#0071e3'}
+      >
+        {en ? 'Apply and update price →' : 'Aplicar y actualizar precio →'}
+      </button>
+    </div>
+  );
+}
+
+// ═══ InfoTip (#9): botón "?" con letrero al hover — aclara que lo que se ve
+// en los previews son EJEMPLOS ilustrativos y explica la sección. ═══
+function InfoTip({ text }: { text: string }) {
+  return (
+    <span className="cx-tip" tabIndex={0} role="note" aria-label={text}
+      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative',
+        width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+        border: '1px solid var(--cx-border-strong)', color: 'var(--cx-muted)',
+        fontSize: 10, fontWeight: 700, cursor: 'help', userSelect: 'none' }}>
+      ?
+      <span className="cx-tip-box" role="tooltip" style={{
+        position: 'absolute', bottom: 'calc(100% + 8px)', right: -8, width: 240, zIndex: 30,
+        background: 'var(--cx-card-solid)', color: 'var(--cx-text)', border: '1px solid var(--cx-border-strong)',
+        borderRadius: 10, padding: '8px 10px', fontSize: 11, fontWeight: 500, lineHeight: 1.45,
+        boxShadow: 'var(--cx-shadow-hover)', opacity: 0, visibility: 'hidden', transition: 'opacity .2s',
+        pointerEvents: 'none', textAlign: 'left',
+      }}>{text}</span>
+    </span>
+  );
+}
+
+/** Texto del "?" para una pregunta (ejemplos + descripción de la sección). */
+function tipFor(q: TreeQuestion, en: boolean): string {
+  const ex = en ? 'What you see are illustrative examples with a sample model.' : 'Lo que se ve son ejemplos ilustrativos con un modelo de muestra.';
+  const byPreview: Record<string, string> = {
+    'detail-level': en
+      ? 'Shows how detail grows on a sample model as the level rises. Drag the model to spin it.'
+      : 'Muestra cómo crece el detalle de un modelo de muestra al subir el nivel. Arrastra el modelo para girarlo.',
+    assembly: en
+      ? 'Real drone (HolyBro X500): each step adds a part; instances count once. After 3 s idle it alternates assembled/exploded.'
+      : 'Dron real (HolyBro X500): cada paso añade una pieza; las instancias cuentan una vez. Tras 3 s sin mover el slider alterna armado/explosionado.',
+    'piece-count': en
+      ? 'Real drone (HolyBro X500): each step adds a part; instances count once. After 3 s idle it alternates assembled/exploded.'
+      : 'Dron real (HolyBro X500): cada paso añade una pieza; las instancias cuentan una vez. Tras 3 s sin mover el slider alterna armado/explosionado.',
+    story: en
+      ? 'The animations are examples of the moments your page will play on scroll. Click a moment to view it.'
+      : 'Las animaciones son ejemplos de los momentos que tu página reproducirá al hacer scroll. Haz click en un momento para verlo.',
+    'variant-swirl': en
+      ? 'The options are examples of the real capabilities your configurator will offer.'
+      : 'Las opciones son ejemplos de las capacidades reales que ofrecerá tu configurador.',
+    'surface-morph': en
+      ? 'The morph illustrates the surface complexity being quoted (sample part).'
+      : 'El morph ilustra la complejidad de superficie que se está cotizando (pieza de muestra).',
+    finish: en
+      ? 'Real drone with the selected finish applied.'
+      : 'Dron real con el acabado elegido aplicado.',
+  };
+  const extra = (q.slider?.preview && byPreview[q.slider.preview]) || (q.preview === 'finish' ? byPreview.finish : '') || ex;
+  return extra;
+}
+
 // ═══ Question Card — renderiza según tipo ═══
-function QuestionCard({ q, answers, onAnswer, lang, branchId }: {
-  q: TreeQuestion; answers: Answers; onAnswer: (id: string, val: string | number | boolean) => void; lang: Lang; branchId: string;
+function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }: {
+  q: TreeQuestion; answers: Answers; onAnswer: (id: string, val: string | number | boolean) => void; lang: Lang; branchId: string; compact?: boolean;
 }) {
   const current = answers[q.id];
   const en = lang === 'en';
   const qEn = en ? branchEn(branchId)?.questions?.[q.id] : undefined;
 
   return (
-    <div style={{
+    <div style={compact ? {
+      padding: 0,
+    } : {
       background: 'var(--cx-card)', backdropFilter: 'blur(12px)',
       border: '1px solid var(--cx-border)', borderRadius: 20, padding: 24,
     }}>
-      <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--cx-text)', marginBottom: 4 }}>{qEn?.question ?? q.question}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <div style={{ fontSize: 15.5, fontWeight: 600, color: 'var(--cx-text)', flex: 1 }}>{qEn?.question ?? q.question}</div>
+        <InfoTip text={tipFor(q, en) + ((qEn?.help ?? q.help) ? ` ${qEn?.help ?? q.help}` : '')} />
+      </div>
       {(qEn?.help ?? q.help) && <div style={{ fontSize: 13, color: 'var(--cx-muted)', marginBottom: 14, lineHeight: 1.45 }}>{qEn?.help ?? q.help}</div>}
 
       {/* Preview de tarjetas: acabados con el modelo real (HolyBro X500) */}

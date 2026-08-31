@@ -12,13 +12,14 @@ import { LAUNCH_DISCOUNT } from '../../data/services/rateCard';
 import { SERVICE_VARIABLES, derivarTier, recommendedValue } from '../../data/services/serviceVariables';
 import type { ServiceVariable } from '../../data/services/serviceVariables';
 import { BRAND } from '../../data/services/branding';
-import { EN, LANG_CURRENCY, CATALOG_EN, VARS_EN, EXTRA_LABELS_EN, EXTRA_NOTAS_EN } from '../../data/services/i18n';
+import { EN, CATALOG_EN, VARS_EN, EXTRA_LABELS_EN, EXTRA_NOTAS_EN } from '../../data/services/i18n';
 import type { Lang } from '../../data/services/i18n';
 import type { Currency } from '../../data/services/types';
 import type { WizardPick, WizardQuotePlan } from '../../data/services/treeToQuote';
 import { bundlePct, esquemaPago, RONDAS_NOTA } from '../../lib/services/quoteSummary';
 import { QuoteCta } from './QuoteCta';
-import { GuidedWizard } from './GuidedWizard';
+import { GuidedWizard, WizardEditInline } from './GuidedWizard';
+import { planFromTreeAnswers } from '../../data/services/treeToQuote';
 import { RefDropzone } from './RefDropzone';
 import { SunIcon, MoonIcon, HomeIcon, GearIcon } from './icons';
 
@@ -290,8 +291,8 @@ function VariableControl({ v, value, onValue, lang, serviceId }: {
 // ═══════════════════════════════════════════════════════════════
 export function CotizadorRedesign() {
   const [lang, setLang] = useState<Lang>('es');
-  /** La moneda se deriva del idioma: español ⇒ COP, inglés ⇒ USD (ciclo 2.1). */
-  const currency: Currency = LANG_CURRENCY[lang];
+  /** Moneda independiente del idioma (ciclo 8): por defecto ES + COP. */
+  const [currency, setCurrency] = useState<Currency>('COP');
   const [serviceId, setServiceId] = useState('');
   const [vals, setVals] = useState<Record<string, Val>>({});
   const [unsure, setUnsure] = useState<Record<string, boolean>>({});
@@ -315,9 +316,8 @@ export function CotizadorRedesign() {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('cx-theme');
-      if (saved === 'dark' || saved === 'light') setTheme(saved);
-      else if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) setTheme('dark');
+      const attr = document.documentElement.dataset.cxTheme;
+      if (attr === 'dark' || attr === 'light') setTheme(attr);
     } catch { /* almacenamiento no disponible */ }
   }, []);
   useEffect(() => {
@@ -347,10 +347,15 @@ export function CotizadorRedesign() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  /** #15: volver a la página principal (nivel 1 del wizard), sin configs colgadas. */
+  /** #15: home real — resetea también al wizard montado (vía homeKey). */
+  const [homeKey, setHomeKey] = useState(0);
+  const [wizardDraft, setWizardDraft] = useState<{ rootChoice: string; subChoice: string; answers: Record<string, string | number | boolean> } | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const goHome = () => {
     setMode('guided'); setServiceId(''); setVals({}); setExtras([]);
     setUnsure({}); setFirstClient(true); setUrgency('none');
+    setWizardDraft(null); setEditOpen(false);
+    setHomeKey(k => k + 1);
     if (typeof window !== 'undefined') window.history.replaceState({ cx: 'cotizador' }, '');
   };
 
@@ -374,12 +379,14 @@ export function CotizadorRedesign() {
   }, [svc, tier, currency, quoteOpts]);
 
   /** Aplica el plan del wizard: principal en configuración, resto como líneas extra. */
-  const applyPlan = (plan: WizardQuotePlan) => {
+  const applyPlan = (plan: WizardQuotePlan, answers?: Record<string, string | number | boolean>) => {
     const principal = plan.picks[0];
     if (!principal) return;
     setServiceId(principal.serviceId);
     setVals(principal.vals);
     setExtras(plan.picks.slice(1));
+    setWizardDraft({ rootChoice: plan.rootChoice, subChoice: plan.subChoice, answers: answers ?? {} });
+    setCanEditDetails(true);
   };
 
   /** Cotización de cada complemento del wizard. */
@@ -506,7 +513,7 @@ export function CotizadorRedesign() {
             style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', background: 'var(--cx-tile)', border: 'none', cursor: 'pointer', color: 'var(--cx-text)' }}>
             <ThemeIcon dark={theme === 'dark'} />
           </button>
-          {/* Idioma: ES ⇒ COP · EN ⇒ USD */}
+          {/* Idioma */}
           <div style={{ display: 'inline-flex', borderRadius: 999, overflow: 'hidden', border: '1px solid var(--cx-border-strong)' }}>
             {(['es', 'en'] as Lang[]).map(l => (
               <button key={l} onClick={() => setLang(l)}
@@ -514,7 +521,18 @@ export function CotizadorRedesign() {
                   padding: '6px 14px', font: `600 13px inherit`, border: 'none', cursor: 'pointer',
                   background: lang === l ? 'var(--cx-accent)' : 'transparent',
                   color: lang === l ? '#fff' : 'var(--cx-muted)',
-                }}>{l.toUpperCase()}{lang === l ? ` · ${currency}` : ''}</button>
+                }}>{l.toUpperCase()}</button>
+            ))}
+          </div>
+          {/* Moneda */}
+          <div style={{ display: 'inline-flex', borderRadius: 999, overflow: 'hidden', border: '1px solid var(--cx-border-strong)' }}>
+            {(['COP', 'USD'] as Currency[]).map(c => (
+              <button key={c} onClick={() => setCurrency(c)}
+                style={{
+                  padding: '6px 14px', font: `600 13px inherit`, border: 'none', cursor: 'pointer',
+                  background: currency === c ? 'var(--cx-accent)' : 'transparent',
+                  color: currency === c ? '#fff' : 'var(--cx-muted)',
+                }}>{c}</button>
             ))}
           </div>
         </div>
@@ -522,7 +540,7 @@ export function CotizadorRedesign() {
 
       <div className="cx-content">
         {/* ═══ MODO GUIADO ═══ */}
-        {mode === 'guided' && !svc && <GuidedWizard onComplete={applyPlan} lang={lang} />}
+        {mode === 'guided' && !svc && <GuidedWizard onComplete={applyPlan} lang={lang} homeSignal={homeKey} />}
 
         {/* ═══ CONFIGURACIÓN (modo guiado, con servicio) ═══ */}
         {mode === 'guided' && svc && (
@@ -537,9 +555,22 @@ export function CotizadorRedesign() {
 
               {/* #6: 'Editar detalles' despliega el menú anterior (wizard) con
                   todas las configuraciones hechas y las respuestas conservadas */}
-              {canEditDetails && variables.length > 0 && (
+              {canEditDetails && wizardDraft && (
+                editOpen ? (
+                  <WizardEditInline
+                    rootChoice={wizardDraft.rootChoice}
+                    subChoice={wizardDraft.subChoice}
+                    initialAnswers={wizardDraft.answers}
+                    lang={lang}
+                    onApply={(answers) => {
+                      const plan = planFromTreeAnswers(wizardDraft.rootChoice, wizardDraft.subChoice, answers);
+                      applyPlan(plan, answers);
+                    }}
+                    onClose={() => setEditOpen(false)}
+                  />
+                ) : (
                 <button
-                  onClick={() => { if (typeof window !== 'undefined') window.history.back(); }}
+                  onClick={() => setEditOpen(true)}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
                     padding: '10px 22px', borderRadius: 999,
@@ -548,6 +579,7 @@ export function CotizadorRedesign() {
                   }}>
                   <GearIcon size={16} /> {lang === 'es' ? 'Editar detalles' : 'Edit details'}
                 </button>
+                )
               )}
 
               {/* Ajustes restantes (solo los que el wizard no pregunta) */}
