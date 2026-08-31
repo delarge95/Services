@@ -305,8 +305,17 @@ export function CotizadorRedesign() {
   const [extras, setExtras] = useState<WizardPick[]>([]);
   /** Filtro activo del catálogo ('todas' = sin filtrar). */
   const [familyFilter, setFamilyFilter] = useState<string>('todas');
-  /** Tema claro/oscuro (persistido; respeta prefers-color-scheme la primera vez). */
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  /** Tema claro/oscuro (persistido; respeta prefers-color-scheme la primera vez).
+   * Lazy init: lee el atributo pre-pintado por el script inline de cotizador.astro
+   * para que la PRIMERA renderización ya use el tema correcto (sin flash blanco
+   * de `.cx-root` claro sobre el body oscuro antes del useEffect de corrección). */
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      const attr = document.documentElement.dataset.cxTheme;
+      if (attr === 'dark' || attr === 'light') return attr;
+    } catch { /* SSR: sin DOM */ }
+    return 'light';
+  });
   /** true si se llegó por el wizard (historial con draft) → muestra 'Editar detalles'. */
   const [canEditDetails, setCanEditDetails] = useState(false);
   useEffect(() => {
@@ -314,12 +323,6 @@ export function CotizadorRedesign() {
     setCanEditDetails(!!(st && st.cx === 'cotizador' && st.draft));
   }, [serviceId]);
 
-  useEffect(() => {
-    try {
-      const attr = document.documentElement.dataset.cxTheme;
-      if (attr === 'dark' || attr === 'light') setTheme(attr);
-    } catch { /* almacenamiento no disponible */ }
-  }, []);
   useEffect(() => {
     document.body.style.background = theme === 'dark' ? '#0b0b0f' : '#fbfbfd';
     try { localStorage.setItem('cx-theme', theme); } catch { /* almacenamiento no disponible */ }
@@ -450,7 +453,9 @@ export function CotizadorRedesign() {
           --cx-shadow-knob: 0 2px 8px rgba(0,0,0,0.15);
           --cx-obj-shadow: rgba(29,29,31,0.14);
         }
-        .cx-root[data-theme='dark'] {
+        /* Blindaje ciclo 10b: las variables oscuras aplican si html ya sabe el
+           tema (script inline) aunque el data-theme del div llegue tarde. */
+        html[data-cx-theme='dark'] .cx-root, .cx-root[data-theme='dark'] {
           --cx-bg: #0b0b0f;
           --cx-card: rgba(28,28,32,0.82);
           --cx-card-solid: #1c1c21;
