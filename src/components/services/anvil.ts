@@ -21,7 +21,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-export const ANVIL_URL = '/cotizador/models/yunke.glb';
+export const ANVIL_URL = `${import.meta.env.BASE_URL}cotizador/models/yunke.glb`;
 /** Nodo cuya mesh es la que morphea (identificado en el GLB). */
 export const ANVIL_MORPH_NODE = 'ANVIL LOW POLI';
 /** GLTFLoader nombra la mesh con el NOMBRE DEL NODO ('ANVIL LOW POLI'), así que

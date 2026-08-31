@@ -22,7 +22,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
-export const HOLYBRO_URL = '/cotizador/models/holybro-x500.glb';
+export const HOLYBRO_URL = `${import.meta.env.BASE_URL}cotizador/models/holybro-x500.glb`;
 
 export type FinishKind = 'simple' | 'variado' | 'detallado';
 
