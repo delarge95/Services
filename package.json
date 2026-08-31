@@ -1,0 +1,30 @@
+{
+  "name": "services-cotizador",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --host 127.0.0.1",
+    "build": "astro build",
+    "check": "astro check",
+    "preview": "astro preview --host 127.0.0.1",
+    "test": "npx vitest run",
+    "ci": "npm run test && npm run check"
+  },
+  "dependencies": {
+    "@astrojs/react": "^4.4.1",
+    "astro": "^5.15.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@types/three": "^0.184.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

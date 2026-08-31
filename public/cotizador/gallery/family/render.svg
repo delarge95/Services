@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 225" role="img">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6f8fc"/><stop offset="1" stop-color="#e9eef8"/></linearGradient>
+<linearGradient id="acc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff375f"/><stop offset="1" stop-color="#ff375fbb"/></linearGradient>
+<radialGradient id="glow" cx="0.5" cy="0.35" r="0.6"><stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="400" height="225" rx="14" fill="url(#bg)"/>
+<circle cx="300" cy="67.5" r="90" fill="url(#glow)"/>
+<polygon points="200,65 249.5,95.25 200,120 150.5,95.25" fill="url(#acc)"/>
+<polygon points="150.5,95.25 200,120 200,175 150.5,150.25" fill="#c6c9d4"/>
+<polygon points="249.5,95.25 200,120 200,175 249.5,150.25" fill="#9aa0ae"/>
+<polygon points="200,65 249.5,95.25 200,120 150.5,95.25" fill="none"/>
+<polygon points="150.5,95.25 200,120 200,175 150.5,150.25" fill="none"/>
+<polygon points="249.5,95.25 200,120 200,175 249.5,150.25" fill="none"/><polygon points="200,65 250,88 200,112 150,88" fill="#ff375fdd"/>
+<polygon points="150,88 200,112 200,177 150,152" fill="#ff375f88"/>
+<polygon points="250,88 200,112 200,177 250,152" fill="#ff375faa"/>
+<ellipse cx="200" cy="60" rx="70" ry="10" fill="#ffffff" opacity="0.5"/>
+<path d="M130 40 L90 20 M270 40 L310 20 M200 45 L200 15" stroke="#ff375f" stroke-width="2" opacity="0.4"/>
+<rect x="8" y="8" width="384" height="209" rx="10" fill="none" stroke="#dfe5f0"/>
+</svg>

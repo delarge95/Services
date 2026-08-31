@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 225" role="img">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6f8fc"/><stop offset="1" stop-color="#e9eef8"/></linearGradient>
+<linearGradient id="acc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5e6c84"/><stop offset="1" stop-color="#5e6c84bb"/></linearGradient>
+<radialGradient id="glow" cx="0.5" cy="0.35" r="0.6"><stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="400" height="225" rx="14" fill="url(#bg)"/>
+<circle cx="300" cy="67.5" r="90" fill="url(#glow)"/>
+<rect x="90" y="45" width="220" height="140" rx="6" fill="#fdfdff" stroke="#c9d2e4"/>
+<path d="M200 65 L245 90 L245 140 L200 165 L155 140 L155 90 Z" fill="none" stroke="#3c4a63" stroke-width="2"/>
+<circle cx="200" cy="115" r="14" fill="none" stroke="#3c4a63" stroke-width="2"/><circle cx="200" cy="115" r="5" fill="#3c4a63"/>
+<path d="M155 90 L200 65 M245 90 L200 65" stroke="#8fa3c4"/>
+<path d="M110 190 L290 190" stroke="#ff9f0a" stroke-width="1.5"/><path d="M110 185 v10 M290 185 v10" stroke="#ff9f0a"/>
+<rect x="182" y="193" width="36" height="14" rx="4" fill="#ff9f0a22"/><text x="200" y="203" font-family="monospace" font-size="10" fill="#b26a00" text-anchor="middle">Ø 42</text>
+<rect x="8" y="8" width="384" height="209" rx="10" fill="none" stroke="#dfe5f0"/>
+</svg>

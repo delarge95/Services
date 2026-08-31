@@ -1,0 +1,137 @@
+/* ============================================================
+   src/styles/tokens.css — Plan Maestro System · Design Tokens
+   Dirección de arte: Apple-like · monocromo (negro/blanco) +
+   azul mínimo. Azul (#0a84ff) SOLO para enlaces y focus rings.
+   Verde solo para "completado". Ámbar solo alertas. Rojo solo
+   destructivo/error. Escala tipográfica fija. Espaciado en
+   múltiplos de 4px. Animaciones 150–200ms + prefers-reduced-motion.
+   ============================================================ */
+:root {
+  color-scheme: dark;
+
+  /* === SUPERFICIES (monocromo, apenas elevadas) === */
+  --bg: #000000;                       /* fondo de app — negro plano */
+  --surface-1: #0d0d0f;                /* tarjeta base */
+  --surface-2: #161619;                /* elevada (seleccionada/hover fijo) */
+  --surface-3: #1d1d21;                /* overlay / popover / sheet */
+  --surface-1-hover: #131316;          /* hover sobre tarjeta */
+  --glass: rgba(255, 255, 255, 0.05);
+  --glass-strong: rgba(255, 255, 255, 0.10);
+
+  /* === TEXTO (jerarquía B/N) === */
+  --text-primary: #f5f5f7;
+  --text-secondary: #98989d;
+  --text-tertiary: #636366;
+
+  /* === SEPARADORES Y BORDES (1px, baja opacidad) === */
+  --separator: rgba(255, 255, 255, 0.08);
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-border-visible: rgba(255, 255, 255, 0.15);
+
+  /* === ACENTOS SEMÁNTICOS (uso restringido) === */
+  --accent: #0a84ff;                   /* SOLO enlaces + focus rings */
+  --accent-soft: rgba(10, 132, 255, 0.12);
+  --accent-border: rgba(10, 132, 255, 0.35);
+  --focus-ring: rgba(10, 132, 255, 0.45);
+  --success: #30d158;                  /* SOLO "completado" */
+  --success-soft: rgba(48, 209, 88, 0.12);
+  --warning: #ff9f0a;                  /* SOLO alertas */
+  --warning-soft: rgba(255, 159, 10, 0.12);
+  --danger: #ff453a;                   /* SOLO destructivo/error */
+  --danger-soft: rgba(255, 69, 58, 0.12);
+
+  /* === RADIOS (escala fija) === */
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 16px;
+  --radius-pill: 999px;
+
+  /* === ESCALA TIPOGRÁFICA (fija) === */
+  --font-family-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, "Segoe UI", Roboto, sans-serif;
+  --fs-eyebrow: 0.75rem;
+  --fs-meta: 0.8125rem;
+  --fs-body: 0.9375rem;
+  --fs-step: 1.0625rem;
+  --fs-section: 1.25rem;
+  --fs-page: 1.75rem;
+  --fs-display: 2.25rem;
+
+  /* === ESPACIADO (base 4px) === */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+
+  /* === SOMBRAS (mínimas, suaves) === */
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --shadow-float: 0 16px 40px rgba(0, 0, 0, 0.5);
+
+  /* === MOTION === */
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-product: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ============================================================
+     ALIASES DEPRECADOS (sistema anterior) → redirigen al canon.
+     Se mantienen temporalmente para no romper componentes en
+     migración; se eliminarán cuando el barrido termine.
+     ============================================================ */
+  --bg-soft: var(--surface-1);
+  --surface: var(--surface-1);
+  --surface-elevated: var(--surface-2);
+  --surface-overlay: var(--surface-3);
+  --surface-strong: var(--surface-2);
+
+  --text: var(--text-primary);
+  --muted: var(--text-secondary);
+  --subtle: var(--text-tertiary);
+
+  --color-surface-base: var(--surface-1);
+  --color-surface-raised: var(--surface-2);
+  --color-surface-overlay: var(--surface-3);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+
+  --color-accent-primary: var(--accent);
+  --color-accent-warning: var(--warning);
+  --color-accent-danger: var(--danger);
+
+  --color-state-active: var(--accent);
+  --color-state-pending: var(--text-tertiary);
+  --color-state-done: var(--success);
+
+  --color-accent-primary-soft: var(--accent-soft);
+  --color-accent-warning-soft: var(--warning-soft);
+  --color-accent-danger-soft: var(--danger-soft);
+  --color-state-done-soft: var(--success-soft);
+  --color-accent-primary-glow: var(--accent-border);
+  --color-accent-warning-glow: rgba(255, 159, 10, 0.25);
+  --color-accent-danger-glow: rgba(255, 69, 58, 0.25);
+  --color-state-done-glow: rgba(48, 209, 88, 0.25);
+
+  --radius-sm: var(--radius-s);
+  --radius-md: var(--radius-m);
+  --radius-lg: var(--radius-l);
+  --radius: var(--radius-l);
+
+  --font-size-display: var(--fs-page);
+  --font-size-title: var(--fs-section);
+  --font-size-body: var(--fs-body);
+  --font-size-label: var(--fs-meta);
+  --font-size-meta: var(--fs-eyebrow);
+  --font-size-micro: var(--fs-eyebrow);
+
+  --focus: var(--focus-ring);
+  --focus-visible: var(--focus-ring);
+
+  /* Espaciados cortos (conveniencia, base 4px) */
+  --space-xs: var(--space-1);
+  --space-sm: var(--space-2);
+  --space-md: var(--space-4);
+  --space-lg: var(--space-5);
+  --space-xl: var(--space-8);
+}

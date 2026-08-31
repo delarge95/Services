@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 225" role="img">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6f8fc"/><stop offset="1" stop-color="#e9eef8"/></linearGradient>
+<linearGradient id="acc" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7a5cff"/><stop offset="1" stop-color="#7a5cffbb"/></linearGradient>
+<radialGradient id="glow" cx="0.5" cy="0.35" r="0.6"><stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="400" height="225" rx="14" fill="url(#bg)"/>
+<circle cx="300" cy="67.5" r="90" fill="url(#glow)"/>
+<rect x="70" y="70" width="230" height="90" rx="8" fill="#141824"/>
+<rect x="80" y="76" width="14" height="10" fill="#2c3444"/><rect x="80" y="144" width="14" height="10" fill="#2c3444"/><rect x="110" y="76" width="14" height="10" fill="#2c3444"/><rect x="110" y="144" width="14" height="10" fill="#2c3444"/><rect x="140" y="76" width="14" height="10" fill="#2c3444"/><rect x="140" y="144" width="14" height="10" fill="#2c3444"/><rect x="170" y="76" width="14" height="10" fill="#2c3444"/><rect x="170" y="144" width="14" height="10" fill="#2c3444"/><rect x="200" y="76" width="14" height="10" fill="#2c3444"/><rect x="200" y="144" width="14" height="10" fill="#2c3444"/><rect x="230" y="76" width="14" height="10" fill="#2c3444"/><rect x="230" y="144" width="14" height="10" fill="#2c3444"/><rect x="260" y="76" width="14" height="10" fill="#2c3444"/><rect x="260" y="144" width="14" height="10" fill="#2c3444"/><rect x="290" y="76" width="14" height="10" fill="#2c3444"/><rect x="290" y="144" width="14" height="10" fill="#2c3444"/>
+<rect x="86" y="92" width="90" height="46" fill="url(#acc)" opacity="0.85"/>
+<rect x="184" y="92" width="90" height="46" fill="#3c465c"/>
+<path d="M330 60 l6 14 14 6 -14 6 -6 14 -6 -14 -14 -6 14 -6z" fill="#7a5cff"/>
+<path d="M320 130 l4 9 9 4 -9 4 -4 9 -4 -9 -9 -4 9 -4z" fill="#ff9f0a"/>
+<rect x="8" y="8" width="384" height="209" rx="10" fill="none" stroke="#dfe5f0"/>
+</svg>

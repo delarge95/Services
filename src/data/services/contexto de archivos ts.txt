@@ -1,0 +1,991 @@
+catalogCore.ts:
+import type { HoursByLevel, ServiceDefinition, Subtask } from './types';
+
+const h = (min: number, max: number) => ({ min, max });
+
+type Tup = [number, number];
+
+const q = (v: number) => Math.max(0.25, Math.round(v * 4) / 4);
+
+const lvl = (xs: Tup | null, n1: Tup, n2: Tup, n3: Tup, n4: Tup): HoursByLevel => ({
+  XS: h(xs ? xs[0] : q(n1[0] * 0.5), xs ? xs[1] : q(n1[1] * 0.55)),
+  N1: h(n1[0], n1[1]),
+  N2: h(n2[0], n2[1]),
+  N3: h(n3[0], n3[1]),
+  N4: h(n4[0], n4[1]),
+});
+
+const st = (id: string, nameEs: string, hours: HoursByLevel, extra: Partial<Subtask> = {}): Subtask => ({
+  id,
+  nameEs,
+  hours,
+  ...extra,
+});
+
+const DOC_02 = 'docs/servicios/02_catalogo_render_assets_rt.md';
+const DOC_03 = 'docs/servicios/03_catalogo_web_experiencias.md';
+const DOC_04 = 'docs/servicios/04_catalogo_footage_ia_soporte.md';
+
+const a1Subtasks: Subtask[] = [
+  st('a1-intake', 'Intake/brief + referencias', lvl(null, [0.5, 1], [1, 2], [2, 3], [3, 5])),
+  st('a1-setup', 'Setup escena (cámara, luz, HDRI, composición)', lvl(null, [1, 2], [2, 4], [4, 8], [8, 16])),
+  st('a1-materiales', 'Materiales/texturizado', lvl(null, [1, 3], [3, 6], [6, 12], [12, 24])),
+  st('a1-render', 'Render + iteraciones (2 rondas incl.)', lvl(null, [1, 2], [2, 4], [4, 8], [8, 12])),
+  st('a1-post', 'Post-producción (color, retoque, formatos)', lvl(null, [0.5, 1], [1, 2], [2, 4], [4, 8])),
+];
+
+const a2Subtasks: Subtask[] = [
+  st('a2-storyboard', 'Brief/storyboard/animatic', lvl([0.5, 1], [1, 2], [3, 5], [5, 10], [10, 20])),
+  st('a2-layout', 'Layout escena + cámaras', lvl([0.25, 0.5], [1, 2], [2, 5], [5, 10], [10, 20])),
+  st('a2-animacion', 'Animación (keyframe/procedural)', lvl([0.5, 1], [2, 4], [4, 10], [10, 25], [25, 60])),
+  st('a2-materiales', 'Materiales/iluminación', lvl([0.25, 0.75], [1, 3], [3, 6], [6, 12], [12, 24])),
+  st('a2-fx', 'FX/simulaciones', lvl([0, 0], [0, 0], [0, 6], [6, 20], [20, 50]), { optional: true }),
+  st('a2-render', 'Render + QC técnico', lvl([0.5, 1], [1, 2], [2, 5], [5, 12], [12, 30])),
+  st('a2-post', 'Edición/post/entrega', lvl([0.25, 0.75], [1, 2], [2, 4], [4, 8], [8, 16])),
+];
+
+export const B_CORE_SUBTASKS: Subtask[] = [
+  st('b-intake', 'Intake/QC de referencias y specs técnicas', lvl(null, [0.5, 1], [1, 2], [2, 3], [3, 5])),
+  st('b-modelado', 'Blockout/modelado hi→low (hard-surface u orgánico)', lvl(null, [2, 4], [4, 10], [10, 25], [25, 80])),
+  st('b-uv', 'UV unwrap', lvl(null, [1, 2], [2, 4], [4, 8], [8, 16])),
+  st('b-baking', 'Baking de mapas (AO/normal/etc.)', lvl(null, [0.5, 1], [1, 3], [3, 6], [6, 12])),
+  st('b-texturizado', 'Texturizado PBR', lvl(null, [1, 3], [3, 6], [6, 14], [14, 30])),
+  st('b-optimizacion', 'Optimización (LODs, draw calls, Draco/meshopt)', lvl(null, [0.5, 1], [1, 3], [3, 6], [6, 12])),
+  st('b-qa', 'QA en motor target + export final', lvl(null, [0.5, 1], [1, 2], [2, 4], [4, 8])),
+];
+
+export const DELTA_INTERACTIVIDAD: Subtask = st(
+  'delta-interaccion',
+  'Interactividad básica (hotspots/highlight/selección)',
+  lvl(null, [2, 4], [4, 8], [8, 16], [16, 32]),
+);
+
+export const DELTA_ANIM_LOOP: Subtask = st(
+  'delta-anim-loop',
+  'Animación en loop (rig simple o blendshapes + clip idle)',
+  lvl(null, [4, 8], [8, 16], [16, 35], [35, 80]),
+);
+
+export const DELTA_ANIM_INTERACTIVA: Subtask = st(
+  'delta-anim-interactiva',
+  'Animación interactiva (estados, input, transiciones)',
+  lvl(null, [8, 15], [15, 30], [30, 70], [70, 150]),
+);
+
+function svc(
+  id: string,
+  family: ServiceDefinition['family'],
+  nameEs: string,
+  unitEs: string,
+  driversEs: string[],
+  confidence: ServiceDefinition['confidence'],
+  entregablesEs: string[],
+  subtasks: Subtask[],
+  sourceDoc: string,
+  noIncluyeEs?: string[],
+  entregaDiasEs?: [number, number],
+): ServiceDefinition {
+  return {
+    id, family, nameEs, unitEs, driversEs, confidence, subtasks, sourceDoc,
+    entregablesEs, noIncluyeEs, entregaDiasEs,
+  };
+}
+
+export const CATALOG_CORE: ServiceDefinition[] = [
+  svc('a1-render-estatico', 'render',
+    'Render 3D estático',
+    'imagen',
+    ['complejidad del asset', 'nº de vistas', 'resolución final', 'tipo de materiales'],
+    'explicit',
+    ['Imagen final en alta resolución (PNG/TIFF/JPG)', 'Versiones en formatos solicitados', '2 rondas de revisión incluidas'],
+    a1Subtasks, DOC_02,
+    undefined, [1, 14]),
+
+  svc('a2-render-animacion', 'render',
+    'Render animación 3D',
+    'clip (XS=loop 2–3 s · N1=~10 s · N2=~30 s)',
+    ['duración total', 'sims/FX', 'rigging', 'resolución/fps'],
+    'explicit',
+    ['Video final en formato solicitado (MP4/MOV)', 'Versión sin audio si se requiere', '2 rondas de revisión incluidas'],
+    a2Subtasks, DOC_02,
+    ['Modelado desde cero (cotizar aparte)', 'Audio original'], [2, 56]),
+
+  svc('b1-asset-rt-estatico', 'asset-rt',
+    'Asset 3D realtime estático',
+    'asset optimizado para motor',
+    ['presupuesto poligonal', 'nº piezas', 'fuente (CAD/sculpt/fotos)'],
+    'explicit',
+    ['GLB/GLTF optimizado con Draco/KTX2', 'Texturas PBR (baseColor/normal/roughness/metallic)', 'LODs según acuerdo', 'Reporte de performance'],
+    [...B_CORE_SUBTASKS], DOC_02,
+    undefined, [1, 42]),
+
+  svc('b2-asset-rt-estatico-interactuable', 'asset-rt',
+    'Asset RT interactuable (hotspots/selección)',
+    'asset + interactividad',
+    ['nº hotspots', 'presupuesto poligonal'],
+    'explicit',
+    ['Todo lo de B1', 'Hotspots clicables con info por parte', 'Sistema de highlight/selección'],
+    [...B_CORE_SUBTASKS, DELTA_INTERACTIVIDAD], DOC_02,
+    undefined, [2, 49]),
+
+  svc('b3-asset-rt-animado-no-interactuable', 'asset-rt',
+    'Asset RT animado (loops)',
+    'asset + clip loop',
+    ['tipo de loop', 'rig necesario'],
+    'explicit',
+    ['Todo lo de B1', 'Clip(s) de animación loop integrado(s)'],
+    [...B_CORE_SUBTASKS, DELTA_ANIM_LOOP], DOC_02,
+    undefined, [2, 56]),
+
+  svc('b4-asset-rt-animado-interactuable', 'asset-rt',
+    'Asset RT animado interactuable',
+    'asset + estados interactivos',
+    ['estados/transiciones', 'input requerido'],
+    'inferred',
+    ['Todo lo de B1', 'Estados de animación controlables por el usuario', 'Transiciones entre estados'],
+    [...B_CORE_SUBTASKS, DELTA_ANIM_INTERACTIVA], DOC_02,
+    undefined, [4, 84]),
+
+  svc('b5-shaders-estilizados', 'asset-rt',
+    'Shaders estilizados tiempo real',
+    'shader/sistema de materiales',
+    ['nº efectos', 'target', 'integración pipeline'],
+    'inferred',
+    ['Shader implementado y documentado', 'Escena de ejemplo funcional', 'Parámetros expuestos para tuning'],
+    [
+      st('b5-brief', 'Brief/referencias + prueba de concepto visual', lvl(null, [1, 2], [2, 3], [3, 5], [5, 8])),
+      st('b5-implementacion', 'Implementación shader (R&D)', lvl(null, [2, 5], [5, 12], [12, 30], [30, 70])),
+      st('b5-tuning', 'Tuning de parámetros + variantes', lvl(null, [1, 2], [2, 5], [5, 12], [12, 25])),
+      st('b5-perf', 'Optimización/perf móvil', lvl(null, [0.5, 2], [2, 4], [4, 10], [10, 20])),
+      st('b5-docs', 'Documentación + escena ejemplo', lvl(null, [0.5, 1], [1, 3], [3, 6], [6, 12])),
+    ], DOC_02,
+    undefined, [1, 42]),
+
+  svc('b6-mecanicas-especificas', 'asset-rt',
+    'Vista explosionada / cutaway / medición',
+    'mecánica sobre asset preparado',
+    ['nº partes móviles', 'profundidad del despiece'],
+    'inferred',
+    ['Animación de despiece controlada por slider/steps', 'Etiquetado de partes', 'Integración en motor target'],
+    [
+      st('b6-preparacion', 'Análisis/preparación de despiece', lvl(null, [1, 3], [3, 6], [6, 15], [15, 40])),
+      st('b6-explosion', 'Setup animación/explosión', lvl(null, [2, 4], [4, 10], [10, 25], [25, 60])),
+      st('b6-ui', 'UI/controles (slider, steps, etiquetas)', lvl(null, [2, 4], [4, 8], [8, 18], [18, 40])),
+      st('b6-integracion', 'Integración motor + perf', lvl(null, [1, 2], [2, 5], [5, 12], [12, 25])),
+    ], DOC_02,
+    ['El asset base NO está incluido (cotizar B1/B2/F1 primero)'], [2, 56]),
+
+  svc('b7-optimizacion-rt-ready', 'asset-rt',
+    'Optimización de assets existentes → RT-ready',
+    'asset medio',
+    ['estado de partida', 'poly count objetivo'],
+    'qualitative',
+    ['Asset optimizado y exportable', 'Informe antes/después (poly, peso, perf)', 'Recomendaciones de uso'],
+    [
+      st('b7-auditoria', 'Auditoría técnica', lvl(null, [0.5, 1], [1, 2], [2, 4], [4, 8])),
+      st('b7-retopo', 'Retopo/rebuild parcial', lvl(null, [0, 2], [2, 6], [6, 15], [15, 40])),
+      st('b7-rebake', 'Re-bake/texturas', lvl(null, [0.5, 2], [2, 5], [5, 12], [12, 25])),
+      st('b7-lods', 'LODs/export', lvl(null, [0.5, 1], [1, 2], [2, 5], [5, 10])),
+      st('b7-qa', 'QA motor', lvl(null, [0.5, 1], [1, 2], [2, 3], [3, 6])),
+    ], DOC_02,
+    undefined, [1, 28]),
+
+  svc('b8-rigging-animacion', 'asset-rt',
+    'Rigging & animación',
+    '1 rig + 2 clips ~5 s',
+    ['tipo de rig', 'nº de clips'],
+    'inferred',
+    ['Rig funcional', 'Clips de animación (lote de 2)', 'Pesos calibrados'],
+    [
+      st('b8-rig', 'Rig base', lvl(null, [2, 5], [5, 12], [12, 30], [30, 70])),
+      st('b8-pesos', 'Pesos/deformación', lvl(null, [1, 3], [3, 8], [8, 20], [20, 45])),
+      st('b8-clips', 'Clips de animación (lote de 2)', lvl(null, [2, 6], [6, 12], [12, 24], [24, 50])),
+    ], DOC_02,
+    undefined, [2, 42]),
+
+  svc('f1-cad-webgl-ready', 'datos',
+    'CAD → WebGL ready ⭐',
+    'ensamblaje CAD',
+    ['nº de piezas (driver principal)', 'complejidad geométrica', 'calidad del CAD origen'],
+    'explicit',
+    ['GLB/GLTF optimizado con Draco/KTX2', 'Jerarquía limpia con metadata por pieza', 'LODs según target', 'Texturas PBR técnicos', 'QA visor web + reporte performance'],
+    [
+      st('f1-ingesta', 'Ingesta CAD/QC', lvl([0.5, 1], [0.5, 1], [1, 3], [3, 6], [6, 15])),
+      st('f1-retopo', 'Decimado/retopo por pieza', lvl([0.75, 1.5], [1, 3], [3, 10], [10, 30], [30, 100])),
+      st('f1-uvs-baking', 'UVs + baking batch', lvl([0.5, 1.25], [1, 2], [2, 6], [6, 15], [15, 40])),
+      st('f1-texturas', 'Texturas PBR técnicos', lvl([0.75, 1.5], [1, 3], [3, 8], [8, 20], [20, 45])),
+      st('f1-metadata', 'Jerarquía/metadata por pieza', lvl([0.25, 0.75], [0.5, 1], [1, 3], [3, 8], [8, 20])),
+      st('f1-lods', 'LODs + compresión', lvl([0.25, 0.75], [0.5, 1], [1, 3], [3, 8], [8, 18])),
+      st('f1-qa', 'QA visor web + reporte perf', lvl([0.25, 0.75], [0.5, 1], [1, 2], [2, 5], [5, 12])),
+    ], DOC_02,
+    ['Vista explosionada (cotizar B6 aparte)', 'Animación (cotizar B8/B3 aparte)'], [1, 70]),
+
+  svc('f2-generacion-texturas', 'datos',
+    'Generación de texturas y mapas',
+    'set PBR 4K',
+    ['unicidad del material', 'tileable vs unique', 'NoAI'],
+    'explicit',
+    ['Set completo: albedo/normal/roughness/metallic/height/AO', 'Preview aplicado en contexto'],
+    [
+      st('f2-set', 'Diseño/generación + calibración PBR', lvl([0.5, 1], [1, 2], [2, 4], [4, 8], [8, 15])),
+    ], DOC_02,
+    undefined, [1, 5]),
+
+  svc('c1-visor-embebido', 'web-3d',
+    'Visor embebido low-code (Spline/model-viewer/Sketchfab)',
+    'escena embebida',
+    ['visor elegido', 'nº de escenas', 'hotspots soportados'],
+    'explicit',
+    ['Embed responsive en tu página', 'Lazy-load configurado', 'QA multi-navegador'],
+    [
+      st('c1-intake', 'Intake + QC del asset', lvl([0.5, 1], [1, 2], [2, 3], [3, 5], [4, 6])),
+      st('c1-setup-embed', 'Setup/upload/embed/tuning/QA', lvl([2, 4], [2.5, 5], [5, 10], [10, 19], [20, 38])),
+    ], DOC_03,
+    undefined, [1, 14]),
+
+  svc('c2-visor-custom', 'web-3d',
+    'Visor custom three.js / Babylon.js',
+    'visor web',
+    ['hotspots/features', 'datos dinámicos vs hardcode', 'AR opcional'],
+    'explicit',
+    ['Visor web a medida con órbita/zoom/hotspots', 'Pipeline de carga optimizado', 'Responsive mobile-first', 'Analytics events'],
+    [
+      st('c2-spec', 'Spec técnica + pipeline carga', lvl([1.5, 3.5], [2.5, 6], [7, 13], [14, 28], [28, 56])),
+      st('c2-interaccion-ui', 'Interacción + UI overlay', lvl([2.5, 6], [3.5, 9], [9, 18], [18, 38], [38, 76])),
+      st('c2-perf-deploy', 'Perf móvil + QA + entrega', lvl([1, 2.5], [1.5, 5], [4, 9], [10, 22], [22, 49])),
+    ], DOC_03,
+    undefined, [2, 21]),
+
+  svc('c3-webapp-3d', 'web-3d',
+    'Web App 3D (configurador/herramienta técnica)',
+    'aplicación web',
+    ['variantes/reglas', 'fuente de datos', 'autenticación', 'SKUs'],
+    'inferred',
+    ['Aplicación web completa con estado real', 'Escena 3D configurable', 'Export/share de resultados', 'Deploy documentado'],
+    [
+      st('c3-discovery', 'Discovery/spec funcional', lvl([3, 6], [5, 11], [11, 26], [27, 57], [57, 112])),
+      st('c3-core', 'Arquitectura + escena configurable', lvl([6, 12], [11, 23], [23, 58], [58, 124], [124, 244])),
+      st('c3-qa-deploy', 'QA/E2E + perf + deploy/docs', lvl([3, 6], [5, 11], [11, 30], [29, 64], [64, 124])),
+    ], DOC_03,
+    ['Assets 3D (cotizar familia B/F1)', 'Auth multiusuario', 'Integraciones API/e-commerce'], [7, 112]),
+
+  svc('c4-scrollytelling', 'web-3d',
+    'Scrollytelling 3D',
+    'página narrativa',
+    ['secciones narrativas', 'complejidad escena'],
+    'inferred',
+    ['Página narrativa con escena 3D sincronizada a scroll', 'Binding scroll/eventos', 'Perf budget garantizado'],
+    [
+      st('c4-discovery', 'Discovery/scoping', lvl(null, [5, 8], [8, 14], [14, 24], [14, 24])),
+      st('c4-arquitectura', 'Arquitectura + setup', lvl(null, [6, 10], [10, 18], [18, 32], [18, 32])),
+      st('c4-escena', 'Escena base + montaje assets', lvl(null, [12, 25], [25, 50], [50, 90], [50, 90])),
+      st('c4-binding', 'Binding scroll/eventos', lvl(null, [8, 16], [16, 32], [32, 60], [32, 60])),
+      st('c4-perf', 'Perf budget + QA dispositivos', lvl(null, [5, 10], [10, 18], [18, 30], [18, 30])),
+    ], DOC_03,
+    ['Producción de assets RT (cotizar familia B)'], [7, 112]),
+
+  svc('c5-catalogo-interactivo', 'web-3d',
+    'Catálogo interactivo 3D',
+    'catálogo navegable',
+    ['nº SKUs/productos', 'filtros/búsqueda', 'datos dinámicos'],
+    'inferred',
+    ['Catálogo navegable con vista 3D por producto', 'Filtros y búsqueda', 'Fichas de producto integradas'],
+    [
+      st('c5-discovery', 'Discovery/scoping', lvl(null, [3, 6], [6, 10], [10, 18], [18, 28])),
+      st('c5-arquitectura', 'Arquitectura + setup', lvl(null, [4, 8], [8, 14], [14, 26], [26, 44])),
+      st('c5-escenas', 'Escenas 3D + montaje assets', lvl(null, [8, 16], [16, 34], [34, 68], [68, 120])),
+      st('c5-datos-ui', 'Datos/filtros/UI responsive', lvl(null, [6, 13], [13, 26], [26, 48], [48, 82])),
+      st('c5-perf-deploy', 'Perf + QA + deploy', lvl(null, [3, 6], [6, 12], [12, 24], [24, 40])),
+    ], DOC_03,
+    ['Assets 3D individuales (cotizar B/F1 por SKU)'], [7, 84]),
+
+  svc('c6-minijuego', 'web-3d',
+    'Minijuego WebGL',
+    'juego embebido',
+    ['mecánica core', 'plataforma', 'game feel'],
+    'inferred',
+    ['Minijuego WebGL jugable embebido', 'Game feel (input, feedback, audio básico)', 'Estados de juego/UI/HUD'],
+    [
+      st('c6-gdd', 'GDD corto y decisiones', lvl(null, [3, 6], [6, 12], [12, 22], [12, 22])),
+      st('c6-core', 'Mecánica core + game loop', lvl(null, [10, 20], [20, 40], [40, 75], [40, 75])),
+      st('c6-feel', 'Game feel', lvl(null, [5, 11], [11, 21], [21, 38], [21, 38])),
+      st('c6-ui', 'UI/HUD/estados', lvl(null, [5, 11], [11, 19], [19, 33], [19, 33])),
+      st('c6-opt', 'Optimización mobile + QA + deploy', lvl(null, [6, 13], [13, 24], [24, 45], [24, 45])),
+    ], DOC_03,
+    ['Backend/scores persistentes (integrar API externa)', 'Arte 2D/UI custom'], [7, 140]),
+
+  svc('c7-unity-webgl', 'web-3d',
+    'Build Unity WebGL optimizado',
+    'build productivo',
+    ['tamaño proyecto Unity', 'datos JS↔Unity', 'hosting destino'],
+    'inferred',
+    ['Build WebGL productivo optimizado', 'Loading screen custom', 'Bridge JS↔Unity bidireccional', 'Embed responsive con fallbacks'],
+    [
+      st('c7-auditoria', 'Auditoría + settings build', lvl(null, [4, 8], [8, 16], [16, 28], [16, 28])),
+      st('c7-compresion', 'Compresión + loading screen', lvl(null, [4, 8], [8, 14], [14, 24], [14, 24])),
+      st('c7-bridge', 'Bridge JS↔Unity', lvl(null, [6, 14], [14, 30], [30, 60], [30, 60])),
+      st('c7-embed', 'Embed + QA dispositivos', lvl(null, [4, 9], [9, 18], [18, 30], [18, 30])),
+    ], DOC_03,
+    ['Desarrollo gameplay/mechanics nuevas dentro de Unity'], [3, 42]),
+
+  svc('c8-presentaciones-web', 'web-3d',
+    'Presentación web interactiva',
+    'presentación web',
+    ['nº slides', 'densidad elementos ricos', '3D sí/no'],
+    'explicit',
+    ['Presentación web navegable con slides', 'Gráficos animados', 'Video embebido', 'Bloque 3D opcional (C1/C2)'],
+    [
+      st('c8-narrativa', 'Estructura narrativa + plantilla', lvl(null, [2, 4], [4, 8], [8, 14], [14, 22])),
+      st('c8-maquetacion', 'Maquetación slides + navegación', lvl(null, [3, 6], [6, 12], [12, 22], [22, 38])),
+      st('c8-elementos', 'Elementos ricos (3D/video/gráficos)', lvl(null, [2, 5], [5, 12], [12, 26], [26, 50])),
+      st('c8-qa', 'QA responsive + entrega', lvl(null, [1, 2], [2, 4], [4, 8], [8, 12])),
+    ], DOC_03,
+    undefined, [2, 28]),
+
+  svc('c9-ar-web', 'web-3d',
+    'AR web ligero (model-viewer / WebXR básico)',
+    'experiencia AR',
+    ['plataforma AR (iOS Quick Look / Android Scene Viewer)', 'calidad del asset fuente'],
+    'explicit',
+    ['Asset preparado para AR nativa (USDZ + GLB)', 'QR code para acceso', 'Fallback web 3D'],
+    [
+      st('c9-prep', 'Preparación USDZ/GLB compliant', lvl([1, 2], [2, 4], [4, 7], [7, 12], [7, 12])),
+      st('c9-embed', 'Embed + QR + fallbacks', lvl([0.5, 1.5], [1, 3], [3, 6], [6, 10], [6, 10])),
+      st('c9-qa', 'QA en dispositivos físicos', lvl([0.5, 1], [1, 2], [2, 4], [4, 6], [4, 6])),
+    ], DOC_03,
+    undefined, [1, 7]),
+
+  svc('d1-compositing-foto', 'vfx',
+    'Compositing 3D sobre fotografía',
+    'imagen (toma única)',
+    ['complejidad fondo', 'calidad foto', 'capas CG'],
+    'explicit',
+    ['Foto final con modelo 3D integrado', 'Lighting match', 'Grade/color QC'],
+    [
+      st('d1-analisis-solve', 'Análisis escena + resolución cámara', lvl([1.5, 3.5], [2.5, 6], [6, 13], [13, 26], [26, 47])),
+      st('d1-integracion-comp', 'Layout + integración + comp final', lvl([2.5, 5.5], [4, 9], [9, 20], [20, 39], [39, 70])),
+    ], DOC_04,
+    undefined, [1, 14]),
+
+  svc('d2-compositing-video', 'vfx',
+    'Compositing 3D sobre video (por toma)',
+    'toma ~5–10 s',
+    ['movimiento cámara', 'motion blur', 'oclusiones', 'FX requeridos'],
+    'explicit',
+    ['Clip final con modelo 3D/FX integrados', 'Tracking/matchmove', 'Comp final con QC'],
+    [
+      st('d2-analisis', 'Análisis footage + plan toma', lvl(null, [1, 2], [2, 5], [5, 9], [9, 15])),
+      st('d2-tracking', 'Tracking/matchmove', lvl(null, [1, 3], [3, 8], [8, 16], [16, 30])),
+      st('d2-layout', 'Layout/planos 3D escena', lvl(null, [1, 3], [3, 7], [7, 14], [14, 25])),
+      st('d2-integracion', 'Integración modelo + lighting match', lvl(null, [4, 8], [8, 18], [18, 36], [36, 70])),
+      st('d2-comp', 'Composición final + QC', lvl(null, [1, 3], [3, 7], [7, 14], [14, 24])),
+    ], DOC_04,
+    undefined, [2, 42]),
+
+  svc('d3-fx-standalone', 'vfx',
+    'FX / simulación standalone',
+    'efecto puntual',
+    ['tipo de sim', 'iteraciones artísticas', 'reutilización futura'],
+    'inferred',
+    ['Efecto simulado/animado', 'Entrega integrada al pipeline del cliente'],
+    [
+      st('d3-brief', 'Brief/referencia efecto', lvl(null, [0.5, 1], [1, 2], [2, 4], [4, 6])),
+      st('d3-rnd', 'Setup/R&D del efecto', lvl(null, [2, 4], [4, 10], [10, 22], [22, 50])),
+      st('d3-sim', 'Simulación + iteraciones artísticas', lvl(null, [1, 3], [3, 8], [8, 18], [18, 40])),
+      st('d3-render', 'Render/composición integrada', lvl(null, [1, 2], [2, 5], [5, 12], [12, 24])),
+    ], DOC_04,
+    undefined, [1, 28]),
+
+  svc('e1-chat-rag-web', 'ia',
+    'Asistente IA en sitio web (chat con RAG)',
+    'asistente instalado',
+    ['volumen/fuentes contenido', 'idiomas', 'acciones permitidas'],
+    'explicit',
+    ['Chat widget embebido en el sitio', 'RAG sobre contenido propio del cliente', 'Guardrails/disclaimers', 'Casos de prueba documentados'],
+    [
+      st('e1-discovery', 'Discovery/casos de uso + fuentes', lvl([2, 3], [3, 5], [5, 8], [8, 14], [8, 14])),
+      st('e1-rag', 'Pipeline ingesta/embeddings/RAG', lvl([4, 8], [8, 16], [16, 30], [30, 60], [30, 60])),
+      st('e1-prompts', 'Prompt engineering + guardrails', lvl([2, 4], [4, 8], [8, 14], [14, 26], [14, 26])),
+      st('e1-widget', 'Widget UI + integración web', lvl([3, 6], [6, 12], [12, 24], [24, 44], [24, 44])),
+      st('e1-eval', 'Evaluación con casos de prueba', lvl([2, 4], [4, 7], [7, 12], [12, 22], [12, 22])),
+    ], DOC_04,
+    ['Costos de API (BYOK)', 'Fine-tuning de modelos'], [3, 70]),
+
+  svc('e2-ia-indirecta-web', 'ia',
+    'IA indirecta en web (automatización visible)',
+    'flujo automatizado',
+    ['flujos a automatizar', 'calidad datos entrada'],
+    'explicit',
+    ['Formularios inteligentes / generadores / recomendadores', 'Integración en el sitio del cliente', 'QA/evaluación'],
+    [
+      st('e2-discovery', 'Discovery flujo/datos', lvl(null, [2, 3], [3, 6], [6, 11], [11, 18])),
+      st('e2-flujo', 'Diseño flujo/prompts/reglas', lvl(null, [1, 3], [3, 6], [6, 12], [12, 22])),
+      st('e2-implementacion', 'Implementación', lvl(null, [4, 8], [8, 20], [20, 42], [42, 80])),
+      st('e2-datos', 'Integración de datos/APIs', lvl(null, [1, 3], [3, 9], [9, 20], [20, 40])),
+      st('e2-qa', 'QA/evaluación + ajuste', lvl(null, [1, 3], [3, 7], [7, 14], [14, 26])),
+    ], DOC_04,
+    undefined, [2, 84]),
+
+  svc('e3-ia-procesos-internos', 'ia',
+    'IA en procesos internos (empresa/agencia)',
+    'proceso automatizado',
+    ['procesos candidatos', 'madurez digital'],
+    'qualitative',
+    ['Automatización(es) construida(s)', 'Capacitación del equipo', 'Documentación de uso'],
+    [
+      st('e3-auditoria', 'Auditoría procesos + oportunidades', lvl([3, 5], [5, 10], [10, 18], [18, 30], [18, 30])),
+      st('e3-build', 'Build (automatizaciones/agentes/pipelines)', lvl([6, 14], [14, 40], [40, 90], [90, 180], [90, 180])),
+      st('e3-capacitacion', 'Capacitación + documentación', lvl([2, 4], [4, 9], [9, 16], [16, 30], [16, 30])),
+    ], DOC_04,
+    undefined, [3, 140]),
+
+  svc('e4-programa-adopcion-ia', 'ia',
+    'Programa de adopción IA (diagnóstico → PoC → escala)',
+    'programa estructurado',
+    ['tamaño organización', 'nº casos de uso candidatos'],
+    'qualitative',
+    ['Diagnóstico + roadmap priorizado', 'PoC del caso #1 con medición', 'Plan gobernanza + capacitación equipos'],
+    [
+      st('e4-diagnostico', 'Diagnóstico + roadmap priorizado', lvl(null, [6, 10], [10, 18], [18, 32], [32, 55])),
+      st('e4-poc', 'PoC caso #1', lvl(null, [8, 16], [16, 36], [36, 72], [72, 140])),
+      st('e4-medicion', 'Plan medición + gobernanza', lvl(null, [2, 4], [4, 8], [8, 14], [14, 24])),
+      st('e4-capacitacion', 'Capacitación + transferencia', lvl(null, [3, 6], [6, 12], [12, 24], [24, 45])),
+    ], DOC_04,
+    undefined, [14, 182]),
+
+  svc('e5-auditoria-ia', 'ia',
+    'Auditoría puntual de IA (quick wins)',
+    'informe accionable',
+    ['tamaño organización', 'acceso a stakeholders'],
+    'inferred',
+    ['Informe: dónde ayuda la IA hoy, quick wins priorizados', 'Qué NO conviene automatizar todavía'],
+    [
+      st('e5-entrevistas', 'Entrevistas + inventario procesos', lvl(null, [3, 5], [5, 8], [8, 12], [8, 12])),
+      st('e5-informe', 'Informe oportunidades/riesgos/quick wins', lvl(null, [3, 5], [5, 9], [9, 14], [9, 14])),
+      st('e5-presentacion', 'Presentación hallazgos', lvl(null, [1, 2], [2, 3], [3, 5], [3, 5])),
+    ], DOC_04,
+    undefined, [3, 21]),
+
+  svc('f3-digital-twin', 'datos',
+    'Visualización técnica con datos vivos (digital twin ligero)',
+    'gemelo visual conectado',
+    ['frecuencia de datos', 'formato fuente', 'alertas visuales'],
+    'qualitative',
+    ['Gemelo visual conectado a fuente de datos', 'Dashboard/alertas sobre escena 3D', 'QA extremo a extremo'],
+    [
+      st('f3-arq', 'Arquitectura de datos', lvl(null, [5, 9], [9, 16], [16, 28], [16, 28])),
+      st('f3-conexion', 'Conexión datos vivos', lvl(null, [7, 15], [15, 27], [27, 48], [27, 48])),
+      st('f3-dashboard', 'Dashboard/alertas visuales', lvl(null, [5, 11], [11, 20], [20, 36], [20, 36])),
+      st('f3-qa', 'QA extremo a extremo', lvl(null, [3, 5], [5, 9], [9, 16], [9, 16])),
+    ], DOC_04,
+    ['Sensores/hardware IoT', 'Backend telemetría del cliente', 'ML predictivo'], [7, 70]),
+
+  svc('g1-discovery-scoping', 'soporte',
+    'Discovery & scoping de proyecto',
+    'informe + SOW borrador (50% acreditable al contratar)',
+    ['stakeholders', 'material de entrada', 'incertidumbre técnica'],
+    'qualitative',
+    ['Informe de discovery', 'SOW borrador con estimación trazable', 'Presentación al equipo'],
+    [
+      st('g1-trabajo', 'Intake/análisis/SOW estimación', lvl([2, 4.5], [2.5, 6], [6, 12], [12, 24], [12, 24])),
+      st('g1-presentacion', 'Presentación y revisión con cliente', lvl([0.5, 1.5], [1, 2], [2, 4], [4, 8], [4, 8])),
+    ], DOC_04,
+    undefined, [2, 10]),
+
+  svc('g2-auditoria-perf', 'soporte',
+    'Auditoría de performance WebGL/app 3D',
+    'auditoría + reporte',
+    ['tamaño app', 'acceso a código/fuentes', 'plataformas objetivo'],
+    'explicit',
+    ['Reporte priorizado (quick wins vs estructural)', 'Perfilado completo (load/FPS/draw calls/memoria)', 'Sesión de lectura de resultados'],
+    [
+      st('g2-perfilado', 'Perfilado (load, FPS, draw calls, memoria, red)', lvl(null, [2, 4], [4, 9], [9, 18], [9, 18])),
+      st('g2-analisis', 'Análisis de código/pipeline/assets', lvl(null, [2, 5], [5, 12], [12, 25], [12, 25])),
+      st('g2-reporte', 'Reporte priorizado + sesión lectura', lvl(null, [1, 2], [2, 5], [5, 9], [5, 9])),
+    ], DOC_04,
+    undefined, [3, 14]),
+
+  svc('g3-retainers', 'soporte',
+    'Retainer mensual (soporte y evolución continua)',
+    'bloque horas mensual',
+    ['horas/mes', 'tipo de trabajo recurrente'],
+    'explicit',
+    ['Disponibilidad recurrente según plan', 'SLA de respuesta según tier', 'Horas rollean 50% máx al mes siguiente'],
+    [
+      st('g3-lite', 'Lite: 4 h/mes — vigilancia + fixes puntuales', lvl([4, 4], [4, 4], [4, 4], [4, 4], [4, 4])),
+      st('g3-standard', 'Standard: 8 h/mes — iteración ligera continua', lvl([8, 8], [8, 8], [8, 8], [8, 8], [8, 8])),
+      st('g3-pro', 'Pro: 16 h/mes — evolución activa de web app/gemelo', lvl([16, 16], [16, 16], [16, 16], [16, 16], [16, 16])),
+      st('g3-business', 'Business: 40 h/mes — operación continua multi-servicio', lvl([40, 40], [40, 40], [40, 40], [40, 40], [40, 40])),
+      st('g3-enterprise', 'Enterprise: 80 h/mes — demanda sostenida + G2-b prioritario', lvl([80, 80], [80, 80], [80, 80], [80, 80], [80, 80])),
+    ], DOC_04,
+    undefined, [0, 0]),
+];
+
+
+formula.ts:
+import { LAUNCH_PROGRAM, LEGACY_RATE_CARD_V0, RATE_CARD_COP_V1, RATE_CARD_V1 } from './rateCard';
+import { PACKAGES } from './packages';
+import {
+  LEVEL_IDS,
+  type Currency,
+  type EstimateResult,
+  type LevelId,
+  type QuoteInput,
+  type QuoteLine,
+  type QuoteResult,
+  type RateCard,
+  type ServiceDefinition,
+} from './types';
+
+export function ceilTo(value: number, step: number): number {
+  return Math.ceil(value / step) * step;
+}
+
+export function floorTo(value: number, step: number): number {
+  return Math.floor(value / step) * step;
+}
+
+function tramoStepUsd(value: number): number {
+  if (value < 500) return 10;
+  if (value <= 2000) return 50;
+  return 100;
+}
+
+function tramoStepCop(): number {
+  return 1000;
+}
+
+export function roundLegacy(value: number, isMax: boolean, currency: Currency = 'USD'): number {
+  const step = currency === 'COP' ? tramoStepCop() : tramoStepUsd(value);
+  return isMax ? ceilTo(value, step) : floorTo(value, step);
+}
+
+export function cardFor(currency: Currency): RateCard {
+  return currency === 'COP' ? RATE_CARD_COP_V1 : LEGACY_RATE_CARD_V0;
+}
+
+export interface EstimateOptions {
+  card?: RateCard;
+  includeOptionalIds?: string[];
+  currency?: Currency;
+}
+
+export function estimateService(
+  service: ServiceDefinition,
+  level: LevelId,
+  options: EstimateOptions = {},
+): EstimateResult {
+  const currency = options.currency ?? 'USD';
+  const card = options.card ?? cardFor(currency);
+  const included = new Set(options.includeOptionalIds ?? []);
+  const band = card.bands[level];
+
+  let hoursMin = 0;
+  let hoursMax = 0;
+  const lines = [];
+
+  for (const subtask of service.subtasks) {
+    if (subtask.optional && !included.has(subtask.id)) continue;
+    if (subtask.appliesFrom && LEVEL_IDS.indexOf(level) < LEVEL_IDS.indexOf(subtask.appliesFrom)) {
+      continue;
+    }
+    const range = subtask.hours[level];
+    hoursMin += range.min;
+    hoursMax += range.max;
+
+    const rawCostMin = range.min * band.minUsdPerHour;
+    const rawCostMax = range.max * band.maxUsdPerHour;
+    const costMin =
+      card.roundingMode === 'ceil-both'
+        ? ceilTo(rawCostMin, card.roundingStepUsd)
+        : roundLegacy(rawCostMin, false, currency);
+    const costMax =
+      card.roundingMode === 'ceil-both'
+        ? ceilTo(rawCostMax, card.roundingStepUsd)
+        : roundLegacy(rawCostMax, true, currency);
+
+    lines.push({
+      subtaskId: subtask.id,
+      hoursMin: range.min,
+      hoursMax: range.max,
+      costMin,
+      costMax,
+    });
+  }
+
+  return finalize(hoursMin, hoursMax, band, card, {
+    serviceId: service.id,
+    level,
+    lines,
+  });
+}
+
+export function estimateWithLevels(
+  service: ServiceDefinition,
+  levelBySubtaskId: Record<string, LevelId>,
+  options: EstimateOptions = {},
+): EstimateResult {
+  const currency = options.currency ?? 'USD';
+  const card = options.card ?? cardFor(currency);
+  const included = new Set(options.includeOptionalIds ?? []);
+
+  let hoursMin = 0;
+  let hoursMax = 0;
+  let rawMin = 0;
+  let rawMax = 0;
+  const lines = [];
+
+  for (const subtask of service.subtasks) {
+    if (subtask.optional && !included.has(subtask.id)) continue;
+    const level = levelBySubtaskId[subtask.id];
+    if (!level) continue;
+    const range = subtask.hours[level];
+    const band = card.bands[level];
+    hoursMin += range.min;
+    hoursMax += range.max;
+    rawMin += range.min * band.minUsdPerHour;
+    rawMax += range.max * band.maxUsdPerHour;
+    lines.push({
+      subtaskId: subtask.id,
+      hoursMin: range.min,
+      hoursMax: range.max,
+      costMin:
+        card.roundingMode === 'ceil-both'
+          ? ceilTo(range.min * band.minUsdPerHour, card.roundingStepUsd)
+          : roundLegacy(range.min * band.minUsdPerHour, false, currency),
+      costMax:
+        card.roundingMode === 'ceil-both'
+          ? ceilTo(range.max * band.maxUsdPerHour, card.roundingStepUsd)
+          : roundLegacy(range.max * band.maxUsdPerHour, true, currency),
+    });
+  }
+
+  const costMin =
+    card.roundingMode === 'ceil-both' ? ceilTo(rawMin, card.roundingStepUsd) : roundLegacy(rawMin, false, currency);
+  const costMax =
+    card.roundingMode === 'ceil-both' ? ceilTo(rawMax, card.roundingStepUsd) : roundLegacy(rawMax, true, currency);
+
+  return {
+    serviceId: service.id,
+    level: 'mixed',
+    hoursMin,
+    hoursMax,
+    costMin: Math.max(costMin, card.minProjectUsd),
+    costMax: Math.max(costMax, card.minProjectUsd),
+    lines,
+  };
+}
+
+function finalize(
+  hoursMin: number,
+  hoursMax: number,
+  band: { minUsdPerHour: number; maxUsdPerHour: number },
+  card: RateCard,
+  base: { serviceId: string; level: LevelId | 'mixed'; lines: EstimateResult['lines'] },
+): EstimateResult {
+  const currency = card.currency;
+  const subtotalMin =
+    card.roundingMode === 'ceil-both'
+      ? ceilTo(hoursMin * band.minUsdPerHour, card.roundingStepUsd)
+      : roundLegacy(hoursMin * band.minUsdPerHour, false, currency);
+  const subtotalMax =
+    card.roundingMode === 'ceil-both'
+      ? ceilTo(hoursMax * band.maxUsdPerHour, card.roundingStepUsd)
+      : roundLegacy(hoursMax * band.maxUsdPerHour, true, currency);
+
+  return {
+    ...base,
+    hoursMin,
+    hoursMax,
+    costMin: Math.max(subtotalMin, card.minProjectUsd),
+    costMax: Math.max(subtotalMax, card.minProjectUsd),
+  };
+}
+
+export { LEGACY_RATE_CARD_V0, RATE_CARD_COP_V1, RATE_CARD_V1 };
+
+export interface ComputeQuoteOptions {
+  getService(id: string): ServiceDefinition | undefined;
+  batchDiscountPct?: (units: number) => number;
+}
+
+const PISO_PROYECTO: Record<Currency, number> = { USD: 100, COP: 400000 };
+
+export function computeQuote(input: QuoteInput, opts: ComputeQuoteOptions): QuoteResult {
+  const notesEs: string[] = [];
+  const currency = input.currency;
+  const card = cardFor(currency);
+  const qty = Math.max(1, input.quantity ?? 1);
+  const lines: QuoteLine[] = [];
+  let hoursMin = 0;
+  let hoursMax = 0;
+  let rawSubMin = 0;
+  let rawSubMax = 0;
+
+  const accumulate = (refId: string, labelEs: string, est: EstimateResult, times: number) => {
+    const levelKey = est.level === 'mixed' ? null : est.level;
+    const band = levelKey ? card.bands[levelKey] : null;
+    for (let u = 1; u <= times; u++) {
+      for (const l of est.lines) {
+        const rawM = l.hoursMin * (band?.minUsdPerHour ?? 0);
+        const rawX = l.hoursMax * (band?.maxUsdPerHour ?? 0);
+        rawSubMin += rawM;
+        rawSubMax += rawX;
+        lines.push({
+          refId: `${refId}#${u}`,
+          labelEs: `${labelEs} · ${l.subtaskId}`,
+          hoursMin: l.hoursMin,
+          hoursMax: l.hoursMax,
+          costMin: l.costMin,
+          costMax: l.costMax,
+        });
+      }
+    }
+    hoursMin += est.hoursMin * times;
+    hoursMax += est.hoursMax * times;
+    if (times > 1) notesEs.push(`Lote ${refId}: ×${times} — descuento aplicado sobre el subtotal global (01 §5), nunca dentro de las horas.`);
+  };
+
+  if (input.kind === 'service') {
+    const svc = opts.getService(input.serviceId);
+    if (!svc) throw new Error(`servicio desconocido: ${input.serviceId}`);
+    accumulate(svc.id, svc.nameEs, estimateService(svc, input.level, { currency }), qty);
+  } else {
+    const pkgBase = PACKAGES.find((p) => p.id === input.packageId);
+    if (!pkgBase) throw new Error(`paquete desconocido: ${input.packageId}`);
+    const pkg = input.componentesOverride?.length ? { ...pkgBase, componentes: input.componentesOverride } : pkgBase;
+    for (const comp of pkg.componentes) {
+      const svc = opts.getService(comp.serviceId);
+      if (!svc) throw new Error(`servicio desconocido en paquete: ${comp.serviceId}`);
+      const level = input.levelByComponent?.[comp.serviceId] ?? input.defaultLevel ?? comp.nivel;
+      accumulate(svc.id, svc.nameEs, estimateService(svc, level, { currency }), comp.cantidad ?? 1);
+    }
+  }
+
+  const subtotalMin = roundLegacy(rawSubMin, false, currency);
+  const subtotalMax = roundLegacy(rawSubMax, true, currency);
+
+  const m = input.modifiers ?? {};
+  let pct = 0;
+  if (m.firstClientLaunch && LAUNCH_PROGRAM.activo) {
+    pct -= LAUNCH_PROGRAM.discountPct;
+    notesEs.push(`Lanzamiento primeros clientes −${LAUNCH_PROGRAM.discountPct}%. ${LAUNCH_PROGRAM.alcanceEs}`);
+  }
+  if (m.recurringClient) pct -= 5;
+  if (m.batchUnits && m.batchUnits > 1) {
+    pct += opts.batchDiscountPct ? opts.batchDiscountPct(m.batchUnits) : -15;
+  }
+  if (m.critical24h) pct += 50;
+  else if (m.urgent72h) pct += 25;
+
+  const factor = 1 + pct / 100;
+  const totalMin = Math.max(roundLegacy(subtotalMin * factor, false, currency), PISO_PROYECTO[currency]);
+  const totalMax = Math.max(roundLegacy(subtotalMax * factor, true, currency), totalMin);
+
+  if (m.firstClientLaunch) notesEs.push(`Programa primeros clientes activo: −${LAUNCH_PROGRAM.discountPct}% aplicado al subtotal.`);
+  notesEs.push('Rango orientativo, no cotización. La cifra firme se cierra en SOW (01 §9).');
+
+  return {
+    input,
+    currency,
+    hoursMin,
+    hoursMax,
+    subtotalMin,
+    subtotalMax,
+    discountPctApplied: pct,
+    totalMin,
+    totalMax,
+    lines,
+    notesEs,
+  };
+}
+
+index.ts:
+export { RATE_CARD_V1, LEGACY_RATE_CARD_V0, RATE_CARD_COP_V1, TRM_REFERENCIA, LAUNCH_PROGRAM } from './rateCard';
+export {
+  estimateService,
+  estimateWithLevels,
+  computeQuote,
+  cardFor,
+  ceilTo,
+  floorTo,
+  roundLegacy,
+} from './formula';
+export { PACKAGES } from './packages';
+export { RUBRICA_CUALITATIVA, aplicarRubrica } from './complexityRubric';
+export {
+  CATALOG_CORE,
+  B_CORE_SUBTASKS,
+  DELTA_INTERACTIVIDAD,
+  DELTA_ANIM_LOOP,
+  DELTA_ANIM_INTERACTIVA,
+} from './catalogCore';
+export * from './types';
+
+import type { ServiceDefinition } from './types';
+import { CATALOG_CORE } from './catalogCore';
+
+export const SERVICE_CATALOG: readonly ServiceDefinition[] = CATALOG_CORE;
+
+export function getServiceById(id: string): ServiceDefinition | undefined {
+  return SERVICE_CATALOG.find((service) => service.id === id);
+}
+
+ux.ts:
+import type { LevelId } from '../../data/services';
+
+export type ControlKind = 'slider-piezas' | 'slider-detalle' | 'slider-segundos' | 'stepper-cantidad';
+
+export interface ControlSpec {
+  kind: ControlKind;
+  preguntaEs: string;
+  min: number;
+  max: number;
+  step: number;
+  unidadEs: (v: number) => string;
+  umbrales?: Array<{ hasta: number; nivel: LevelId; etiquetaEs: string }>;
+  visual:
+    | { kind: 'svg-layers'; assetId: string }
+    | { kind: 'poly-detail' }
+    | { kind: 'image-sequence'; secuencia: string };
+}
+
+export interface RubricQuestion {
+  dimId: string;
+  preguntaEs: string;
+  opciones: Array<{ valorEs: string; delta: -1 | 0 | 1; ayudaEs?: string }>;
+}
+
+export interface ServiceUxSpec {
+  serviceId: string;
+  controles: ControlSpec[];
+  preguntasRubrica: string[];
+}
+
+const PIEZAS = (max = 150): ControlSpec => ({
+  kind: 'slider-piezas',
+  preguntaEs: '¿Cuántas piezas tiene el ensamblaje?',
+  min: 1,
+  max,
+  step: 1,
+  unidadEs: (v) => `${v} ${v === 1 ? 'pieza' : 'piezas'}`,
+  umbrales: [
+    { hasta: 15, nivel: 'N1', etiquetaEs: 'sencillas' },
+    { hasta: 60, nivel: 'N2', etiquetaEs: 'mixtas' },
+    { hasta: 150, nivel: 'N3', etiquetaEs: 'complejas' },
+    { hasta: 99999, nivel: 'N4', etiquetaEs: 'masivo' },
+  ],
+  visual: { kind: 'svg-layers', assetId: 'drone' },
+});
+
+const DETALLE: ControlSpec = {
+  kind: 'slider-detalle',
+  preguntaEs: '¿Cuánto detalle debe verse al acercarte?',
+  min: 0,
+  max: 2,
+  step: 1,
+  unidadEs: (v) => ['Low poly', 'Detalle medio', 'High poly'][v] ?? '',
+  visual: { kind: 'poly-detail' },
+};
+
+const SEGUNDOS: ControlSpec = {
+  kind: 'slider-segundos',
+  preguntaEs: '¿De cuántos segundos necesita la animación?',
+  min: 2,
+  max: 90,
+  step: 1,
+  unidadEs: (v) => `${v} segundos`,
+  umbrales: [
+    { hasta: 3, nivel: 'XS', etiquetaEs: 'micro-loop 2–3 s' },
+    { hasta: 12, nivel: 'N1', etiquetaEs: 'corto ~10 s' },
+    { hasta: 35, nivel: 'N2', etiquetaEs: 'estándar ~30 s' },
+    { hasta: 70, nivel: 'N3', etiquetaEs: 'extendido ~60 s' },
+    { hasta: 9999, nivel: 'N4', etiquetaEs: 'cinemático 90+ s' },
+  ],
+  visual: { kind: 'image-sequence', secuencia: 'turntable' },
+};
+
+function spec(id: string, controles: ControlSpec[], rubrica: string[]): ServiceUxSpec {
+  return { serviceId: id, controles, preguntasRubrica: rubrica };
+}
+
+const R_GEOM = ['geometria-pieza'];
+const R_ACAB = ['acabado-visual'];
+const R_TECH = ['dependencia-tecnica'];
+const R_DENS = ['densidad-funcional'];
+const R_FULL = ['geometria-pieza', 'acabado-visual'];
+const R_COMP = ['geometria-pieza', 'dependencia-tecnica'];
+
+export const UX_SPECS: Record<string, ServiceUxSpec> = {
+  'a1-render-estatico':      spec('a1-render-estatico', [], [...R_ACAB]),
+  'a2-render-animacion':     spec('a2-render-animacion', [SEGUNDOS], R_ACAB),
+  'b1-asset-rt-estatico':    spec('b1-asset-rt-estatico', [DETALLE], R_FULL),
+  'b2-asset-rt-estatico-interactuable': spec('b2-asset-rt-estatico-interactuable', [DETALLE], R_FULL),
+  'b3-asset-rt-animado-no-interactuable': spec('b3-asset-rt-animado-no-interactuable', [DETALLE], R_GEOM),
+  'b4-asset-rt-animado-interactuable': spec('b4-asset-rt-animado-interactuable', [DETALLE], R_COMP),
+  'b5-shaders-estilizados':  spec('b5-shaders-estilizados', [], []),
+  'b6-mecanicas-especificas':spec('b6-mecanicas-especificas', [PIEZAS(200)], R_DENS),
+  'b7-optimizacion-rt-ready':spec('b7-optimizacion-rt-ready', [], []),
+  'b8-rigging-animacion':    spec('b8-rigging-animacion', [], []),
+  'f1-cad-webgl-ready':      spec('f1-cad-webgl-ready', [PIEZAS()], R_COMP),
+  'f2-generacion-texturas':  spec('f2-generacion-texturas', [], []),
+  'c1-visor-embebido':       spec('c1-visor-embebido', [], []),
+  'c2-visor-custom':         spec('c2-visor-custom', [], R_TECH),
+  'c3-webapp-3d':            spec('c3-webapp-3d', [], R_TECH),
+  'c4-scrollytelling':       spec('c4-scrollytelling', [], R_TECH),
+  'c6-minijuego':            spec('c6-minijuego', [], R_TECH),
+  'c7-unity-webgl':          spec('c7-unity-webgl', [], []),
+  'd1-compositing-foto':     spec('d1-compositing-foto', [], R_ACAB),
+  'e1-chat-rag-web':         spec('e1-chat-rag-web', [], []),
+  'e3-ia-procesos-internos': spec('e3-ia-procesos-internos', [], []),
+  'f3-digital-twin':         spec('f3-digital-twin', [], R_TECH),
+  'g1-discovery-scoping':    spec('g1-discovery-scoping', [], []),
+};
+
+// aliases para IDs alternativos usados en intent matcher
+UX_SPECS['e2-ia-indirecta-web'] = spec('e2-ia-indirecta-web', [], []);
+UX_SPECS['b6-despiece'] = UX_SPECS['b6-mecanicas-especificas'];
+
+export function getUxSpec(serviceId: string): ServiceUxSpec | undefined {
+  return UX_SPECS[serviceId];
+}
+
+export const DISCLAIMER_ESTIMACION = 'Rango orientativo, no cotización. La cifra firme se cierra en un SOW.';
+export const DISCLAIMER_BYOK = 'Consumo de APIs por cuenta del cliente (BYOK).';
+
+export const PREGUNTAS_RUBRICA: Record<string, RubricQuestion> = {
+  'geometria-pieza': {
+    dimId: 'geometria-pieza',
+    preguntaEs: '¿Cómo son tus piezas, en general?',
+    opciones: [
+      { valorEs: 'Mayormente rectas y simples', delta: 0 },
+      { valorEs: 'Varias con curvas o detalles', delta: 1, ayudaEs: 'Si dominan más del 30 % del conjunto' },
+      { valorEs: 'Orgánicas (tela, cableado, esculpido)', delta: 1 },
+    ],
+  },
+  'densidad-funcional': {
+    dimId: 'densidad-funcional',
+    preguntaEs: '¿Las piezas tienen mecánica real?',
+    opciones: [
+      { valorEs: 'No, son pasivas', delta: 0 },
+      { valorEs: 'Sí: roscas, engranajes o articulaciones', delta: 1, ayudaEs: 'Cada rosca real añade 2–4 h aunque el nivel no cambie' },
+    ],
+  },
+  'acabado-visual': {
+    dimId: 'acabado-visual',
+    preguntaEs: '¿Desde qué distancia se verá?',
+    opciones: [
+      { valorEs: 'Lejos / thumbnail / viewport', delta: -1 },
+      { valorEs: 'Marketing estándar', delta: 0 },
+      { valorEs: 'Muy de cerca (hero, macro, cristal)', delta: 1 },
+    ],
+  },
+  'dependencia-tecnica': {
+    dimId: 'dependencia-tecnica',
+    preguntaEs: '¿Dónde va a correr?',
+    opciones: [
+      { valorEs: 'Desktop web estándar', delta: 0 },
+      { valorEs: 'Móvil exigente / peso muy limitado', delta: 1 },
+    ],
+  },
+};

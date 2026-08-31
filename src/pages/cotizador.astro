@@ -1,0 +1,16 @@
+---
+import '../styles/tokens.css';
+import { CotizadorRedesign } from '../components/services/CotizadorRedesign';
+---
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cotizador de proyectos 3D — Alexander Woodcock</title>
+    <meta name="description" content="Rango orientativo de costo y tiempo para tus proyectos 3D." />
+  </head>
+  <body style="margin:0; background:#f8f9fb; font-family:'Inter','Segoe UI',system-ui,sans-serif;">
+    <CotizadorRedesign client:load {...{ currency: 'USD' as const }} />
+  </body>
+</html>
