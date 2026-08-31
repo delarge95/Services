@@ -29,6 +29,8 @@ export const EN = {
   paymentSuggested: 'Suggested payment:',
   rondas: '2 adjustment rounds included · extra round ≈ +10%',
   rangeValidity: 'Indicative range · valid 15 days',
+  // ciclo 11: enlace destacado al prototipo en vivo (demo real de trabajo)
+  prototypeAside: 'Doubts about the work? See the prototype: Twinsight X500',
   urgency: { normal: 'Standard', soon: 'Rush +30%', critical: 'Critical +50%' },
   launchDiscount: 'Launch discount −25%',
   tierWord: 'tier',
@@ -76,6 +78,8 @@ export const EN = {
     exploded: 'Exploded view',
     // ciclo 10: nota del asset temporal en los previews de nivel de detalle
     demoAsset: 'Preview uses a work-in-progress demo asset — the final version shows your product with its own models.',
+    // ciclo 11: enlace al prototipo en vivo bajo el subtítulo del nivel 1
+    prototypeLink: 'See a live prototype: Twinsight X500',
   },
   cta: {
     whatsapp: 'Send via WhatsApp',

@@ -139,7 +139,7 @@ const smooth = (x: number) => { const t = Math.max(0, Math.min(1, x)); return t 
 /** Escala de un grupo cuya ventana de aparición es [a, b] sobre el slider d. */
 const grow = (d: number, a: number, b: number) => smooth((d - a) / (b - a));
 
-export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface = 1, variantSel, variantSlots, finish = 'detallado', estilo = 2, hotspots = 0, lang = 'es', height = 240 }: {
+export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface = 1, variantSel, variantSlots, finish = 'detallado', estilo = 2, hotspots = 0, lang = 'es', height = 290 }: {
   mode: PreviewMode;
   /** Slider continuo 1–5 (detail). */
   detail?: number;
@@ -282,6 +282,10 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     const panel = new THREE.Mesh(new THREE.TorusGeometry(0.805, 0.012, 8, 56), darkMat);
     panel.rotation.x = Math.PI / 2; panel.position.y = 0.1;
     addPart(panel, 4.3, 4.8);
+    // ciclo 11: el conjunto procedural un 10% más pequeño (detailMesh + edges
+    // + placa + detalles): un solo scale en la raíz — camino menos invasivo,
+    // las ventanas de aparición del slider no cambian.
+    detailRoot.scale.setScalar(0.9);
     detailRoot.visible = true;
 
     // ═══ pieces (1.2): hub + ensamblaje + explosión al idle ═══
@@ -568,12 +572,15 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
           holybroReady = root;
           const rev = buildAssemblyReveal(root);
           assmList = rev.list;
-          assmSlider = rev.list.filter(e => !e.auto);
+          // ciclo 11: sin entradas `auto` — las instancias de los cuadrantes
+          // 2-4 viajan en el `with` del frame inferior (paso 9)
+          assmSlider = rev.list;
           (window as any).__assmTotal = rev.total;
-          // sonda QA ciclo 10: lista de ensamblaje con cuadrante y posición
-          // (espacio LOCAL del modelo: inmune a la rotación idle del preview)
+          (window as any).__assmEntries = rev.list.length;
+          // sonda QA ciclo 11: orden definitivo con nodo y cuadrante
+          // (posición en espacio LOCAL del modelo: inmune a la rotación idle)
           (window as any).__assmList = rev.list.map(e => ({
-            es: e.es, en: e.en, cuadrante: e.cuadrante ?? null, auto: !!e.auto, gate: e.gate ?? null,
+            nodo: e.nodo ?? null, es: e.es, en: e.en, cuadrante: e.cuadrante ?? null,
             worldPos: (() => { const p = root.worldToLocal(e.mesh.getWorldPosition(new THREE.Vector3())); return [+p.x.toFixed(3), +p.y.toFixed(3), +p.z.toFixed(3)]; })(),
             meshes: 1 + (e.with?.length ?? 0),
             nombres: [e.mesh.name, ...(e.with ?? []).map(m => m.name)],
@@ -1034,10 +1041,13 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
           // con los frames y a 50 se ve TODO — etiqueta "50+")
           const k = Math.max(1, Math.min(MAX_SLIDER_PIECES, Math.round(Math.max(1, Math.min(50, cur.pieces)))));
           if (k !== lastPieceCount) { revealAssemblyList(assmList, k); lastPieceCount = k; lastPiecesChange = performance.now(); }
-          const g = assmSlider[k - 1] ?? assmList[assmList.length - 1];
+          const totalEntries = assmSlider.length;
+          const g = assmSlider[Math.min(k, totalEntries) - 1] ?? assmList[assmList.length - 1];
           if (uiRef.current) {
-            // contador visible para que el avance sea verificable a ojo
-            uiRef.current.textContent = `${cur.lang === 'es' ? g.es : g.en} · ${k}${k >= MAX_SLIDER_PIECES ? '+' : ''}`;
+            // contador visible (ciclo 11): nombre del paso + k/total-entradas;
+            // "50+" muestra el modelo completo
+            const kLabel = k >= MAX_SLIDER_PIECES ? `${MAX_SLIDER_PIECES}+` : `${k}`;
+            uiRef.current.textContent = `${cur.lang === 'es' ? g.es : g.en} · ${kLabel}/${totalEntries}`;
             uiRef.current.style.opacity = '1';
           }
           let assmVis = 0;
@@ -1301,8 +1311,11 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         // drone sigue pequeño"): con canvas 240px el drone llena ~50-70% del
         // ancho sin cortarse (medido: 1.3 cortaba el finish en los laterales;
         // el yunque conserva su 1.06 medido en ciclo 9).
+        // Ciclo 11 — canvas 290px: el modo 'detail' (contenido más ALTO respecto
+        // a su radio: placa + asa + anillo) tocaba ambos bordes (99% medido) →
+        // margen propio 1.8; el resto conserva 1.5 (finish 82%, surface 90%).
         const sph = computeVisibleSphere(group);
-        const margin = cur.mode === 'surface' ? 1.06 : 1.5;
+        const margin = cur.mode === 'surface' ? 1.06 : cur.mode === 'detail' ? 1.8 : 1.5;
         const minDist = cur.mode === 'surface' ? 1.0 : 1.2;
         const targetDist = Math.max(minDist, Math.min(7, sph.radius * margin));
         frameDist += (targetDist - frameDist) * 0.08;
@@ -1333,10 +1346,19 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
   }, [height]);
 
   return (
-    // ciclo 10 — horizontal: el canvas sangra 12px por lado (la mitad del padding
-    // 24 de la card) para llegar "casi al borde" sin tocarlo; maxWidth 760 como
-    // techo en layouts anchos. El ResizeObserver adapta el canvas.
-    <div style={{ position: 'relative', width: 'calc(100% + 24px)', maxWidth: 760, margin: '0 -12px' }}>
+    // ciclo 11 — horizontal: el wrapper se DUPLICA respecto a la card (2×680,
+    // techo 1360, nunca más ancho que el viewport) y sangra por ambos lados
+    // con overflow visible — sangrado intencional, sombra limpia. En móvil
+    // (≤640px) vuelve al 100% para no romper el layout.
+    <div className="cx-preview-wrap">
+      <style>{`
+        .cx-preview-wrap {
+          --pw: min(1360px, calc(200% + 48px), calc(100vw - 32px));
+          position: relative; width: var(--pw);
+          margin-left: calc((100% - var(--pw)) / 2);
+        }
+        @media (max-width: 640px) { .cx-preview-wrap { --pw: 100%; } }
+      `}</style>
       <div ref={mountRef} style={{ width: '100%', height, cursor: 'grab' }} aria-hidden="true" />
       <div ref={uiRef} style={{
         position: 'absolute', top: 6, right: 6, fontSize: 11, fontWeight: 600, color: 'var(--cx-muted)',

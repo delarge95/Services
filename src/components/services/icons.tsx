@@ -156,6 +156,18 @@ export function InfoIcon({ size = 24, color }: IconProps) {
   );
 }
 
+/** Enlace externo (ciclo 11): cuadrado con flecha saliente, para los links al
+ *  prototipo Twinsight X500. */
+export function ExternalIcon({ size = 24, color }: IconProps) {
+  return (
+    <svg {...base(size)} color={color}>
+      <path d="M14 5h5v5" />
+      <path d="M19 5l-8 8" />
+      <path d="M19 13.5V18a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18V7a1.5 1.5 0 0 1 1.5-1.5H10" />
+    </svg>
+  );
+}
+
 /** Mapa nombre→icono para los datos del árbol (decisionTree usa ids, no emojis). */
 const ICONS: Record<string, (p: IconProps) => ReactElement> = {
   globe: GlobeIcon,

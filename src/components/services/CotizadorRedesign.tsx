@@ -17,11 +17,13 @@ import type { Lang } from '../../data/services/i18n';
 import type { Currency } from '../../data/services/types';
 import type { WizardPick, WizardQuotePlan } from '../../data/services/treeToQuote';
 import { bundlePct, esquemaPago, RONDAS_NOTA } from '../../lib/services/quoteSummary';
+import { encodeShare, decodeShare, quoteId } from '../../lib/services/share';
+import type { ShareState } from '../../lib/services/share';
 import { QuoteCta } from './QuoteCta';
 import { GuidedWizard, WizardEditInline } from './GuidedWizard';
 import { planFromTreeAnswers } from '../../data/services/treeToQuote';
 import { RefDropzone } from './RefDropzone';
-import { SunIcon, MoonIcon, HomeIcon, GearIcon } from './icons';
+import { SunIcon, MoonIcon, HomeIcon, GearIcon, ExternalIcon } from './icons';
 
 /** Etiqueta/nota de un pick en el idioma activo (fallback: español). */
 const pickLabel = (p: WizardPick, lang: Lang) => (lang === 'en' ? EXTRA_LABELS_EN[p.labelEs] ?? p.labelEs : p.labelEs);
@@ -118,7 +120,7 @@ function WebGLBackground({ dark = false }: { dark?: boolean }) {
     raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); window.removeEventListener('mousemove', onMouse); renderer.dispose(); mount.replaceChildren(); };
   }, [dark]);
-  return <div ref={ref} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }} aria-hidden="true" />;
+  return <div ref={ref} className="cx-webgl-bg" style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none' }} aria-hidden="true" />;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -306,16 +308,17 @@ export function CotizadorRedesign() {
   /** Filtro activo del catálogo ('todas' = sin filtrar). */
   const [familyFilter, setFamilyFilter] = useState<string>('todas');
   /** Tema claro/oscuro (persistido; respeta prefers-color-scheme la primera vez).
-   * Lazy init: lee el atributo pre-pintado por el script inline de cotizador.astro
-   * para que la PRIMERA renderización ya use el tema correcto (sin flash blanco
-   * de `.cx-root` claro sobre el body oscuro antes del useEffect de corrección). */
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    try {
-      const attr = document.documentElement.dataset.cxTheme;
-      if (attr === 'dark' || attr === 'light') return attr;
-    } catch { /* SSR: sin DOM */ }
-    return 'light';
-  });
+   *  Ciclo 12: el estado arranca SIEMPRE en 'light' — exactamente lo que SSR
+   *  renderizó (data-theme + icono luna) — para que la hidratación coincida en
+   *  modo dark (antes: el lazy init leía el attr del <html> ANTES del primer
+   *  render, el árbol cliente difería del server y React regeneraba todo con
+   *  un pageerror "Hydration failed"). El tema real pre-pintado por el script
+   *  inline de cotizador.astro se ADOPTA en el efecto de sync de abajo;
+   *  visualmente no hay flash porque el CSS blindado del ciclo 10b
+   *  (html[data-cx-theme] vars a nivel documento) pinta dark desde el primer
+   *  frame, antes de que la isla hidrate. */
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const themeAdopted = useRef(false);
   /** true si se llegó por el wizard (historial con draft) → muestra 'Editar detalles'. */
   const [canEditDetails, setCanEditDetails] = useState(false);
   useEffect(() => {
@@ -324,8 +327,27 @@ export function CotizadorRedesign() {
   }, [serviceId]);
 
   useEffect(() => {
+    // Primera corrida: ADOPTA el atributo pre-pintado por cotizador.astro para
+    // que el estado JS alcance al <html> (icono sol/luna, fondo WebGL). Si ya
+    // coincide, cae al sync de abajo sin escribir nada.
+    if (!themeAdopted.current) {
+      themeAdopted.current = true;
+      try {
+        const attr = document.documentElement.dataset.cxTheme;
+        if ((attr === 'dark' || attr === 'light') && attr !== theme) {
+          setTheme(attr); // re-render; la siguiente corrida sincroniza todo
+          return;
+        }
+      } catch { /* sin DOM */ }
+    }
+    // Sincroniza el atributo del <html> con el estado del toggle: sin esto,
+    // html[data-cx-theme] queda desfasado y el CSS blindado del ciclo 10b
+    // (html[data-cx-theme='dark'] .cx-root) pisa el tema elegido por el usuario.
+    try {
+      document.documentElement.dataset.cxTheme = theme;
+      localStorage.setItem('cx-theme', theme);
+    } catch { /* almacenamiento no disponible */ }
     document.body.style.background = theme === 'dark' ? '#0b0b0f' : '#fbfbfd';
-    try { localStorage.setItem('cx-theme', theme); } catch { /* almacenamiento no disponible */ }
   }, [theme]);
 
   // ── Historial (ciclo 6): restaura config ↔ wizard al navegar atrás/adelante ──
@@ -348,6 +370,23 @@ export function CotizadorRedesign() {
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // ── Ciclo 11: ENLACE COMPARTIDO CON ESTADO. Al abrir la página con params
+  // (?svc=&cur=&fc=&urg=&qty=&v=), decodeShare restaura la cotización EXACTA:
+  // mismo servicio, valores, moneda, urgencia, descuento y cantidad. Los extras
+  // del wizard no viajan en la URL (encodeShare no los codifica) — se documenta. ──
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const st = decodeShare(window.location.search);
+    if (!st) return;
+    setCurrency(st.currency);
+    setFirstClient(st.firstClient);
+    setUrgency(st.urgency);
+    setQuantity(st.quantity);
+    setServiceId(st.serviceId);
+    setVals(st.vals);
+    setExtras([]);
   }, []);
 
   /** #15: home real — resetea también al wizard montado (vía homeKey). */
@@ -420,14 +459,73 @@ export function CotizadorRedesign() {
   // D5 ciclo 2.1: esquema de pago sugerido según el total (piso del rango).
   const pagoSugerido = quote ? esquemaPago(totalProyecto ? totalProyecto.min : quote.totalMin, currency) : null;
 
+  // ── Ciclo 11: estado compartible + ID corto + URL pública con estado.
+  // La URL de compartición SIEMPRE apunta a BRAND.quoteUrl (nunca a
+  // window.location, para no filtrar el dominio del dev). ──
+  const shareState: ShareState = useMemo(
+    () => ({ serviceId, vals, currency, firstClient, urgency, quantity }),
+    [serviceId, vals, currency, firstClient, urgency, quantity],
+  );
+  const qId = useMemo(() => (svc ? quoteId(shareState) : ''), [svc, shareState]);
+  const shareUrl = useMemo(
+    () => (svc ? `${BRAND.quoteUrl}?${encodeShare(shareState)}` : BRAND.quoteUrl),
+    [svc, shareState],
+  );
+
+  // Ciclo 10 — regla de entrega con extras (extraída del aside para
+  // reusarla en el desglose): lo MÁS CONSERVADOR de cada extremo —
+  // min = el mayor de los mínimos, max = el mayor de los máximos.
+  const entregaDias = useMemo<[number, number] | null>(() => {
+    const rangos = [
+      svc?.entregaDiasEs,
+      ...extraQuotes.map(e => SERVICES.find(s => s.id === e.pick.serviceId)?.entregaDiasEs),
+    ].filter((r): r is [number, number] => Array.isArray(r));
+    if (!rangos.length) return null;
+    return extraQuotes.length === 0
+      ? rangos[0]
+      : [Math.max(...rangos.map(r => r[0])), Math.max(...rangos.map(r => r[1]))];
+  }, [svc, extraQuotes]);
+
+  // Ciclo 11: respuestas clave del wizard (nivel de detalle, piezas, acabados)
+  // para la línea "Config: ..." del desglose — solo si existen.
+  const cfgBits = useMemo(() => {
+    const a = wizardDraft?.answers;
+    if (!a) return [] as string[];
+    const es = lang === 'es';
+    const b: string[] = [];
+    if (a['nivel-detalle'] !== undefined) b.push(`${es ? 'nivel de detalle' : 'detail level'}: ${a['nivel-detalle']}`);
+    if (a['cantidad-piezas'] !== undefined) b.push(`${es ? 'piezas' : 'parts'}: ${a['cantidad-piezas']}`);
+    if (a['materiales-acabado'] !== undefined) b.push(`${es ? 'acabado' : 'finish'}: ${a['materiales-acabado']}`);
+    return b;
+  }, [wizardDraft, lang]);
+
   const svcName = svc ? (lang === 'en' ? CATALOG_EN[svc.id]?.name ?? svc.nameEs : svc.nameEs) : '';
-  const summary = svc && quote
-    ? [`${svcName} (${tier}): ${fmt(currency, quote.totalMin)}–${fmt(currency, quote.totalMax)}`,
-       ...extraQuotes.map(e => `${e.pick.labelEs} — ${e.quote.serviceName} (${e.tier}): ${fmt(currency, e.quote.totalMin)}–${fmt(currency, e.quote.totalMax)}`),
-       totalProyecto ? `Total proyecto${bundle ? ` (incluye −${bundle}% bundle)` : ''}: ${fmt(currency, totalProyecto.min)}–${fmt(currency, totalProyecto.max)}` : '',
-       pagoSugerido ? `${lang === 'es' ? 'Pago sugerido' : 'Suggested payment'}: ${pagoSugerido}` : '',
-      ].filter(Boolean).join('\n')
-    : '';
+  // ── Ciclo 11: DESGLOSE EXACTO para el deep link de WhatsApp (y email) —
+  // encabezado con id, una línea por servicio (nombre, código, nivel, rango
+  // COP/USD), total proyecto con bundle, pago sugerido, entrega conservadora,
+  // config del wizard, enlace con estado y disclaimer. Máx ~15 líneas. ──
+  const summary = useMemo(() => {
+    if (!svc || !quote) return '';
+    const es = lang === 'es';
+    const lines: string[] = [`Cotización ${qId} — ${BRAND.name}`];
+    lines.push(`${svcName} (${svc.id}) · nivel ${tier} · ${fmt(currency, quote.totalMin)}–${fmt(currency, quote.totalMax)} ${currency}`);
+    for (const e of extraQuotes) {
+      lines.push(`${pickLabel(e.pick, lang)} — ${e.quote.serviceName} (${e.pick.serviceId}) · nivel ${e.tier} · ${fmt(currency, e.quote.totalMin)}–${fmt(currency, e.quote.totalMax)} ${currency}`);
+    }
+    if (totalProyecto) {
+      lines.push(`${es ? 'Total proyecto' : EN.totalProject}${bundle ? ` (−${bundle}% bundle)` : ''}: ${fmt(currency, totalProyecto.min)}–${fmt(currency, totalProyecto.max)} ${currency}`);
+    } else {
+      // servicio único: el total del proyecto ES el rango del principal —
+      // la línea va siempre para que el deep link tenga cierre de total
+      lines.push(`${es ? 'Total proyecto' : EN.totalProject}: ${fmt(currency, quote.totalMin)}–${fmt(currency, quote.totalMax)} ${currency}`);
+    }
+    if (pagoSugerido) lines.push(`${es ? 'Pago sugerido' : 'Suggested payment'}: ${es ? pagoSugerido : EN.pago[pagoSugerido] ?? pagoSugerido}`);
+    if (entregaDias) lines.push(`${es ? 'Entrega' : EN.delivery}: ${entregaDias[0]}–${entregaDias[1]} ${es ? 'días hábiles' : 'business days'}`);
+    if (cfgBits.length) lines.push(`Config: ${cfgBits.join(' · ')}`);
+    lines.push(shareUrl);
+    lines.push(es ? '(Rango orientativo, no cotización formal.)' : '(Indicative range, not a formal quote.)');
+    return lines.join('\n');
+  }, [svc, quote, lang, qId, svcName, tier, currency, extraQuotes, totalProyecto, bundle, pagoSugerido, entregaDias, cfgBits, shareUrl]);
 
   return (
     <div className="cx-root" data-theme={theme} style={{ minHeight: '100vh', background: 'var(--cx-bg)', position: 'relative' }}>
@@ -493,15 +591,62 @@ export function CotizadorRedesign() {
         @media (max-width: 768px) {
           .cx-config { display: flex !important; flex-direction: column; }
           .cx-config-aside { position: static !important; width: 100% !important; max-height: none !important; overflow: visible !important; }
+          /* ciclo 12 — NAV móvil: los switches envuelven en vez de desbordar
+             (scrollWidth <= innerWidth) y todo botón del nav alcanza 40px de
+             alto táctil (antes: 17-32px). El !important solo vence al inline. */
+          .cx-nav { flex-wrap: wrap; row-gap: 8px !important; padding: 14px 16px !important; }
+          .cx-nav-right { flex-wrap: wrap; justify-content: flex-end; row-gap: 6px !important; }
+          .cx-nav button { min-height: 40px; min-width: 40px; }
+          .cx-nav-right button { min-height: 40px; }
+          /* back-links ("← Atrás", "← Cambiar servicio") con área táctil 40px */
+          .cx-back { min-height: 40px; }
+          /* chips de filtro del catálogo: 35px -> 40px de alto táctil */
+          .cx-chip { min-height: 40px; }
+          /* enlaces secundarios y botón fantasma: >=40px de alto táctil */
+          .cx-protolink { min-height: 40px; }
+          .cx-softbtn { min-height: 40px; }
+        }
+        /* ciclo 12 — pantallas táctiles en layout desktop (teléfono landscape,
+           tablet): el nav mantiene el mínimo táctil de 40px; el mouse de
+           escritorio no se ve afectado (pointer: fine). */
+        @media (pointer: coarse) {
+          .cx-nav button { min-height: 40px; min-width: 40px; }
+        }
+        /* ciclo 12 — más aire lateral en móviles estrechos (360px): menos
+           padding del contenedor de contenido, sin tocar desktop. */
+        @media (max-width: 640px) {
+          .cx-content { padding: 0 16px; }
         }
         @media (min-width: 769px) { .cx-grid { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)) !important; max-width: 1200px !important; } }
-        @media print { [data-noprint] { display: none !important; } body { background: #fff !important; } .cx-root { background: #fff !important; --cx-text: #000; --cx-muted: #555; --cx-card: #fff; --cx-card-solid: #fff; --cx-tile: #f5f5f7; --cx-accent: #0071e3; } }
+        /* ciclo 11 — PRINT/PDF limpio: documento 1-2 páginas con fondo blanco,
+           tipografía negra, panel de cotización a ancho completo y cabecera
+           propia (id + fecha + enlace con estado). Se oculta nav, fondo WebGL,
+           wizard, CTA y todo [data-noprint]. */
+        @media print {
+          [data-noprint] { display: none !important; }
+          body { background: #fff !important; }
+          .cx-webgl-bg { display: none !important; }
+          .cx-root { background: #fff !important; --cx-text: #000; --cx-muted: #555; --cx-faint: #777; --cx-card: #fff; --cx-card-solid: #fff; --cx-tile: #f5f5f7; --cx-accent: #0071e3; }
+          .cx-root * { text-shadow: none !important; box-shadow: none !important; }
+          .cx-content { max-width: 100% !important; padding: 0 !important; }
+          .cx-config { display: block !important; }
+          .cx-config-aside {
+            position: static !important; width: 100% !important;
+            max-height: none !important; overflow: visible !important;
+            border: none !important; padding: 0 !important;
+          }
+          .cx-print-header { display: flex !important; flex-direction: column; gap: 2px; margin: 0 0 14px; font-size: 13px; color: #000; }
+          .cx-print-header strong { font-size: 16px; }
+          .cx-prototype-link { color: #000 !important; }
+        }
         .cx-content { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 0 24px; }
         @media (min-width: 1440px) { .cx-content { max-width: 1400px; } }
       `}</style>
 
-      {/* NAV minimal */}
-      <nav data-noprint style={{
+      {/* NAV minimal — ciclo 12: clases cx-nav/cx-nav-right para que en móvil
+          los switches envuelvan a una segunda línea en vez de desbordar el
+          viewport (425px de grupo no caben en 360-430px). */}
+      <nav data-noprint className="cx-nav" style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         padding: '20px 32px', position: 'relative', zIndex: 2,
         borderBottom: '1px solid var(--cx-border)',
@@ -516,7 +661,7 @@ export function CotizadorRedesign() {
             {BRAND.name}
           </button>
         </div>
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+        <div className="cx-nav-right" style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           <button onClick={() => { setMode('guided'); setServiceId(''); }}
             style={{ font: '600 14px inherit', color: mode === 'guided' ? 'var(--cx-accent)' : 'var(--cx-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
             {lang === 'es' ? 'Cotizar' : EN.navQuote}
@@ -564,7 +709,7 @@ export function CotizadorRedesign() {
           <section style={{ paddingTop: 40, paddingBottom: 60, display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(280px,380px)', gap: 32, alignItems: 'start' }} className="cx-config">
             {/* Panel izquierdo: configuración */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              <button onClick={() => { if (typeof window !== 'undefined') window.history.back(); }} data-noprint
+              <button onClick={() => { if (typeof window !== 'undefined') window.history.back(); }} data-noprint className="cx-back"
                 style={{ alignSelf: 'flex-start', font: '600 14px inherit', color: 'var(--cx-accent)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 8 }}>
                 {lang === 'es' ? '← Cambiar servicio' : EN.changeService}
               </button>
@@ -647,6 +792,13 @@ export function CotizadorRedesign() {
             }}>
               {quote && tier ? (
                 <>
+                  {/* ciclo 11: cabecera SOLO visible en el PDF impreso —
+                      id de la cotización + fecha + enlace con estado */}
+                  <div className="cx-print-header" style={{ display: 'none' }}>
+                    <strong>{lang === 'es' ? 'Cotización' : 'Quote'} {qId} — {BRAND.name}</strong>
+                    <span>{typeof window !== 'undefined' ? new Date().toLocaleDateString(lang === 'es' ? 'es-CO' : 'en-US') : ''}</span>
+                    <span>{shareUrl}</span>
+                  </div>
                   {/* ciclo 10 — precio grande: con extras es EL RANGO DEL PROYECTO
                       (principal + extras, ya con bundle); el tier solo se muestra
                       para un servicio sin extras. */}
@@ -682,15 +834,7 @@ export function CotizadorRedesign() {
                       extremo — min = el mayor de los mínimos, max = el mayor de
                       los máximos (entregaDiasEs[1]) entre principal y extras. */}
                   {(() => {
-                    const rangos = [
-                      svc.entregaDiasEs,
-                      ...extraQuotes.map(e => SERVICES.find(s => s.id === e.pick.serviceId)?.entregaDiasEs),
-                    ].filter((r): r is [number, number] => Array.isArray(r));
-                    const dias: [number, number] | null = !rangos.length
-                      ? null
-                      : extraQuotes.length === 0
-                        ? rangos[0]
-                        : [Math.max(...rangos.map(r => r[0])), Math.max(...rangos.map(r => r[1]))];
+                    const dias = entregaDias;
                     return (
                       <div style={{ marginTop: 24, padding: 14, borderRadius: 14, background: 'var(--cx-tile)' }}>
                         <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--cx-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{lang === 'es' ? 'Entrega' : EN.delivery}</div>
@@ -744,9 +888,17 @@ export function CotizadorRedesign() {
                     <div style={{ fontSize: 13, color: 'var(--cx-text)', padding: '3px 0' }}>{lang === 'es' ? RONDAS_NOTA : EN.rondas}</div>
                   </div>
                   <div data-noprint style={{ marginTop: 24 }}>
-                    <QuoteCta summary={summary} url={typeof window !== 'undefined' ? window.location.href : ''} lang={lang} />
+                    <QuoteCta summary={summary} url={shareUrl} lang={lang} />
                   </div>
                   <p style={{ fontSize: 11, color: 'var(--cx-faint)', marginTop: 16, textAlign: 'center' }}>{lang === 'es' ? 'Rango orientativo · válida 15 días' : EN.rangeValidity}</p>
+                  {/* ciclo 11: prototipo en vivo junto al CTA — la demo real del trabajo */}
+                  <p data-noprint style={{ fontSize: 12, textAlign: 'center', margin: '8px 0 0' }}>
+                    <a href={BRAND.prototypeUrl} target="_blank" rel="noopener noreferrer" className="cx-prototype-link cx-protolink"
+                      style={{ color: 'var(--cx-accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+                      {lang === 'es' ? '¿Dudas del trabajo? Ve el prototipo: Twinsight X500' : EN.prototypeAside}
+                      <ExternalIcon size={12} />
+                    </a>
+                  </p>
                 </>
               ) : (
                 <p style={{ color: 'var(--cx-muted)', fontSize: 15, textAlign: 'center', padding: 20 }}>{lang === 'es' ? 'Configura las variables para ver el precio' : EN.configurePrice}</p>
@@ -764,7 +916,7 @@ export function CotizadorRedesign() {
             <p style={{ fontSize: 16, color: 'var(--cx-muted)', margin: '0 0 28px' }}>{lang === 'es' ? 'Web 3D, visores, configuradores, herramientas.' : EN.catalogSubtitle}</p>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 32 }}>
               {['todas', ...CATALOG_FAMILIES].map(f => (
-                <button key={f} onClick={() => setFamilyFilter(f)}
+                <button key={f} onClick={() => setFamilyFilter(f)} className="cx-chip"
                   style={{
                     padding: '8px 18px', borderRadius: 999, font: `500 13.5px inherit`, cursor: 'pointer',
                     border: familyFilter === f ? '2px solid var(--cx-accent)' : '1px solid var(--cx-border-strong)',

@@ -12,8 +12,14 @@ export const BRAND = {
   /** Una línea para un visitante B2B que no sabe qué es render ni pipeline. */
   valueProp:
     'Convierto productos y datos industriales en experiencias 3D interactivas: desde renders fotorrealistas hasta configuradores web que tu cliente puede usar sin instalar nada.',
-  contactEmail: 'alexwssonn@hotmail.com',
+  /** Email público (ciclo 11: 3d@alexwoodcock.me reemplaza al anterior). */
+  contactEmail: '3d@alexwoodcock.me',
   whatsappNumber: '573054396581',
+  /** Prototipo en vivo (demo real de trabajo, ciclo 11). */
+  prototypeUrl: 'http://alexwoodcock.me/Twinsight-X500/',
+  /** URL pública base de las cotizaciones compartidas con estado (ciclo 11):
+   *  los enlaces copiados/impresos apuntan aquí — nunca al dominio del dev. */
+  quoteUrl: 'https://alexwoodcock.me/Services/cotizador/',
   links: {
     portfolio: 'https://delarge95.github.io/PlanMaestroOS/',
     artstation: 'https://www.artstation.com/alexanderwoodcocksalomon3',

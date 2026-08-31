@@ -62,7 +62,8 @@ function normalize(root: THREE.Group): THREE.Group {
   const size = box.getSize(new THREE.Vector3());
   // ciclo 9: 2.6 → 3.4 — el yunque es una malla plana (alto ≈ 1/3 del ancho) y
   // el auto-encuadre por esfera lo dejaba pequeño en el canvas de surface.
-  const s = 3.4 / Math.max(size.x, size.y, size.z);
+  // ciclo 11: 3.4 → 3.06 (−10%) — el usuario lo veía grande en el canvas 290.
+  const s = 3.06 / Math.max(size.x, size.y, size.z);
   root.scale.setScalar(s);
   root.updateMatrixWorld(true);
   const box2 = morphMesh

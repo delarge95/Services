@@ -333,43 +333,42 @@ export function revealFrameOnly(root: THREE.Group) {
 }
 
 
-// ─── Lista de ensamblaje PIEZA A PIEZA por CUADRANTES (ciclo 10, feedback
-// Alexander) ───
-// Problema ciclo 9: la lista plana de sub-mallas mezclaba cuadrantes (motors
-// [0..1] del traversal eran cuadrantes distintos) — la pieza 3 no coincidía
-// con el brazo del motor inicial. Ciclo 10:
-//   1. Cada pieza es el GRUPO completo (motor multi-primitiva = sus 2
-//      sub-mallas en una entrada) y las piezas del mismo cuadrante van juntas:
-//      motor → base → hélice → tubo del brazo.
-//   2. INSTANCIAS AUTOMÁTICAS: solo el cuadrante 1 (−x,−z) consume slider.
-//      Los cuadrantes 2-4 son entradas `auto` que se revelan solas al
-//      completarse los frames superior + inferior (campo `with` + flag `auto`).
-//   3. Slider 1-50: a 50 se ve TODO (incluida tornillería) — el máximo se
-//      etiqueta "50+".
+// ─── Lista de ensamblaje — ORDEN DEFINITIVO (ciclo 11, feedback Alexander) ───
+// Alexander verificó en Blender el orden REAL de aparición de las piezas del
+// GLB y lo entregó por escrito; reemplaza el orden por buckets+cuadrantes del
+// ciclo 10. Estructura (57 entradas que consumen slider):
+//   1-7   Cuadrante 1 (−x,−z): motor → placa → soporte → hélice → base →
+//         tubo de posicionamiento → abrazadera del brazo (×2 juntas).
+//   8-9   Frame superior; frame inferior. El frame inferior ARRASTRA en `with`
+//         (mecanismo del ciclo 10) TODAS las demás instancias de las piezas de
+//         los pasos 1-7 (los otros 3 motores con sus acompañantes): aparecen
+//         solas en el paso 9 SIN consumir slider.
+//   10-37 Pilones, abrazaderas, anillos, tubos, electrónica, batería,
+//         plataforma y tren — en el orden exacto dado por el usuario.
+//   38-57 Tornillería por SETS COMPLETOS (una entrada por tipo, ordenadas de
+//         mayor a menor cantidad según el GLB; label humanizado + conteo).
+// Matching por regex ANCLADOS sobre el nombre de NODO (o el nodo padre para
+// los grupos multi-primitiva: motor y hélices) — NO piezaKey genérico, para
+// no pisar instancias. Nombres verificados contra el chunk JSON del GLB.
 
 /** Máximo del slider de piezas (decisionTree): a este valor todo es visible. */
 export const MAX_SLIDER_PIECES = 50;
 
 /** Cuadrante del brazo según la posición mundo (x=izq/der, z=frente/atrás). */
 export type Quadrante = '(-x,-z)' | '(+x,-z)' | '(+x,+z)' | '(-x,+z)';
-/** Orden de revelado de los cuadrantes (motor 1 primero, sentido horario visto desde arriba). */
-export const QUADRANTE_ORDER: Quadrante[] = ['(-x,-z)', '(+x,-z)', '(+x,+z)', '(-x,+z)'];
 
 export interface AssemblyEntry {
   mesh: THREE.Mesh;
   es: string;
   en: string;
   /** Meshes que se revelan JUNTAS con `mesh` sin consumir slider extra
-   *  (el motor/base/hélice completos son grupos multi-primitiva de 2 sub-mallas). */
+   *  (sub-mallas del mismo grupo multi-primitiva, sets completos y — en el
+   *  paso 9 — todas las instancias restantes de los pasos 1-7). */
   with?: THREE.Mesh[];
-  /** Cuadrante del brazo (solo motor/base/hélice/tubo del brazo). */
+  /** Cuadrante de la pieza (posición de su primera mesh, espacio local). */
   cuadrante?: Quadrante;
-  /** true = NO consume slider: se revela junto con los frames sup+inf
-   *  (instancias de los cuadrantes 2-4). */
-  auto?: boolean;
-  /** Marcado interno del gate de revelado automático (última entrada del frame
-   *  inferior define cuándo aparecen las instancias). */
-  gate?: 'top' | 'bottom';
+  /** Nombre de nodo que identifica la entrada (QA/Blender). */
+  nodo?: string;
 }
 
 /** Cuadrante de una posición mundo (tolerancia: piezas centradas → undefined). */
@@ -379,170 +378,188 @@ function quadOfPos(x: number, z: number): Quadrante | undefined {
   return `(${x < 0 ? '-' : '+'}x,${z < 0 ? '-' : '+'}z)` as Quadrante;
 }
 
-/** Buckets de montaje. Los regex van sobre el nombre EFECTIVO (meshEffectiveName):
- *  las meshes hijas de nodos multi-primitiva heredan el nombre del MESH del GLB
- *  (los 4 motores son grupos 'DJ-2216-KV880.*_low' con meshes 'DJ-2216-KV880.019';
- *  las 4 hélices son grupos 'x500v2_propeller*' con meshes genéricas 'mesh.002'),
- *  no el sufijo de instancia del nodo. Orden de prueba = prioridad. */
-const ASSEMBLY_BUCKETS: Array<{ re: RegExp; es: string; en: string }> = [
-  { re: /DJ-2216-KV880/i, es: 'Motor', en: 'Motor' },
-  { re: /HMX5V-DIGAI-DIANJIZUO/i, es: 'Base del motor', en: 'Motor mount' },
-  { re: /propeller/i, es: 'Hélice', en: 'Propeller' },
-  { re: /CARBON-FIBER-TUBE300/i, es: 'Tubo del brazo', en: 'Arm tube' },
-  { re: /CARBON-FIBER-TUBE/i, es: 'Tubo del frame', en: 'Frame tube' },
-  { re: /TOP-PLATE/i, es: 'Frame superior', en: 'Top frame' },
-  { re: /BOTTOM-PLATE|JIA-GUAN|GUAN-CHENG|JIA-LIANJIE/i, es: 'Frame inferior', en: 'Bottom frame' },
-  { re: /PYLONS-X500|MAO-JIAO|JIAO-EVA|HUAN-GUIJIAO|JIAO-LIANJIE/i, es: 'Tren de aterrizaje', en: 'Landing gear' },
-  // OJO: 'X500-TAO-XT60' cae en electrónica (como en HOLYBRO_STEPS, mismo orden)
-  { re: /PIXHAWK|IMU|PCB|GPS|TELEMETRY|XT60|BM06B|TOU-|DIKE-|MIANKE|GAI-GUANGLIU|ZHIJIA-CAMERA|GAN-GPSV5|GPSV5-ZHIJIA|GPS-ZHIJIA|x500v2_gps|x500v2_telemetry/i, es: 'Electrónica', en: 'Electronics' },
-  { re: /battery/i, es: 'Batería', en: 'Battery' },
-  { re: /PLATFORM-PLAT|X500-TAO/i, es: 'Plataforma superior', en: 'Top platform' },
+/**
+ * Sets de tornillería en orden fijo (ciclo 11): cada set = UNA entrada del
+ * slider con TODAS sus meshes. Regex ANCLADOS por prefijo — OJO: GLTFLoader
+ * sanea los nombres de nodo (PropertyBinding.sanitizeNodeName) y ELIMINA los
+ * puntos, p.ej. 'GB70-M3-6.001_low_PRIM' llega como 'GB70-M3-6001_low_PRIM'.
+ * Los prefijos son disjuntos entre familias (ninguno es prefijo de otro set,
+ * p.ej. GB70-M25-10 no pisa GB70-M25-12), así que el ancla ^ basta.
+ * `n` = cantidad esperada según el GLB; se verifica en runtime (warn si difiere).
+ */
+const FASTENER_SETS: Array<{ re: RegExp; n: number; es: string; en: string }> = [
+  { re: /^GB70-M25-10/, n: 8, es: 'Tornillos M25×10', en: 'M25×10 screws' },
+  { re: /^GB70-M25-12/, n: 13, es: 'Tornillos M25×12', en: 'M25×12 screws' },
+  { re: /^GB70-M25-6/, n: 24, es: 'Tornillos M25×6', en: 'M25×6 screws' },
+  { re: /^GB70-M3-21-DING/, n: 2, es: 'Tornillos M3×21 DING', en: 'M3×21 DING screws' },
+  { re: /^GB70-M3-25-DING/, n: 2, es: 'Tornillos M3×25 DING', en: 'M3×25 DING screws' },
+  { re: /^GB70-M3-38/, n: 16, es: 'Tornillos M3×38', en: 'M3×38 screws' },
+  { re: /^GB70-M3-6/, n: 16, es: 'Tornillos M3×6', en: 'M3×6 screws' },
+  { re: /^GB70-M3-8-DING/, n: 12, es: 'Tornillos M3×8 DING', en: 'M3×8 DING screws' },
+  { re: /^LM-M3-DING/, n: 8, es: 'Remaches M3 DING', en: 'M3 DING rivets' },
+  { re: /^LM-M3-NILONG/, n: 2, es: 'Remaches M3 nylon', en: 'M3 nylon rivets' },
+  { re: /^M25-6-CHEN-LIU/, n: 12, es: 'Tornillos M25×6 avellanados', en: 'M25×6 countersunk screws' },
+  { re: /^M3-10-PAN-DING/, n: 4, es: 'Tornillos M3×10 pan', en: 'M3×10 pan screws' },
+  { re: /^M3-14-PAN/, n: 4, es: 'Tornillos M3×14 pan', en: 'M3×14 pan screws' },
+  { re: /^M3-16-CHEN-LIU/, n: 2, es: 'Tornillos M3×16 avellanados', en: 'M3×16 countersunk screws' },
+  { re: /^NILONGZHU-M25-5/, n: 4, es: 'Postes nylon M25×5', en: 'M25×5 nylon standoffs' },
+  { re: /^NILONGZHU-M3-5/, n: 4, es: 'Postes nylon M3×5', en: 'M3×5 nylon standoffs' },
+  { re: /^ZSLM-M25/, n: 4, es: 'Tuercas M25 autoblocantes', en: 'M25 self-lock nuts' },
+  { re: /^ZSLM-M3-DING/, n: 8, es: 'Tuercas M3 DING', en: 'M3 DING nuts' },
+  { re: /^ZSLM-M3-FALAN/, n: 16, es: 'Tuercas M3 con brida', en: 'M3 flange nuts' },
+  { re: /^BM06B-WO/, n: 1, es: 'Conector BM06B', en: 'BM06B connector' },
 ];
 
-const HARDWARE_LABEL = { es: 'Tornillería', en: 'Hardware' };
-
 /**
- * Agrupa las meshes de un bucket en PIEZAS: los grupos multi-primitiva del GLB
- * (cada motor/base/hélice es un nodo GRUPO con sub-mallas hijas) forman UNA
- * pieza — la clave es el objeto padre compartido. Mallas sueltas (parent = raíz
- * o grupos con muchas mallas, p.ej. un contenedor del bucket entero) cuentan
- * una por una.
- */
-function pieceMeshes(arr: THREE.Mesh[], root: THREE.Object3D): THREE.Mesh[][] {
-  const byParent = new Map<THREE.Object3D, THREE.Mesh[]>();
-  for (const m of arr) {
-    const p = m.parent ?? root;
-    if (p === root) { byParent.set(m, [m]); continue; } // sin grupo: 1 mesh = 1 pieza
-    const g = byParent.get(p);
-    if (g) g.push(m); else byParent.set(p, [m]);
-  }
-  const groups: THREE.Mesh[][] = [];
-  for (const [, meshes] of byParent) {
-    if (meshes.length > 6) { // contenedor demasiado grande: son piezas sueltas
-      for (const m of meshes) groups.push([m]);
-    } else groups.push(meshes);
-  }
-  return groups;
-}
-
-/**
- * Lista de ensamblaje en orden (ciclo 10): cuadrante (−x,−z) completo (motor →
- * base → hélice → tubo del brazo), luego los cuadrantes 2-4 como entradas
- * automáticas (mismo patrón), y después tubos del frame → frame superior →
- * frame inferior → tren → electrónica → batería → plataforma → tornillería.
- * Devuelve además el total de MESHES (para el contador 1:1 y QA).
+ * Lista de ensamblaje DEFINITIVA (ciclo 11). Los regex van sobre el nombre de
+ * NODO; para los grupos multi-primitiva (4 motores, 4 hélices, 4 patas EVA)
+ * el nombre de instancia vive en el nodo PADRE (GLTFLoader nombra las
+ * sub-mallas con el nombre de la MESH del glTF, compartido por las 4
+ * instancias: 'DJ-2216-KV880.019', 'mesh.002', 'JIAO-EVA.015'). Devuelve
+ * además el total de MESHES (para el contador 1:1 y QA).
  */
 export function buildAssemblyReveal(root: THREE.Group): { list: AssemblyEntry[]; total: number } {
   root.updateMatrixWorld(true);
-  const buckets: THREE.Mesh[][] = ASSEMBLY_BUCKETS.map(() => []);
-  const hardware: THREE.Mesh[] = [];
-  let total = 0;
-  root.traverse(o => {
-    const m = o as THREE.Mesh;
-    if (!m.isMesh) return;
-    total++;
-    const name = meshEffectiveName(m);
-    const bi = ASSEMBLY_BUCKETS.findIndex(b => b.re.test(name));
-    if (bi < 0) hardware.push(m);
-    else buckets[bi].push(m);
-  });
-  const [motors, mounts, props, tubes300, tubes, top, bottom, landing, elec, battery, platform] = buckets;
+  const all: THREE.Mesh[] = [];
+  root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh) all.push(m); });
+  const total = all.length;
 
-  // Piezas por familia (grupos multi-primitiva agrupados por nodo padre)
-  const motorPieces = pieceMeshes(motors, root);
-  const mountPieces = pieceMeshes(mounts, root);
-  const propPieces = pieceMeshes(props, root);
-
-  // Cuadrante de cada pieza: posición de la primera sub-malla en el espacio
-  // LOCAL del modelo (worldToLocal: inmune a la rotación idle del preview).
-  // Las sub-mallas heredan la traslación del grupo multi-primitiva.
-  const quadOfPiece = (meshes: THREE.Mesh[]): Quadrante | undefined => {
+  /** Nombre de NODO de una mesh: las sub-mallas hijas de un grupo
+   *  multi-primitiva (motor, hélice, pata EVA) toman el nombre del PADRE
+   *  (grupo ≠ raíz y ≠ mesh); las mallas single-prim SE NOMBRAN con el nombre
+   *  del nodo (GLTFLoader: node.name pisa mesh.name) → m.name. */
+  const nodeName = (m: THREE.Mesh): string => {
+    const p = m.parent;
+    if (p && p !== root && !(p as THREE.Mesh).isMesh && p.name) return p.name;
+    return m.name ?? '';
+  };
+  const byName = (re: RegExp): THREE.Mesh[] => all.filter(m => re.test(nodeName(m)));
+  const quadOfMeshes = (meshes: THREE.Mesh[]): Quadrante | undefined => {
+    if (!meshes.length) return undefined;
     const p = root.worldToLocal(meshes[0].getWorldPosition(new THREE.Vector3()));
     return quadOfPos(p.x, p.z);
   };
 
-  // Tubos del brazo (TUBE300): 2 mallas largas que cruzan el CENTRO (x≈0) —
-  // no tienen cuadrante por posición. Asignación (documentada en
-  // docs/cotizador/assembly-order-ciclo10.md, a verificar en Blender):
-  //   1er tubo (traversal, translation z≈−0.03) → cuadrante 1 (−x,−z)
-  //   2do tubo (z≈+0.03) → cuadrante 3 (+x,+z) — diagonales opuestas del chasis X
-  const tubeQuad: Quadrante[] = ['(-x,-z)', '(+x,+z)'];
-
-  // Piezas indexadas por cuadrante
-  const byQuad = (pieces: THREE.Mesh[][]) => {
-    const map = new Map<Quadrante, THREE.Mesh[]>();
-    for (const piece of pieces) {
-      const q = quadOfPiece(piece);
-      if (q && !map.has(q)) map.set(q, piece);
-    }
-    return map;
-  };
-  const motorQ = byQuad(motorPieces);
-  const mountQ = byQuad(mountPieces);
-  const propQ = byQuad(propPieces);
-  const tubeQ = new Map<Quadrante, THREE.Mesh[]>();
-  tubes300.forEach((m, i) => {
-    const q = tubeQuad[i] ?? QUADRANTE_ORDER[QUADRANTE_ORDER.length - 1];
-    if (!tubeQ.has(q)) tubeQ.set(q, [m]);
-  });
-
-  /** Entradas de UN cuadrante: motor → base → hélice → tubo (si existe). */
-  const pushQuad = (q: Quadrante, auto: boolean) => {
-    const push = (piece: THREE.Mesh[] | undefined, es: string, en: string) => {
-      if (!piece?.length) return;
-      list.push(auto
-        ? { mesh: piece[0], es, en, with: piece.slice(1), cuadrante: q, auto: true }
-        : { mesh: piece[0], es, en, with: piece.slice(1), cuadrante: q });
-    };
-    push(motorQ.get(q), 'Motor', 'Motor');
-    push(mountQ.get(q), 'Base del motor', 'Motor mount');
-    push(propQ.get(q), 'Hélice', 'Propeller');
-    push(tubeQ.get(q), 'Tubo del brazo', 'Arm tube');
-  };
-
   const list: AssemblyEntry[] = [];
-  // Cuadrante 1 (−x,−z): consume slider (piezas 1-4)
-  pushQuad(QUADRANTE_ORDER[0], false);
-  // Cuadrantes 2-4: instancias automáticas (se revelan con los frames)
-  for (let i = 1; i < QUADRANTE_ORDER.length; i++) pushQuad(QUADRANTE_ORDER[i], true);
-  // Frame: tubos cortos del centro → frame superior (gate) → frame inferior (gate)
-  const entries = (arr: THREE.Mesh[], es: string, en: string, extra?: Partial<AssemblyEntry>): AssemblyEntry[] =>
-    arr.map(mesh => ({ mesh, es, en, ...extra }));
-  list.push(...entries(tubes, 'Tubo del frame', 'Frame tube'));
-  list.push(...entries(top, 'Frame superior', 'Top frame', { gate: 'top' }));
-  list.push(...entries(bottom, 'Frame inferior', 'Bottom frame', { gate: 'bottom' }));
-  list.push(...entries(landing, 'Tren de aterrizaje', 'Landing gear'));
-  list.push(...entries(elec, 'Electrónica', 'Electronics'));
-  list.push(...entries(battery, 'Batería', 'Battery'));
-  list.push(...entries(platform, 'Plataforma superior', 'Top platform'));
-  // tornillería: cada instancia una entrada (en orden de traversal)
-  list.push(...entries(hardware, HARDWARE_LABEL.es, HARDWARE_LABEL.en));
+  const used = new Set<THREE.Mesh>();
+  const add = (meshes: THREE.Mesh[], es: string, en: string, nodo?: string) => {
+    if (!meshes.length) { console.warn(`[assembly] pieza ausente: ${es}`); return; }
+    for (const m of meshes) used.add(m);
+    const rest = meshes.slice(1);
+    list.push({
+      mesh: meshes[0], es, en,
+      with: rest.length ? rest : undefined,
+      cuadrante: quadOfMeshes(meshes),
+      nodo: nodo ?? nodeName(meshes[0]),
+    });
+  };
+
+  // ── 1-7: cuadrante (−x,−z) ──
+  // Motores y hélices: piezas = GRUPOS multi-primitiva (2 sub-mallas por
+  // nodo). El motor/hélice del cuadrante 1 se identifica por NODO ('_001'
+  // / '_low'), verificado por Alexander en Blender y contra el GLB.
+  const motorGroups = new Map<THREE.Object3D, THREE.Mesh[]>();
+  const propGroups = new Map<THREE.Object3D, THREE.Mesh[]>();
+  for (const m of all) {
+    const p = m.parent;
+    if (!p || p === root) continue;
+    if (/^DJ-2216-KV880/i.test(p.name ?? '')) {
+      const g = motorGroups.get(p) ?? []; g.push(m); motorGroups.set(p, g);
+    } else if (/^x500v2_propeller/i.test(p.name ?? '')) {
+      const g = propGroups.get(p) ?? []; g.push(m); propGroups.set(p, g);
+    }
+  }
+  const motorOf = (re: RegExp) => [...motorGroups.entries()].find(([, ms]) => re.test(ms[0].parent?.name ?? ''))?.[1] ?? [];
+  const propOf = (re: RegExp) => [...propGroups.entries()].find(([, ms]) => re.test(ms[0].parent?.name ?? ''))?.[1] ?? [];
+
+  add(motorOf(/^DJ-2216-KV880[._]?0*1/i), 'Motor', 'Motor');
+  add(byName(/^BAN-DJ-DIAN-F2[._]?001/i), 'Placa del motor', 'Motor plate');
+  add(byName(/^HMX5V-ZUO-DJ-MUJU[._]?001/i), 'Soporte del motor', 'Motor holder');
+  add(propOf(/^x500v2_propeller_low$/i), 'Hélice', 'Propeller');
+  add(byName(/^HMX5V-DIGAI-DIANJIZUO-MUJU[._]?001/i), 'Base del motor', 'Motor mount');
+  add(byName(/^HMX5V-GUAN-DINGWEI[._]?001/i), 'Tubo de posicionamiento', 'Positioning tube');
+  add(byName(/^HMX5V-JIBI-JIA-MUJU[._]?00[12]/i), 'Abrazadera del brazo', 'Arm clip');
+
+  // Sanity (verificación del usuario): el motor '_001' debe caer en (−x,−z).
+  const q1 = list[0]?.cuadrante;
+  if (q1 && q1 !== '(-x,-z)') console.warn(`[assembly] motor _001 fuera del cuadrante (−x,−z): ${q1}`);
+
+  // ── 8-9: frames. El frame inferior arrastra TODAS las demás instancias de
+  // las piezas de los pasos 1-7 (los otros 3 motores y acompañantes): mecanismo
+  // `with` del ciclo 10 — aparecen solas aquí, SIN consumir slider. ──
+  add(byName(/^TOP-PLATE-X500-V5/i), 'Frame superior', 'Top plate');
+  const othersQ1 = [
+    ...[...motorGroups.values()].filter(ms => !/^DJ-2216-KV880[._]?0*1/i.test(ms[0].parent?.name ?? '')).flat(),
+    ...byName(/^BAN-DJ-DIAN-F2/i).filter(m => !/^BAN-DJ-DIAN-F2[._]?001/i.test(nodeName(m))),
+    ...byName(/^HMX5V-ZUO-DJ-MUJU/i).filter(m => !/^HMX5V-ZUO-DJ-MUJU[._]?001/i.test(nodeName(m))),
+    ...[...propGroups.values()].filter(ms => !/^x500v2_propeller_low$/i.test(ms[0].parent?.name ?? '')).flat(),
+    ...byName(/^HMX5V-DIGAI-DIANJIZUO-MUJU/i).filter(m => !/^HMX5V-DIGAI-DIANJIZUO-MUJU[._]?001/i.test(nodeName(m))),
+    ...byName(/^HMX5V-GUAN-DINGWEI/i).filter(m => !/^HMX5V-GUAN-DINGWEI[._]?001/i.test(nodeName(m))),
+    ...byName(/^HMX5V-JIBI-JIA-MUJU/i).filter(m => !/^HMX5V-JIBI-JIA-MUJU[._]?00[12]/i.test(nodeName(m))),
+  ];
+  const bottomMeshes = byName(/^BOTTOM-PLATE-X500-V5/i);
+  add([...bottomMeshes, ...othersQ1], 'Frame inferior', 'Bottom plate', bottomMeshes[0]?.name);
+
+  // ── 10-37: tren, electrónica, batería y plataforma (orden exacto) ──
+  add(byName(/^PYLONS-X500/i), 'Pilones', 'Pylons');
+  add(byName(/^JIA-GUAN[._]?00[1-4]/i), 'Abrazadera de tubo', 'Tube clamp');
+  add(byName(/^HUAN-GUIJIAO/i), 'Anillo del tren de aterrizaje', 'Landing gear ring');
+  add(byName(/^CARBON-FIBER-TUBE300/i), 'Tubo del brazo', 'Arm tube');
+  add(byName(/^ZHIJIA-CAMERA-INTEL/i), 'Soporte de cámara Intel', 'Intel camera mount');
+  add(byName(/^GAI-GUANGLIU/i), 'Tapa de flujo óptico', 'Optical flow cover');
+  add([...byName(/^PLATFORM-PLAT/i), ...byName(/^JIA-GUAN[._]?00[5-8]/i)], 'Plataforma superior', 'Top platform');
+  add([...byName(/^BATTERY-MOUNTING-PLAT/i), ...byName(/^BATTERY-PAD/i)], 'Placa de montaje de batería', 'Battery mounting plate');
+  add(byName(/^x500v2_battery/i), 'Batería', 'Battery');
+  add([...byName(/^GPS-ZHIJIA-ZUO/i), ...byName(/^GPS-ZHIJIA-ZHUANJIETOU/i)], 'Soporte GPS', 'GPS mount');
+  add(byName(/^GPSV5-ZHIJIA-LUOMAO/i), 'Tuerca del soporte GPS', 'GPS mount nut');
+  add(byName(/^GAN-GPSV5/i), 'Poste del GPS', 'GPS post');
+  add(byName(/^GPSV5-ZHIJIA-TUOPAN/i), 'Bandeja del GPS', 'GPS tray');
+  add(byName(/^x500v2_gps/i), 'Módulo GPS (M10)', 'GPS module (M10)');
+  add(byName(/^JIA-LIANJIE/i), 'Conector del frame', 'Frame connector');
+  add(byName(/^GUAN-CHENG/i), 'Manguito del frame', 'Frame sleeve');
+  add(byName(/^JIAO-LIANJIE/i), 'Conexión de pata', 'Leg connector');
+  add(byName(/^CARBON-FIBER-TUBE(?!300)/i), 'Tubo del frame', 'Frame tube');
+  add(byName(/^JIAO-EVA/i), 'Patas de EVA', 'EVA leg pads');
+  add(byName(/^MAO-JIAO/i), 'Remates de pata', 'Leg caps');
+  add(byName(/^x500v2_telemetry/i), 'Radio de telemetría', 'Telemetry radio');
+  add(byName(/^DIKE-PIXHAWK6C/i), 'Base de Pixhawk 6C', 'Pixhawk 6C base');
+  add(byName(/^PCB-PIXHAWK6C/i), 'PCB de Pixhawk 6C', 'Pixhawk 6C PCB');
+  add(byName(/^IMU-PIXHAWK6C/i), 'IMU de Pixhawk 6C', 'Pixhawk 6C IMU');
+  add(byName(/^MIANKE-PIXHAWK6C/i), 'Tapa de Pixhawk 6C', 'Pixhawk 6C cover');
+  add(byName(/^PCB-PM06/i), 'Módulo de potencia PM06', 'PM06 power module');
+  add(byName(/^TOU-XT60H/i), 'Conector XT60 (14 AWG)', 'XT60 connector (14 AWG)');
+  add(byName(/^X500-TAO-XT60/i), 'Cubierta XT60', 'XT60 cover');
+
+  // ── 38-57: sets de tornillería completos (mayor → menor cantidad) ──
+  const libres = all.filter(m => !used.has(m));
+  for (const set of FASTENER_SETS) {
+    const meshes = libres.filter(m => set.re.test(nodeName(m)));
+    if (meshes.length !== set.n) {
+      console.warn(`[assembly] set ${set.es}: ${meshes.length} meshes (esperadas ${set.n})`);
+    }
+    add(meshes, `${set.es} (${meshes.length})`, `${set.en} (${meshes.length})`);
+  }
+  // Red de seguridad: cualquier mesh que ningún paso haya recogido (un cambio
+  // de nombres en el GLB no debe dejar piezas invisibles a 50+).
+  const sobrantes = all.filter(m => !used.has(m));
+  if (sobrantes.length) {
+    console.warn(`[assembly] ${sobrantes.length} meshes fuera del orden definitivo`);
+    add(sobrantes, 'Tornillería restante', 'Remaining hardware');
+  }
   return { list, total };
 }
 
 /**
- * Revelado (ciclo 10): k = piezas que consume el slider (1-50, solo cuadrante
- * 1 + frame + resto del ensamblaje). Las entradas `auto` (instancias de los
- * cuadrantes 2-4) se revelan cuando están revelados el frame superior Y el
- * inferior. k ≥ 50 → TODO visible (incluida tornillería).
+ * Revelado (ciclo 11): k = entradas visibles del slider (1-50). Las meshes
+ * `with` de cada entrada se revelan con ella (instancias del paso 9, sets
+ * completos de tornillería). k ≥ 50 → TODO visible (etiqueta "50+").
  */
 export function revealAssemblyList(list: AssemblyEntry[], k: number) {
-  // rango del gate: última entrada del frame inferior (o del superior si no
-  // hubiera bucket inferior) entre las entradas que SÍ consumen slider
-  let rank = 0, lastTop = 0, lastBottom = 0;
-  for (const e of list) {
-    if (e.auto) continue;
-    rank++;
-    if (e.gate === 'top') lastTop = rank;
-    if (e.gate === 'bottom') lastBottom = rank;
-  }
-  const gate = lastBottom || lastTop || Infinity;
-  const framesDone = k >= gate;
   const all = k >= MAX_SLIDER_PIECES;
   let r = 0;
   for (const e of list) {
-    if (!e.auto) r++;
-    const vis = all || (e.auto ? framesDone : r <= k);
+    r++;
+    const vis = all || r <= k;
     e.mesh.visible = vis;
     if (e.with) for (const m of e.with) m.visible = vis;
   }
