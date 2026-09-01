@@ -13,7 +13,9 @@ import type { WizardQuotePlan } from '../../data/services/treeToQuote';
 import { EN, TREE_EN } from '../../data/services/i18n';
 import type { Lang } from '../../data/services/i18n';
 import { BRAND } from '../../data/services/branding';
-import { ModelPreview, VARIANT_SLOTS, SLOT_DEFAULT_COLORS } from './ModelPreview';
+// ciclo 13: polyLabel se importa para la caption del detail (el contador de
+// tris ya no flota como overlay sobre el canvas — vive en "Boceto — … · ≈ 4k tris")
+import { ModelPreview, VARIANT_SLOTS, SLOT_DEFAULT_COLORS, polyLabel } from './ModelPreview';
 import type { PreviewMode, VariantSlotsState } from './ModelPreview';
 import { TreeIcon, ChatIcon, MailIcon, GearIcon, InfoIcon, ExternalIcon } from './icons';
 
@@ -613,7 +615,9 @@ function SliderWithPreview({ branchId, questionId, config, value, onChange, lang
   if (preview === 'detail-level') {
     mode = 'detail';
     const caps = en ? EN.wizard.detailCaptions : ['Boceto — solo geometría', 'Base — formas simples', 'Web — listo para producción', 'Alto — detalles finos', 'Máximo — nivel fotorrealista'];
-    caption = caps[Math.round(Math.min(5, Math.max(1, value))) - 1];
+    // ciclo 13: el contador de tris se integra a la caption (antes era un
+    // overlay flotante arriba a la derecha que confundía fuera de contexto)
+    caption = `${caps[Math.round(Math.min(5, Math.max(1, value))) - 1]} · ${polyLabel(shown)}`;
   } else if (preview === 'piece-count') {
     mode = 'pieces';
     caption = en ? `${value} ${value === 1 ? EN.wizard.pieceSingular : EN.wizard.piecePlural}` : `${value} ${value === 1 ? 'pieza en el ensamblaje' : 'piezas en el ensamblaje'}`;

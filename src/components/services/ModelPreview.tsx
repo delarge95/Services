@@ -127,7 +127,9 @@ const STORY_DURATION = 2.4; // segundos por animación
 
 /** Interpolación del contador de tris entre etapas (trazable a POLY_POR_NIVEL). */
 const POLY = [4000, 9000, 40000, 120000, 300000];
-const polyLabel = (d: number) => {
+/** Ciclo 13: exportada — la consume la caption del detail en GuidedWizard
+ *  (antes flotaba como overlay arriba a la derecha y confundía). */
+export const polyLabel = (d: number) => {
   const f = Math.max(1, Math.min(5, d));
   const i = Math.min(3, Math.floor(f - 1));
   const frac = f - 1 - i;
@@ -285,7 +287,10 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     // ciclo 11: el conjunto procedural un 10% más pequeño (detailMesh + edges
     // + placa + detalles): un solo scale en la raíz — camino menos invasivo,
     // las ventanas de aparición del slider no cambian.
-    detailRoot.scale.setScalar(0.9);
+    // Ciclo 13: 0.9 → 0.585 (−35%, feedback Alexander). El auto-encuadre
+    // compensa la escala acercando la cámara, así que el margen de cámara del
+    // modo detail sube 1.8 → 2.77 (1.8/0.65) para que la reducción se VEA.
+    detailRoot.scale.setScalar(0.585);
     detailRoot.visible = true;
 
     // ═══ pieces (1.2): hub + ensamblaje + explosión al idle ═══
@@ -446,28 +451,54 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       posAttr.needsUpdate = true;
       pBody.geometry.computeVertexNormals();
     };
-    // Presets de iluminación (slots 11-13, excluyentes entre sí)
+    // Presets de iluminación (slots 11-13, excluyentes entre sí).
+    // Ciclo 13: endurecidos para que se SIENTAN distintos. Dos palancas por
+    // preset: (1) luces de escena (hemi/key/rim), (2) entorno — setEnv en los
+    // procedurales + envMapIntensity en TODOS los materiales del drone de
+    // variantes + scene.environmentIntensity (r184): el RoomEnvironment es una
+    // caja de luz MUY brillante y dominaba todo — con env 0.25 el drone blanco
+    // seguía en lum ~200+ y los presets eran indistinguibles (feedback
+    // Alexander). dramática mueve key a ángulo bajo (y≈0.5); keyHome guarda la
+    // posición original y los demás presets la restauran.
+    const keyHome = key.position.clone();
+    const applyDroneEnv = (v: number) => {
+      if (!variantDroneReady) return;
+      variantDroneReady.traverse(o => {
+        const m = o as THREE.Mesh;
+        if (!m.isMesh || !m.material) return;
+        const mat = m.material as THREE.MeshStandardMaterial;
+        if (mat.envMapIntensity !== undefined) mat.envMapIntensity = v;
+      });
+    };
     const applyLuzPreset = (idx: number) => {
-      if (idx === 0) {        // estudio: key + fill + rim equilibrada
-        hemi.intensity = 0.85; hemi.color.setHex(0xffffff); hemi.groundColor.setHex(0xdde4ee);
-        key.intensity = 1.5; key.color.setHex(0xffffff);
-        rim.intensity = 0.9; rim.color.setHex(0xeaf2ff);
-        setEnv(0.8);
-      } else if (idx === 1) { // natural: cálida ambiente
-        hemi.intensity = 1.35; hemi.color.setHex(0xfff1dc); hemi.groundColor.setHex(0xe7dbc8);
-        key.intensity = 1.05; key.color.setHex(0xfff0dd);
-        rim.intensity = 0.25; rim.color.setHex(0xffe8c8);
-        setEnv(1.2);
-      } else if (idx === 2) { // dramática: key fuerte, fill bajo
-        hemi.intensity = 0.28; hemi.color.setHex(0xffffff); hemi.groundColor.setHex(0x2a2d33);
-        key.intensity = 3.6; key.color.setHex(0xffffff);
-        rim.intensity = 0.9; rim.color.setHex(0x9ecbff);
-        setEnv(0.45);
+      if (idx === 0) {        // estudio: neutra fría, sombras definidas, rim notable
+        hemi.intensity = 0.5; hemi.color.setHex(0xffffff); hemi.groundColor.setHex(0xdde4ee);
+        key.intensity = 1.4; key.color.setHex(0xffffff); key.position.copy(keyHome);
+        rim.intensity = 1.1; rim.color.setHex(0xeaf2ff);
+        renderer.toneMappingExposure = 0.7;
+        scene.environmentIntensity = 0.12;
+        setEnv(0.55); applyDroneEnv(0.55);
+      } else if (idx === 1) { // natural: cálida dorada, suave y luminosa
+        hemi.intensity = 1.6; hemi.color.setHex(0xffd9a8); hemi.groundColor.setHex(0xe7dbc8);
+        key.intensity = 1.2; key.color.setHex(0xffd9a8); key.position.copy(keyHome);
+        rim.intensity = 0.35; rim.color.setHex(0xffe0b8);
+        renderer.toneMappingExposure = 1.5;
+        scene.environmentIntensity = 1.2;
+        setEnv(1.35); applyDroneEnv(1.35);
+      } else if (idx === 2) { // dramática: contraste fuerte, key baja, rim azul frío
+        hemi.intensity = 0.18; hemi.color.setHex(0xffffff); hemi.groundColor.setHex(0x2a2d33);
+        key.intensity = 4.2; key.color.setHex(0xffffff); key.position.set(keyHome.x, 0.5, keyHome.z);
+        rim.intensity = 1.2; rim.color.setHex(0x9ecbff);
+        renderer.toneMappingExposure = 0.75;
+        scene.environmentIntensity = 0.08;
+        setEnv(0.25); applyDroneEnv(0.25);
       } else {                // neutral (sin preset activo)
         hemi.intensity = 1.05; hemi.color.setHex(0xffffff); hemi.groundColor.setHex(0xdde4ee);
-        key.intensity = 1.4; key.color.setHex(0xffffff);
+        key.intensity = 1.4; key.color.setHex(0xffffff); key.position.copy(keyHome);
         rim.intensity = 0.8; rim.color.setHex(0x9ecbff);
-        setEnv(0.9);
+        renderer.toneMappingExposure = 1.0;
+        scene.environmentIntensity = 0.85;
+        setEnv(0.9); applyDroneEnv(0.9);
       }
     };
     let lastSlotsKey = '';
@@ -520,12 +551,16 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       }
       if (m === 'variants' || m === 'shader-dial') { pRing.visible = true; pCap.visible = true; }
       if (m === 'detail') setEnv(0.9);
+      // ciclo 13: salir de variants restaura el entorno base (los presets de
+      // luz dejan scene.environmentIntensity en 0.18-1.25)
+      scene.environmentIntensity = 1;
       if (m === 'finish' || m === 'assembly') {
         // ciclo 6: luz más moderada para que el clay no se queme (2.4→1.4 env,
         // key 3.2→2.4) y exposición 1.0 (antes 1.45/1.18).
         setEnv(1.4);
         key.intensity = 2.4;
         hemi.intensity = 1.2;
+        key.position.copy(keyHome); // ciclo 13: dramática deja key baja — restaurar
         renderer.toneMappingExposure = 1.0;
         // reentrar sin remount: finish vuelve a revelar TODO (idempotente),
         // assembly recalcula las k piezas del slider
@@ -535,6 +570,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       } else {
         key.intensity = 1.4;
         hemi.intensity = 1.05;
+        key.position.copy(keyHome); // ciclo 13: ídem
         renderer.toneMappingExposure = 1.0;
         // luces por defecto (los presets de slots solo viven en variants)
         hemi.color.setHex(0xffffff); hemi.groundColor.setHex(0xdde4ee);
@@ -663,8 +699,9 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       }
       return m;
     };
-    const variantEdgesGroup = new THREE.Group();
-    variantDroneRoot.add(variantEdgesGroup);
+    // ciclo 13: los LineSegments del line-art viven como HIJOS de su propia
+    // mesh (antes se apilaban en variantEdgesGroup en la raíz SIN la transform
+    // de su mesh → todas las aristas colapsaban en el origen = "mancha negra").
     const variantEdges: THREE.LineSegments[] = [];
 
     /** Clasifica una mesh del drone para los targets de color.
@@ -692,18 +729,30 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
           return ensureVariadoSet(root).then(() => {
             // ciclo 9: ya no se aplican materiales 'variado' en variants — todo
             // material lo fija applyVariantSlots (blanco plano o tinte por slot).
-            // overlays de aristas para shader-lineart (solo meshes principales)
-            root.traverse(o => {
-              const m = o as THREE.Mesh;
-              if (!m.isMesh) return;
-              const e = new THREE.LineSegments(
-                new THREE.EdgesGeometry(m.geometry, 25),
-                new THREE.LineBasicMaterial({ color: 0x1d1d1f, transparent: true, opacity: 0.85 }),
-              );
+            // overlays de aristas para shader-lineart (ciclo 13):
+            // - cada LineSegments es HIJO del propio mesh → hereda transform
+            //   (y sigue la explosión/vuelo sin código extra);
+            // - umbral de EdgesGeometry 40° (menos ruido denso);
+            // - solo meshes con radio de esfera envolvente (en mundo) > 0.06 —
+            //   la tornillería microscópica genera ruido ilegible;
+            // - color 0x9aa0a8 neutro, legible sobre blanco (tema claro) y
+            //   sobre el drone oscuro (tema oscuro).
+            root.updateMatrixWorld(true);
+            const _ws = new THREE.Vector3();
+            const meshes: THREE.Mesh[] = [];
+            root.traverse(o => { if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh); });
+            const edgeMat = new THREE.LineBasicMaterial({ color: 0x9aa0a8, transparent: true, opacity: 0.85 });
+            for (const m of meshes) {
+              if (!m.geometry.boundingSphere) m.geometry.computeBoundingSphere();
+              const bs = m.geometry.boundingSphere;
+              const s = m.getWorldScale(_ws);
+              const r = (bs ? bs.radius : 0) * Math.max(s.x, s.y, s.z);
+              if (r <= 0.06) continue;
+              const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 40), edgeMat);
               e.visible = false;
-              variantEdgesGroup.add(e);
+              m.add(e);
               variantEdges.push(e);
-            });
+            }
           });
         })
         .catch(err => { variantDroneStarted = false; console.error('[variant drone] carga fallida:', err); });
@@ -869,8 +918,14 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     el.addEventListener('pointercancel', onUp);
 
     // ── Resize + visibilidad ──
+    // ciclo 13: en móvil (wrapper < 600px, media query ≤640px) el canvas baja a
+    // 240px de alto vía CSS (.cx-preview-mount) y la cámara añade aire
+    // (compactMul) — antes el auto-encuadre llenaba el canvas y el modelo se
+    // veía enorme/cortado en 390×844 y 360×740.
+    let narrow = false;
     const resize = () => {
       const w = mount.clientWidth || 260, h = mount.clientHeight || height;
+      narrow = w > 0 && w < 600;
       renderer.setSize(w, h, false);
       cam.aspect = w / h; cam.updateProjectionMatrix();
     };
@@ -892,10 +947,10 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       const cur = stateRef.current;
       const ui = uiRef.current, badge = badgeRef.current;
       if (ui) {
-        if (cur.mode === 'detail') {
-          ui.textContent = polyLabel(cur.detail);
-          ui.style.opacity = '1';
-        } else if (cur.mode === 'pieces' && cur.pieces > MAX_VISIBLE) {
+        // ciclo 13: el detail ya NO usa este overlay — el contador de tris vive
+        // en la caption bajo el preview (polyLabel exportada a GuidedWizard).
+        // Se conservan: pieces "+N" y assembly "paso · k/total" (útiles ahí).
+        if (cur.mode === 'pieces' && cur.pieces > MAX_VISIBLE) {
           ui.textContent = `+${cur.pieces - MAX_VISIBLE}`;
           ui.style.opacity = '1';
         } else {
@@ -1056,8 +1111,10 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
           holybroRoot.rotation.y = t * 0.25;
           // cámara SIEMPRE enfocada en las piezas visibles (lo más grande posible)
           // ciclo 10: factor 2.4→1.85 (drone ≥55% del ancho con canvas 240px)
+          // ciclo 13: compactMul ×1.25 en móvil (aire, como el auto-encuadre)
           const sph = computeVisibleSphere(holybroReady);
-          const targetDist = Math.max(0.85, Math.min(4.2, sph.radius * 1.85));
+          const asmCompact = narrow ? 1.25 : 1;
+          const targetDist = Math.max(0.85, Math.min(4.2 * asmCompact, sph.radius * 1.85 * asmCompact));
           assmCamDist += (targetDist - assmCamDist) * 0.06;
           cam.position.set(0, sph.center.y + sph.radius * 0.45, sph.center.z + assmCamDist);
           cam.lookAt(sph.center.x, sph.center.y, sph.center.z);
@@ -1314,10 +1371,19 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         // Ciclo 11 — canvas 290px: el modo 'detail' (contenido más ALTO respecto
         // a su radio: placa + asa + anillo) tocaba ambos bordes (99% medido) →
         // margen propio 1.8; el resto conserva 1.5 (finish 82%, surface 90%).
+        // Ciclo 13 — (a) surface 1.06→1.5 y detail 1.8→3.8: el auto-encuadre
+        // anula los cambios de ESCALA (acercan la cámara en la misma proporción),
+        // así que la reducción real del yunque (−25%) y del conjunto detail
+        // (−35%) se obtiene AUMENTANDO el margen — calibrado con capturas:
+        // detail-5 baja de ~86% a ~54% del alto del canvas, el yunque de ~91%
+        // a ~67%. (b) compactMul ×1.25 en móvil (wrapper < 600px): el modelo
+        // queda completo, con aire y sin verse gigante en 390/360 px.
         const sph = computeVisibleSphere(group);
-        const margin = cur.mode === 'surface' ? 1.06 : cur.mode === 'detail' ? 1.8 : 1.5;
+        const compactMul = narrow ? 1.25 : 1;
+        const baseMargin = cur.mode === 'surface' ? 1.5 : cur.mode === 'detail' ? 3.8 : 1.5;
+        const margin = baseMargin * compactMul;
         const minDist = cur.mode === 'surface' ? 1.0 : 1.2;
-        const targetDist = Math.max(minDist, Math.min(7, sph.radius * margin));
+        const targetDist = Math.max(minDist, Math.min(7 * compactMul, sph.radius * margin));
         frameDist += (targetDist - frameDist) * 0.08;
         cam.position.set(0, sph.center.y + sph.radius * 0.22, sph.center.z + frameDist);
         cam.lookAt(sph.center.x, sph.center.y, sph.center.z);
@@ -1358,8 +1424,12 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
           margin-left: calc((100% - var(--pw)) / 2);
         }
         @media (max-width: 640px) { .cx-preview-wrap { --pw: 100%; } }
+        /* ciclo 13 — móvil: canvas 240px de alto (antes 290). El wrapper ya
+           colapsa a 100% en ≤640px; el ResizeObserver del preview recalcula
+           el tamaño del canvas cuando el alto cambia. */
+        @media (max-width: 640px) { .cx-preview-mount { height: 240px !important; } }
       `}</style>
-      <div ref={mountRef} style={{ width: '100%', height, cursor: 'grab' }} aria-hidden="true" />
+      <div ref={mountRef} className="cx-preview-mount" style={{ width: '100%', height, cursor: 'grab' }} aria-hidden="true" />
       <div ref={uiRef} style={{
         position: 'absolute', top: 6, right: 6, fontSize: 11, fontWeight: 600, color: 'var(--cx-muted)',
         fontVariantNumeric: 'tabular-nums', opacity: 0, transition: 'opacity 0.3s', pointerEvents: 'none',
@@ -1369,9 +1439,14 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         fontSize: 11, fontWeight: 600, color: 'var(--cx-accent)', background: 'var(--cx-accent-soft)',
         padding: '2px 10px', borderRadius: 999, opacity: 0, transition: 'opacity 0.4s', pointerEvents: 'none',
       }} />
-      {/* Timeline de animaciones (modo story) — indicadores, no un segundo control */}
+      {/* Timeline de animaciones (modo story) — indicadores, no un segundo control.
+          Ciclo 13: limitado al ancho de la CARD (max-width 640px = card 680 − padding,
+          y ≤ wrapper en pantallas chicas) y centrado sobre ella — antes vivía a lo
+          ancho del wrapper de 1360px que SANGRA la card y con 15 escenas los chips
+          desbordaban horizontalmente. flexWrap ya envuelve. */}
       <div ref={timelineRef} style={{
-        display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'center', marginTop: 6,
+        display: 'flex', gap: 5, flexWrap: 'wrap', justifyContent: 'center',
+        maxWidth: 'min(100%, 640px)', margin: '6px auto 0',
         opacity: 0, transition: 'opacity 0.3s', pointerEvents: 'none', minHeight: 22,
       }} />
       <div style={{

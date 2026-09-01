@@ -63,7 +63,11 @@ function normalize(root: THREE.Group): THREE.Group {
   // ciclo 9: 2.6 → 3.4 — el yunque es una malla plana (alto ≈ 1/3 del ancho) y
   // el auto-encuadre por esfera lo dejaba pequeño en el canvas de surface.
   // ciclo 11: 3.4 → 3.06 (−10%) — el usuario lo veía grande en el canvas 290.
-  const s = 3.06 / Math.max(size.x, size.y, size.z);
+  // ciclo 13: 3.06 → 2.30 (−25% total, feedback Alexander). El auto-encuadre
+  // anula los cambios de escala (acercan la cámara en la misma proporción),
+  // así que el margen de cámara del modo surface sube 1.06 → 1.57 en
+  // ModelPreview — ahí es donde la reducción se hace visible.
+  const s = 2.30 / Math.max(size.x, size.y, size.z);
   root.scale.setScalar(s);
   root.updateMatrixWorld(true);
   const box2 = morphMesh
