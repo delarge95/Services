@@ -1,11 +1,9 @@
 import { defineConfig } from "astro/config";
 import react from "@astrojs/react";
 
-const isGitHubActions = process.env.GITHUB_ACTIONS === "true";
-
 export default defineConfig({
-  site: "https://delarge95.github.io",
-  base: isGitHubActions ? "/Services/" : "/",
+  site: "https://services.alexwoodcock.me",
+  base: "/",
   integrations: [react()],
   devToolbar: {
     enabled: false

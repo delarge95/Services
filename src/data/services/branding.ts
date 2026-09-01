@@ -19,7 +19,7 @@ export const BRAND = {
   prototypeUrl: 'http://alexwoodcock.me/Twinsight-X500/',
   /** URL pública base de las cotizaciones compartidas con estado (ciclo 11):
    *  los enlaces copiados/impresos apuntan aquí — nunca al dominio del dev. */
-  quoteUrl: 'https://alexwoodcock.me/Services/cotizador/',
+  quoteUrl: 'https://services.alexwoodcock.me/cotizador/',
   links: {
     portfolio: 'https://delarge95.github.io/PlanMaestroOS/',
     artstation: 'https://www.artstation.com/alexanderwoodcocksalomon3',
