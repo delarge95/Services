@@ -75,6 +75,21 @@ function normalize(root: THREE.Group): THREE.Group {
     : new THREE.Box3().setFromObject(root);
   const c2 = box2.getCenter(new THREE.Vector3());
   root.position.sub(c2);
+  // ciclo 13b (feedback: "centrados a la derecha, en movil excesivamente"):
+  // el pivote del nodo de la mesh no coincide con su centro visual - al girar,
+  // el contenido orbita el pivote y BARRE lateralmente (off -12%..-3% medido en
+  // 390px). Recentramos la GEOMETRIA sobre el origen de su propio nodo: los
+  // morph targets son deltas relativos, asi que se trasladan igual y el morph
+  // sigue funcionando identico; el giro pasa a ser alrededor del centro visual.
+  if (morphMesh) {
+    const g = morphMesh.geometry;
+    g.computeBoundingBox();
+    const gc = g.boundingBox!.getCenter(new THREE.Vector3());
+    g.translate(-gc.x, -gc.y, -gc.z);
+    root.updateMatrixWorld(true);
+    const box3 = new THREE.Box3().setFromObject(morphMesh);
+    root.position.sub(box3.getCenter(new THREE.Vector3()));
+  }
   return root;
 }
 

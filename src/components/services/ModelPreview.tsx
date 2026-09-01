@@ -1116,7 +1116,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
           const asmCompact = narrow ? 1.25 : 1;
           const targetDist = Math.max(0.85, Math.min(4.2 * asmCompact, sph.radius * 1.85 * asmCompact));
           assmCamDist += (targetDist - assmCamDist) * 0.06;
-          cam.position.set(0, sph.center.y + sph.radius * 0.45, sph.center.z + assmCamDist);
+          cam.position.set(sph.center.x, sph.center.y + sph.radius * 0.45, sph.center.z + assmCamDist);
           cam.lookAt(sph.center.x, sph.center.y, sph.center.z);
           // ciclo 8 — RITMO con pausas: 3 s armado → explota (1 s) → 3,4 s explosionado → une (1 s) → repite
           const idle = (performance.now() - lastPiecesChange) / 1000;
@@ -1378,14 +1378,24 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         // detail-5 baja de ~86% a ~54% del alto del canvas, el yunque de ~91%
         // a ~67%. (b) compactMul ×1.25 en móvil (wrapper < 600px): el modelo
         // queda completo, con aire y sin verse gigante en 390/360 px.
+        // Ciclo 13b (feedback: "modelos ligeramente a la derecha, en movil
+        // excesivamente" + "yunque mas pequeno en movil"): (a) la camara se
+        // centra en sph.center.x (antes x=0 FIJO: la geometria del contenido
+        // no esta centrada en el eje de giro y el modelo quedaba sesgado a un
+        // lado, mas notorio en movil). (b) surface 1.5 -> 2.1 en desktop y un
+        // extra x1.3 en narrow: el yunque (base ancha) llenaba 74% del ancho
+        // en 390px; ahora 56% (medido, rotacion congelada). El barrido
+        // lateral del yunque al girar se elimino recentrando su GEOMETRIA en
+        // anvil.ts (pivote = centro visual).
         const sph = computeVisibleSphere(group);
         const compactMul = narrow ? 1.25 : 1;
-        const baseMargin = cur.mode === 'surface' ? 1.5 : cur.mode === 'detail' ? 3.8 : 1.5;
-        const margin = baseMargin * compactMul;
+        const baseMargin = cur.mode === 'surface' ? 2.1 : cur.mode === 'detail' ? 3.8 : 1.5;
+        const anvilNarrow = cur.mode === 'surface' && narrow ? 1.3 : 1;
+        const margin = baseMargin * compactMul * anvilNarrow;
         const minDist = cur.mode === 'surface' ? 1.0 : 1.2;
         const targetDist = Math.max(minDist, Math.min(7 * compactMul, sph.radius * margin));
         frameDist += (targetDist - frameDist) * 0.08;
-        cam.position.set(0, sph.center.y + sph.radius * 0.22, sph.center.z + frameDist);
+        cam.position.set(sph.center.x, sph.center.y + sph.radius * 0.22, sph.center.z + frameDist);
         cam.lookAt(sph.center.x, sph.center.y, sph.center.z);
       }
       renderer.render(scene, cam);
