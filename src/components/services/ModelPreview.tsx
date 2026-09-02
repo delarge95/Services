@@ -903,6 +903,10 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     let rotY = 0.6, rotX = 0.12, velY = 0;
     const el = renderer.domElement;
     el.style.touchAction = 'pan-y';
+    // ciclo 14: canvas es display:inline por defecto — el baseline del line box
+    // deja un hueco de descender (~4-5px) bajo el canvas dentro del mount.
+    // block lo elimina y el canvas ocupa exactamente su caja.
+    el.style.display = 'block';
     const onDown = (e: PointerEvent) => { dragging = true; lastX = e.clientX; lastY = e.clientY; el.setPointerCapture(e.pointerId); };
     const onMove = (e: PointerEvent) => {
       if (!dragging) return;
@@ -926,7 +930,18 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     const resize = () => {
       const w = mount.clientWidth || 260, h = mount.clientHeight || height;
       narrow = w > 0 && w < 600;
-      renderer.setSize(w, h, false);
+      // ciclo 14 — centrado responsive: setSize(w, h, false) dejaba el canvas SIN
+      // estilo CSS (style.width/height vacíos y ninguna regla de stylesheet lo
+      // dimensionaba) → el navegador lo pintaba al tamaño del drawing-buffer
+      // (mount × DPR). Con escala del SO ≠ 100% (DPR 1.25/1.5 típico de Windows,
+      // 2-3 en móviles) el canvas se veía un 25-75% más grande que su contenedor:
+      // desbordaba a la derecha y hacia abajo y el modelo quedaba descentrado
+      // respecto a la card (baseline ciclo 14: offX +153.5px en 1280@1.25,
+      // +94.5px en 390@3; en DPR=1 todo medía bien y por eso el QA anterior no
+      // lo veía). setSize(w, h) fija style.width/height = tamaño CSS del mount y
+      // el buffer queda w×DPR — redimensiona buffers, no reinstancia el contexto.
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75)); // re-aplicar por si el DPR cambió (zoom, mover entre monitores)
+      renderer.setSize(w, h);
       cam.aspect = w / h; cam.updateProjectionMatrix();
     };
     resize();
