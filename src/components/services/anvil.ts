@@ -20,9 +20,70 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
 export const ANVIL_URL = `${import.meta.env.BASE_URL}cotizador/models/yunke.glb`;
 /** Nodo cuya mesh es la que morphea (identificado en el GLB). */
+/** Ciclo 16e — extirpacion de la figura invasora del target "Prismatica dura":
+ *  triangulos cuyos 3 vertices quedan fuera de los limites robustos (mediana
+ *  +/- 4*MAD) de la posicion prisma se marcan degenerados (indice 0,0,0).
+ *  Edicion SOLO del index buffer: no toca normales ni posiciones del basis. */
+/** Ciclo 16f — reconstruccion del target "Key 1" (Prismatica dura):
+ *  el target autorado colapsaba los 1109 verts a una caja de 7cm en el origen
+ *  (figura invasora flotante a valores bajos del slider). El prisma correcto
+ *  = el yunque clampeado a su caja envolvente: bloque duro de caras planas.
+ *  Escritura SOLO de posiciones del target (delta): normales y winding intactos. */
+function reconstruirPrisma(g: any): void {
+  if (!g?.isMesh || !g.morphAttributes?.position?.length || !g.attributes.position) return;
+  const morph0 = g.morphAttributes.position[0];
+  const pos = g.attributes.position;
+  const bmin = new THREE.Vector3(-1.02, -0.32, -0.38);
+  const bmax = new THREE.Vector3(1.02, 0.44, 0.38);
+  for (let i = 0; i < pos.count; i++) {
+    morph0.setXYZ(i,
+      Math.min(bmax.x, Math.max(bmin.x, pos.getX(i))),
+      Math.min(bmax.y, Math.max(bmin.y, pos.getY(i))),
+      Math.min(bmax.z, Math.max(bmin.z, pos.getZ(i))));
+  }
+  morph0.needsUpdate = true;
+}
+
+function extirparPlacaPrisma(g: any): number {
+  if (!g?.isMesh) return 0;
+  const morph0 = g.morphAttributes?.position?.[0];
+  const pos = g.attributes.position;
+  const idx = g.index;
+  if (!morph0 || !pos || !idx) return 0;
+  const n = Math.min(pos.count, morph0.count);
+  const px = new Float32Array(n), py = new Float32Array(n), pz = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    px[i] = morph0.getX(i); py[i] = morph0.getY(i); pz[i] = morph0.getZ(i);
+  }
+  const robusto = (arr: Float32Array) => {
+    const srt = Array.from(arr).sort((a, b) => a - b);
+    const med = srt[n >> 1];
+    const mad = srt[Math.floor(n * 0.75)] - srt[Math.floor(n * 0.25)] || 1;
+    return { lo: med - 4 * Math.abs(mad) - 0.05, hi: med + 4 * Math.abs(mad) + 0.05 };
+  };
+  const rx = robusto(px), ry = robusto(py), rz = robusto(pz);
+  const placa = new Uint8Array(n);
+  let cnt = 0;
+  for (let i = 0; i < n; i++) {
+    const fuera = px[i] < rx.lo || px[i] > rx.hi || py[i] < ry.lo || py[i] > ry.hi || pz[i] < rz.lo || pz[i] > rz.hi;
+    if (fuera) { placa[i] = 1; cnt++; }
+  }
+  let borrados = 0;
+  for (let t = 0; t < idx.count; t += 3) {
+    const a = idx.getX(t), b = idx.getX(t + 1), c = idx.getX(t + 2);
+    if (placa[a] && placa[b] && placa[c]) {
+      idx.setX(t, 0); idx.setX(t + 1, 0); idx.setX(t + 2, 0);
+      borrados++;
+    }
+  }
+  if (borrados) idx.needsUpdate = true;
+  return borrados;
+}
+
 export const ANVIL_MORPH_NODE = 'ANVIL LOW POLI';
 /** GLTFLoader nombra la mesh con el NOMBRE DEL NODO ('ANVIL LOW POLI'), así que
  *  el match es por forma normalizada (espacio/guion/barra baja equivalentes). */
@@ -103,7 +164,25 @@ export function loadAnvil(): Promise<THREE.Group> {
           return r.arrayBuffer();
         })
         .then(buf => {
-          new GLTFLoader().parse(buf, '', gltf => resolve(normalize(gltf.scene)), err => reject(err));
+          const loader = new GLTFLoader();
+          loader.setMeshoptDecoder(MeshoptDecoder); // GLBs optimizados con meshopt (ciclo 15)
+          loader.parse(buf, '', gltf => {
+            const raiz = normalize(gltf.scene);
+            let quitados = 0;
+            try {
+              raiz.traverse((o: any) => {
+                if (o.isMesh && o.geometry) {
+                  quitados += extirparPlacaPrisma(o.geometry);
+                  reconstruirPrisma(o.geometry);
+                }
+              });
+              console.info(`[anvil] placa invasora extirpada: ${quitados} triangulos`);
+            } catch (e) {
+              // la cirugia nunca debe tumbar la carga: sin cirugia, yunque con placa
+              console.error('[anvil] extirpacion fallo:', e);
+            }
+            resolve(raiz);
+          }, err => reject(err));
         })
         .catch(reject);
     });

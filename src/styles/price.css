@@ -1,0 +1,30 @@
+/* price.css — visor del precio (ciclo 17) */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* Barra pegajosa: el precio vive FUERA de los paneles del wizard */
+.cx-pricebar{position:sticky;bottom:0;z-index:6;margin-top:auto;
+  padding:14px 20px calc(14px + env(safe-area-inset-bottom));
+  background:color-mix(in srgb, var(--cx-bg,#fbfbfd) 78%, transparent);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border-top:1px solid var(--cx-border,rgba(0,0,0,.05))}
+.cx-pricebar-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--cx-muted,#86868b);margin-bottom:6px}
+
+/* Números con tabular-nums: los dígitos no "bailan" al animar.
+   Fuente display Space Grotesk (spec experto, display=swap). */
+.cx-price{font-family:'Space Grotesk',system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.cx-price-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.cx-price-num{font-size:clamp(30px,4.5vw,52px);font-weight:700;letter-spacing:-.03em;
+  line-height:1;color:var(--cx-text,#1d1d1f)}
+.cx-price-dash{color:var(--cx-faint,#aeaeb2)}
+.cx-price-cur{font-size:11px;letter-spacing:.14em;color:var(--cx-muted,#86868b)}
+
+/* Chip de delta: aparece en cada cambio de precio y se desvanece */
+.cx-price-delta{font:600 12px/1 inherit;padding:4px 9px;border-radius:999px;
+  align-self:center;animation:cx-delta .9s cubic-bezier(.19,1,.22,1) forwards}
+.cx-price-delta.up{color:#0f7b3d;background:rgba(16,185,129,.14)}
+.cx-price-delta.down{color:#b4231f;background:rgba(244,63,94,.12)}
+@keyframes cx-delta{0%{opacity:0;transform:translateY(8px)}12%{opacity:1;transform:none}
+  78%{opacity:1}100%{opacity:0;transform:translateY(-8px)}}
+@media (prefers-reduced-motion: reduce){.cx-price-delta{animation:none}}

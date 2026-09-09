@@ -21,6 +21,7 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
 export const HOLYBRO_URL = `${import.meta.env.BASE_URL}cotizador/models/holybro-x500.glb`;
 
@@ -38,7 +39,9 @@ export function loadHolybro(): Promise<THREE.Group> {
           return r.arrayBuffer();
         })
         .then(buf => {
-          new GLTFLoader().parse(buf, '', gltf => {
+          const loader = new GLTFLoader();
+          loader.setMeshoptDecoder(MeshoptDecoder); // GLBs optimizados con meshopt (ciclo 15)
+          loader.parse(buf, '', gltf => {
             const root = gltf.scene;
             // Normaliza: PRIMERO escala, luego recentra (si no, queda fuera de cámara)
             const box = new THREE.Box3().setFromObject(root);

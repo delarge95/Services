@@ -1,5 +1,6 @@
 ---
 import '../styles/tokens.css';
+import '../styles/price.css';
 import { CotizadorRedesign } from '../components/services/CotizadorRedesign';
 ---
 <!doctype html>
@@ -8,7 +9,38 @@ import { CotizadorRedesign } from '../components/services/CotizadorRedesign';
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap" rel="stylesheet" />
     <title>Cotizador de proyectos 3D — Alexander Woodcock</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Cotizador de proyectos 3D — Alexander Woodcock" />
+    <meta property="og:description" content="Rango orientativo de costo y tiempo para tus proyectos 3D interactivos, en segundos." />
+    <meta property="og:url" content="https://services.alexwoodcock.me/cotizador/" />
+    <meta property="og:image" content="https://services.alexwoodcock.me/cotizador/og.jpg" />
+    <meta property="og:locale" content="es_CO" />
+    <meta property="og:locale:alternate" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Cotizador de proyectos 3D — Alexander Woodcock" />
+    <meta name="twitter:description" content="Rango orientativo de costo y tiempo para tus proyectos 3D interactivos." />
+    <meta name="twitter:image" content="https://services.alexwoodcock.me/cotizador/og.jpg" />
+    <script is:inline type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Service",
+      "name": "Desarrollo 3D web en tiempo real",
+      "provider": { "@type": "Person", "name": "Alexander Woodcock", "url": "https://alexwoodcock.me/" },
+      "areaServed": "Worldwide",
+      "serviceType": "Real-time 3D web development",
+      "offers": {
+        "@type": "AggregateOffer",
+        "priceCurrency": "COP",
+        "lowPrice": "400000",
+        "highPrice": "12610000",
+        "offerCount": "28"
+      }
+    }
+    </script>
     <meta name="description" content="Rango orientativo de costo y tiempo para tus proyectos 3D." />
     <script is:inline>
       /* Tema ANTES del primer pintado (evita flash blanco en modo oscuro). */

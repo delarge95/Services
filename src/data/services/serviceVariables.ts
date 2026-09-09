@@ -109,7 +109,7 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
       {
         id: 'polyCount', preguntaEs: '¿Qué presupuesto de polígonos necesita?',
         type: 'number', min: 500, max: 500000, step: 500, unidadEs: 'tris',
-        tierMap: [{ maxVal: 10000, tier: 'S' }, { maxVal: 50000, tier: 'M' }, { maxVal: 150000, tier: 'L' }],
+        tierMap: [{ maxVal: 10000, tier: 'S' }, { maxVal: 50000, tier: 'M' }, { maxVal: 150000, tier: 'L' }, { maxVal: 500000, tier: 'XL' }],
       },
       {
         id: 'numPiezas', preguntaEs: '¿Cuántas piezas tiene el modelo?',
@@ -144,7 +144,7 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
       {
         id: 'polyCount', preguntaEs: '¿Qué presupuesto de polígonos?',
         type: 'number', min: 500, max: 500000, step: 500, unidadEs: 'tris',
-        tierMap: [{ maxVal: 10000, tier: 'S' }, { maxVal: 50000, tier: 'M' }, { maxVal: 150000, tier: 'L' }],
+        tierMap: [{ maxVal: 10000, tier: 'S' }, { maxVal: 50000, tier: 'M' }, { maxVal: 150000, tier: 'L' }, { maxVal: 500000, tier: 'XL' }],
       },
       {
         id: 'numHotspots', preguntaEs: '¿Cuántos hotspots o partes seleccionables?',
@@ -161,7 +161,7 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
       {
         id: 'polyCount', preguntaEs: '¿Qué presupuesto de polígonos?',
         type: 'number', min: 500, max: 500000, step: 500, unidadEs: 'tris',
-        tierMap: [{ maxVal: 10000, tier: 'S' }, { maxVal: 50000, tier: 'M' }, { maxVal: 150000, tier: 'L' }],
+        tierMap: [{ maxVal: 10000, tier: 'S' }, { maxVal: 50000, tier: 'M' }, { maxVal: 150000, tier: 'L' }, { maxVal: 500000, tier: 'XL' }],
       },
       {
         id: 'numLoops', preguntaEs: '¿Cuántos clips de animación loop?',
@@ -182,7 +182,7 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
       {
         id: 'polyCount', preguntaEs: '¿Qué presupuesto de polígonos?',
         type: 'number', min: 500, max: 500000, step: 500, unidadEs: 'tris',
-        tierMap: [{ maxVal: 10000, tier: 'S' }, { maxVal: 50000, tier: 'M' }, { maxVal: 150000, tier: 'L' }],
+        tierMap: [{ maxVal: 10000, tier: 'S' }, { maxVal: 50000, tier: 'M' }, { maxVal: 150000, tier: 'L' }, { maxVal: 500000, tier: 'XL' }],
       },
       {
         id: 'numEstados', preguntaEs: '¿Cuántos estados o animaciones interactivas?',

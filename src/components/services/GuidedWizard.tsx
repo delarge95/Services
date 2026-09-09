@@ -15,8 +15,9 @@ import type { Lang } from '../../data/services/i18n';
 import { BRAND } from '../../data/services/branding';
 // ciclo 13: polyLabel se importa para la caption del detail (el contador de
 // tris ya no flota como overlay sobre el canvas — vive en "Boceto — … · ≈ 4k tris")
-import { ModelPreview, VARIANT_SLOTS, SLOT_DEFAULT_COLORS, polyLabel } from './ModelPreview';
-import type { PreviewMode, VariantSlotsState } from './ModelPreview';
+import { VARIANT_SLOTS, SLOT_DEFAULT_COLORS, polyLabel } from './previewConstants';
+import LazyModelPreview from './LazyModelPreview';
+import type { PreviewMode, VariantSlotsState } from './previewConstants';
 import { TreeIcon, ChatIcon, MailIcon, GearIcon, InfoIcon, ExternalIcon } from './icons';
 
 type Answers = Record<string, string | number | boolean>;
@@ -33,7 +34,7 @@ type BranchEn = {
 const branchEn = (id: string): BranchEn | undefined =>
   (TREE_EN.branches as Record<string, BranchEn | undefined>)[id];
 
-export function GuidedWizard({ onComplete, lang = 'es', homeSignal = 0 }: { onComplete?: (plan: WizardQuotePlan, answers?: Record<string, string | number | boolean>) => void; lang?: Lang; homeSignal?: number }) {
+export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal = 0 }: { onComplete?: (plan: WizardQuotePlan, answers?: Record<string, string | number | boolean>) => void; onProgress?: (plan: WizardQuotePlan) => void; lang?: Lang; homeSignal?: number }) {
   const [level, setLevel] = useState(1);
   const [rootChoice, setRootChoice] = useState('');
   const [subChoice, setSubChoice] = useState('');
@@ -57,6 +58,13 @@ export function GuidedWizard({ onComplete, lang = 'es', homeSignal = 0 }: { onCo
     } else {
       window.history.pushState(state, '');
     }
+  }, [level, rootChoice, subChoice, answers]);
+  /** Ciclo 17 — visor del precio: plan en vivo en cada cambio de respuesta
+   *  (el padre lo deriva a COP/USD con el mismo motor que el panel final). */
+  useEffect(() => {
+    if (level !== 3) return;
+    onProgress?.(planFromTreeAnswers(rootChoice, subChoice, answers));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [level, rootChoice, subChoice, answers]);
 
   // Escucha popstate: restaura el paso correspondiente (nivel 1 = base).
@@ -459,7 +467,7 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
       {/* Preview de tarjetas: acabados con el modelo real (HolyBro X500) */}
       {q.type === 'cards' && q.preview === 'finish' && (
         <div style={{ marginBottom: 14 }}>
-          <ModelPreview mode="finish" finish={(typeof current === 'string' && ['simple', 'variado', 'detallado'].includes(current) ? current : 'variado') as 'simple' | 'variado' | 'detallado'} lang={lang} height={290} />
+          <LazyModelPreview mode="finish" finish={(typeof current === 'string' && ['simple', 'variado', 'detallado'].includes(current) ? current : 'variado') as 'simple' | 'variado' | 'detallado'} lang={lang} height={290} />
           <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--cx-muted)', marginTop: 2 }}>
             {en ? 'Real model (HolyBro X500) with the selected finish' : 'Modelo real (HolyBro X500) con el acabado elegido'}
           </div>
@@ -653,7 +661,7 @@ function SliderWithPreview({ branchId, questionId, config, value, onChange, lang
       {mode && (
         <div>
           {/* ciclo 11: previews a 290px de alto (antes 240) — sin corte vertical */}
-          <ModelPreview mode={mode} detail={shown} pieces={value} story={value} surface={value}
+          <LazyModelPreview mode={mode} detail={shown} pieces={value} story={value} surface={value}
             variantSlots={mode === 'variants' ? slots : undefined} estilo={value} lang={lang}
             height={290} />
           {mode !== 'variants' && (
@@ -681,12 +689,16 @@ function SliderWithPreview({ branchId, questionId, config, value, onChange, lang
       </div>
 
       {/* Track — con puntos de snapping visibles en los sliders continuos */}
+      {/* hit-area generosa (±14px): con la pista de 6px el arrastre empezaba
+          fuera, el navegador iniciaba SELECCIÓN DE TEXTO (cursor de
+          bloqueo) y el slider no respondía — userSelect none + preventDefault */}
       <div
-        style={{ position: 'relative', height: 6, borderRadius: 3, background: 'var(--cx-soft)', cursor: 'pointer', touchAction: 'none' }}
-        onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); applyValue(e.clientX, e.currentTarget); }}
+        style={{ position: 'relative', padding: '14px 0', cursor: 'pointer', touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+        onPointerDown={(e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); applyValue(e.clientX, e.currentTarget); }}
         onPointerMove={(e) => { if (e.buttons !== 1) return; applyValue(e.clientX, e.currentTarget); }}
         onPointerUp={snapOnRelease}
       >
+      <div style={{ position: 'relative', height: 6, borderRadius: 3, background: 'var(--cx-soft)' }}>
         <div style={{
           position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: 3,
           width: `${pct}%`, background: 'linear-gradient(90deg, #0071e3, #5ac8fa)',
@@ -701,6 +713,7 @@ function SliderWithPreview({ branchId, questionId, config, value, onChange, lang
           borderRadius: '50%', background: 'var(--cx-card-solid)', border: '0.5px solid var(--cx-border)',
           boxShadow: 'var(--cx-shadow-knob)',
         }} />
+      </div>
       </div>
 
       {/* Labels min/max — ciclo 10: el máximo del assembly se muestra "50+" */}

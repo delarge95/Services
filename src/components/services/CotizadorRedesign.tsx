@@ -21,6 +21,7 @@ import { encodeShare, decodeShare, quoteId } from '../../lib/services/share';
 import type { ShareState } from '../../lib/services/share';
 import { QuoteCta } from './QuoteCta';
 import { GuidedWizard, WizardEditInline } from './GuidedWizard';
+import { PriceBar } from './PriceDisplay';
 import { planFromTreeAnswers } from '../../data/services/treeToQuote';
 import { RefDropzone } from './RefDropzone';
 import { SunIcon, MoonIcon, HomeIcon, GearIcon, ExternalIcon } from './icons';
@@ -293,6 +294,21 @@ function VariableControl({ v, value, onValue, lang, serviceId }: {
 // ═══════════════════════════════════════════════════════════════
 export function CotizadorRedesign() {
   const [lang, setLang] = useState<Lang>('es');
+  /** Ciclo 15: idioma persistido (cx-lang) con deteccion inicial de navigator.
+   *  El estado nace en 'es' (SSR-safe); el ajuste ocurre post-hidratacion. */
+  useEffect(() => {
+    try {
+      const guardado = localStorage.getItem('cx-lang');
+      const inicial = guardado === 'en' || guardado === 'es'
+        ? guardado
+        : (navigator.language && navigator.language.toLowerCase().startsWith('en') ? 'en' : 'es');
+      if (inicial !== 'es') setLang(inicial);
+    } catch { /* sin almacenamiento */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem('cx-lang', lang); } catch { /* sin almacenamiento */ }
+  }, [lang]);
   /** Moneda independiente del idioma (ciclo 8): por defecto ES + COP. */
   const [currency, setCurrency] = useState<Currency>('COP');
   const [serviceId, setServiceId] = useState('');
@@ -421,6 +437,33 @@ export function CotizadorRedesign() {
   }, [svc, tier, currency, quoteOpts]);
 
   /** Aplica el plan del wizard: principal en configuración, resto como líneas extra. */
+  /** Ciclo 17 — visor del precio: plan EN VIVO del wizard (antes de aplicar)
+   *  derivado con el mismo motor y mismo math de bundle que totalProyecto. */
+  const [livePlan, setLivePlan] = useState<WizardQuotePlan | null>(null);
+  const liveQuote = useMemo(() => {
+    if (!livePlan) return null;
+    const principal = livePlan.picks[0];
+    if (!principal) return null;
+    try {
+      const t = derivarTier(principal.serviceId, principal.vals);
+      const q = computeQuote(principal.serviceId, t, currency, quoteOpts);
+      if (!q) return null;
+      const extrasQ = livePlan.picks.slice(1).map(p2 => {
+        const tt = derivarTier(p2.serviceId, p2.vals);
+        return computeQuote(p2.serviceId, tt, currency, quoteOpts);
+      }).filter((x): x is NonNullable<typeof x> => x !== null);
+      const rawMin = q.totalMin + extrasQ.reduce((a, e) => a + e.totalMin, 0);
+      const rawMax = q.totalMax + extrasQ.reduce((a, e) => a + e.totalMax, 0);
+      const n = 1 + extrasQ.length;
+      const bundleLive = bundlePct(n, 0); // urgencia aùn sin preguntar en el wizard
+      if (bundleLive === 0) return { min: rawMin, max: rawMax };
+      const card = getRateCard(currency);
+      const step = card.roundStep(rawMin);
+      const factor = 1 - bundleLive / 100;
+      return { min: Math.max(Math.floor((rawMin * factor) / step) * step, card.minProject), max: Math.ceil((rawMax * factor) / step) * step };
+    } catch { return null; }
+  }, [livePlan, currency, quoteOpts]);
+
   const applyPlan = (plan: WizardQuotePlan, answers?: Record<string, string | number | boolean>) => {
     const principal = plan.picks[0];
     if (!principal) return;
@@ -702,7 +745,12 @@ export function CotizadorRedesign() {
 
       <div className="cx-content">
         {/* ═══ MODO GUIADO ═══ */}
-        {mode === 'guided' && !svc && <GuidedWizard onComplete={applyPlan} lang={lang} homeSignal={homeKey} />}
+        {mode === 'guided' && !svc && <GuidedWizard onComplete={applyPlan} onProgress={setLivePlan} lang={lang} homeSignal={homeKey} />}
+
+        {/* ═══ CICLO 17 — VISOR DEL PRECIO (sticky, solo modo guiado) ═══ */}
+        {mode === 'guided' && !svc && liveQuote && (
+          <PriceBar min={liveQuote.min} max={liveQuote.max} currency={currency} lang={lang} />
+        )}
 
         {/* ═══ CONFIGURACIÓN (modo guiado, con servicio) ═══ */}
         {mode === 'guided' && svc && (
@@ -807,7 +855,7 @@ export function CotizadorRedesign() {
                       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cx-accent)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
                         {lang === 'en' ? EN.yourProject(numServicios) : `Tu proyecto · ${numServicios} servicios`}
                       </div>
-                      <div style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--cx-text)', lineHeight: 1 }}>
+                      <div aria-live="polite" aria-atomic="true" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--cx-text)', lineHeight: 1 }}>
                         {fmt(currency, totalProyecto.min)}
                       </div>
                       <div style={{ fontSize: 'clamp(1.2rem, 2vw, 1.6rem)', fontWeight: 500, color: 'var(--cx-muted)', marginTop: 4 }}>
