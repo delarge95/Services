@@ -94,3 +94,46 @@ html[data-cx-hero-top] .cx-nav { background: transparent !important; border-bott
 }
 /* el hero ocupa 100vw: sin barra horizontal por el ancho de la barra de scroll */
 html, body { overflow-x: clip; }
+
+/* ══ ciclo 33 · MARCA ══════════════════════════════════════════════════════════
+   Monograma AW: W monolínea cuyo pico central es una A; su barra (acento) es la misma
+   línea de la carga. Tipografía del logotipo: Space Grotesk 700, −0,02 em (ya cargada:
+   cero peso extra; geométrica, de trazo uniforme, con A y W de vértices nítidos que
+   casan con el monograma). La intro usa EXACTAMENTE las proporciones de la barra
+   superior multiplicadas por --s, así el viaje final es solo traslación + escala. */
+.cx-brand { font: 700 16px/1.2 var(--cx-display, 'Space Grotesk', system-ui) !important; letter-spacing: -.02em; }
+/* el símbolo se apoya en la LÍNEA BASE del logotipo (no se centra en la caja de línea) */
+.cx-brand { align-items: baseline !important; }
+.cx-brand .aw-mark { flex: none; }
+.aw-mark { display: inline-block; vertical-align: middle; overflow: visible; }
+.ih-kicker { align-items: baseline !important; }
+.ih-kicker .aw-mark { margin-right: 2px; }
+.ih-kicker::before { display: none; }
+
+.ih-lock { --s: 3.6; position: absolute; left: 50%; top: 50%; translate: -50% -50%; z-index: 3; display: inline-flex; align-items: baseline;
+  font: 700 calc(16px * var(--s))/1.2 var(--cx-display, 'Space Grotesk', system-ui); letter-spacing: -.02em; color: #edeee8; white-space: nowrap; pointer-events: none;
+  transition: opacity .6s ease; }
+.ih-lock .aw-mark { width: calc(14px * var(--s) * 100 / 60); height: calc(14px * var(--s)); }
+.ih-lock .aw-w { stroke-dasharray: 1; stroke-dashoffset: 1; transition: stroke-dashoffset .95s cubic-bezier(.65, 0, .2, 1); }
+.ih-lock.draw .aw-w { stroke-dashoffset: 0; }
+/* la línea naranja de la carga se posa como barra y, al completarse la W, pasa a la tinta del glifo */
+.ih-lock .aw-bar { opacity: 0; stroke: #ff7a3d; transition: stroke .7s ease; }
+.ih-lock.bar .aw-bar { opacity: 1; }
+.ih-lock.ini .aw-bar { stroke: currentColor; }
+/* el nombre: primero las iniciales salen del monograma, luego se escribe el resto */
+.ih-word { display: inline-flex; margin-left: 0; transition: margin-left .7s cubic-bezier(.16, 1, .3, 1); }
+.ih-lock.ini .ih-word { margin-left: calc(8px * var(--s)); }
+.ih-word .ini, .ih-word .sp, .ih-word .rest > span { display: inline-block; overflow: hidden; vertical-align: bottom; }
+.ih-word .ini { max-width: 0; opacity: 0; translate: -.5em 0; filter: blur(8px);
+  transition: max-width .7s cubic-bezier(.16, 1, .3, 1), opacity .6s ease, translate .7s cubic-bezier(.16, 1, .3, 1), filter .6s ease; }
+.ih-lock.ini .ih-word .ini { max-width: 1em; opacity: 1; translate: 0 0; filter: none; color: #ff7a3d; }
+.ih-lock.full .ih-word .ini { color: inherit; transition-delay: .25s; }
+.ih-word .sp { width: 0; transition: width .6s cubic-bezier(.16, 1, .3, 1); }
+.ih-lock.ini .ih-word .sp { width: .26em; }
+.ih-word .rest > span { max-width: 0; opacity: 0; transition: max-width .45s cubic-bezier(.16, 1, .3, 1), opacity .35s ease; transition-delay: calc(var(--i) * 34ms); }
+.ih-lock.full .ih-word .rest > span { max-width: 1em; opacity: 1; }
+.ih-lock.gone, .ih-done .ih-lock { opacity: 0; transition-delay: .55s; }
+.ih-brand .ih-bar { background: #ff7a3d; height: 2px; margin-top: -1px; }
+.ih-hud.ih-brand.loaded .ih-bar { opacity: 1; }
+@media (max-width: 560px) { .ih-lock { --s: 2.1; } }
+@media (prefers-reduced-motion: reduce) { .ih-lock * { transition: none !important; } }

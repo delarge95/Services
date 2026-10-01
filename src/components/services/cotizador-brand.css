@@ -179,7 +179,9 @@
   .cx-wide {
     --cx-wide-w: min(1120px, calc(100vw - 80px));
     width: var(--cx-wide-w); max-width: none;
-    position: relative; left: 50%; margin-left: calc(var(--cx-wide-w) / -2);
+    /* ciclo 33: centrado con 'translate' (independiente de margin): el 'margin' propio de cada
+       componente (p. ej. .cx-show { margin: 56px 0 0 }) anulaba el margin-left negativo. */
+    position: relative; left: 50%; translate: -50% 0;
   }
 }
 
