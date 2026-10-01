@@ -45,6 +45,23 @@ export function CotizadorChat(props: CotizadorChatProps) {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' });
   }, [msgs, open, typing]);
 
+  // ciclo 25: otros componentes pueden abrir el chat (p.ej. "No estoy seguro") con una pregunta inicial
+  const pendingPrompt = useRef<string | null>(null);
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const prompt = (e as CustomEvent<{ prompt?: string }>).detail?.prompt;
+      if (prompt) pendingPrompt.current = prompt;
+      setOpen(true);
+    };
+    window.addEventListener('cx-open-chat', onOpen);
+    return () => window.removeEventListener('cx-open-chat', onOpen);
+  }, []);
+  useEffect(() => {
+    if (open && pendingPrompt.current && msgs.length > 0 && !typing) {
+      const p = pendingPrompt.current; pendingPrompt.current = null; send(p);
+    }
+  }, [open, msgs.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };

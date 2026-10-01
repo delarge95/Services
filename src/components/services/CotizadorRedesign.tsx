@@ -419,10 +419,11 @@ export function CotizadorRedesign() {
     setUnsure({}); setFirstClient(true); setUrgency('none');
     setWizardDraft(null); setEditOpen(false);
     setHomeKey(k => k + 1);
-    if (typeof window !== 'undefined') window.history.replaceState({ cx: 'cotizador' }, '');
+    if (typeof window !== 'undefined') window.history.pushState({ cx: 'cotizador', level: 1 }, '');
   };
 
-  const svc = WEB3D.find(s => s.id === serviceId);
+  // ciclo 25: cualquier servicio del catálogo (antes solo los 8 de WEB3D → las ramas nuevas no abrían su cotización)
+  const svc = SERVICES.find(s => s.id === serviceId);
   // ocultarEnConfig (ciclo 8/WEB-04): la variable existe y su valor viene del
   // wizard vía planWebApp, pero no se muestra en el panel por redundante.
   const variables: ServiceVariable[] = serviceId
@@ -590,56 +591,58 @@ export function CotizadorRedesign() {
       />
       <style>{`
         .cx-root {
-          --cx-bg: #f3f4f0;
-          --cx-card: rgba(255,255,255,0.82);
+          --cx-bg: #f4f6f9;
+          --cx-card: rgba(255,255,255,0.86);
           --cx-card-solid: #ffffff;
-          --cx-tile: #e9ebe4;
-          --cx-text: #0b0d10;
-          --cx-muted: #5b6068;
-          --cx-faint: #8a8f96;
-          --cx-border: rgba(11,13,16,0.09);
-          --cx-border-strong: rgba(11,13,16,0.18);
-          --cx-soft: rgba(11,13,16,0.06);
-          --cx-accent: #3f6212;
-          --cx-accent-hover: #365314;
-          --cx-accent-soft: rgba(77,124,15,0.10);
-          --cx-accent-border: rgba(63,98,18,0.34);
-          --cx-shadow-card: 0 1px 2px rgba(11,13,16,0.04), 0 8px 24px -12px rgba(11,13,16,0.12);
-          --cx-shadow-hover: 0 2px 4px rgba(11,13,16,0.05), 0 18px 40px -18px rgba(63,98,18,0.40);
-          --cx-shadow-knob: 0 2px 8px rgba(11,13,16,0.18);
-          --cx-obj-shadow: rgba(11,13,16,0.14);
+          --cx-tile: #eaeef3;
+          --cx-text: #0e1726;
+          --cx-muted: #556070;
+          --cx-faint: #8792a2;
+          --cx-border: rgba(14,23,38,0.09);
+          --cx-border-strong: rgba(14,23,38,0.17);
+          --cx-soft: rgba(14,23,38,0.06);
+          --cx-accent: #c4400d;
+          --cx-accent-hover: #a3350a;
+          --cx-accent-soft: rgba(196,64,13,0.09);
+          --cx-accent-border: rgba(196,64,13,0.30);
+          --cx-shadow-card: 0 1px 2px rgba(14,23,38,0.05), 0 10px 28px -14px rgba(14,23,38,0.14);
+          --cx-shadow-hover: 0 2px 4px rgba(14,23,38,0.05), 0 20px 44px -20px rgba(196,64,13,0.38);
+          --cx-shadow-knob: 0 2px 8px rgba(14,23,38,0.18);
+          --cx-obj-shadow: rgba(14,23,38,0.16);
           --cx-on-accent: #ffffff;
-          --cx-accent-2: #a16207;
-          --cx-glow: rgba(77,124,15,0.10);
-          --cx-glow-2: rgba(161,98,7,0.07);
-          --cx-grid: rgba(11,13,16,0.05); --cx-signal: #4d7c0f; --cx-signal-soft: rgba(77,124,15,0.10);
+          --cx-accent-2: #f59e0b;
+          --cx-glow: rgba(196,64,13,0.09);
+          --cx-glow-2: rgba(3,105,161,0.07);
+          --cx-grid: rgba(14,23,38,0.045); --cx-signal: #0369a1; --cx-signal-soft: rgba(3,105,161,0.08);
+        
         }
         /* Blindaje ciclo 10b: las variables oscuras aplican si html ya sabe el
            tema (script inline) aunque el data-theme del div llegue tarde. */
         html[data-cx-theme='dark'] .cx-root, .cx-root[data-theme='dark'] {
-          --cx-bg: #07080a;
-          --cx-card: rgba(14,16,19,0.78);
-          --cx-card-solid: #0e1013;
-          --cx-tile: #16191d;
-          --cx-text: #edeee8;
-          --cx-muted: #9ba0a6;
-          --cx-faint: #767c85;
-          --cx-border: rgba(237,238,232,0.09);
-          --cx-border-strong: rgba(237,238,232,0.17);
-          --cx-soft: rgba(237,238,232,0.08);
+          --cx-bg: #0a0b0d;
+          --cx-card: rgba(20,22,26,0.78);
+          --cx-card-solid: #14161a;
+          --cx-tile: #1c1f24;
+          --cx-text: #f2f3f5;
+          --cx-muted: #9aa1ab;
+          --cx-faint: #6c737e;
+          --cx-border: rgba(242,243,245,0.08);
+          --cx-border-strong: rgba(242,243,245,0.16);
+          --cx-soft: rgba(242,243,245,0.08);
           --cx-accent: #ff7a3d;
           --cx-accent-hover: #ff9566;
           --cx-accent-soft: rgba(255,122,61,0.12);
           --cx-accent-border: rgba(255,122,61,0.38);
-          --cx-shadow-card: 0 1px 0 rgba(237,238,232,0.03) inset, 0 12px 32px -16px rgba(0,0,0,0.8);
-          --cx-shadow-hover: 0 1px 0 rgba(237,238,232,0.05) inset, 0 24px 48px -22px rgba(255,122,61,0.28);
+          --cx-shadow-card: 0 1px 0 rgba(242,243,245,0.03) inset, 0 12px 32px -16px rgba(0,0,0,0.8);
+          --cx-shadow-hover: 0 1px 0 rgba(242,243,245,0.05) inset, 0 24px 48px -22px rgba(255,122,61,0.30);
           --cx-shadow-knob: 0 2px 8px rgba(0,0,0,0.6);
           --cx-obj-shadow: rgba(0,0,0,0.7);
-          --cx-on-accent: #07080a;
-          --cx-accent-2: #ffb224;
-          --cx-glow: rgba(255,122,61,0.10);
-          --cx-glow-2: rgba(200,245,63,0.06);
-          --cx-grid: rgba(237,238,232,0.045); --cx-signal: #c8f53f; --cx-signal-soft: rgba(200,245,63,0.12);
+          --cx-on-accent: #1a0a02;
+          --cx-accent-2: #ffb547;
+          --cx-glow: rgba(255,122,61,0.11);
+          --cx-glow-2: rgba(103,212,255,0.06);
+          --cx-grid: rgba(242,243,245,0.04); --cx-signal: #67d4ff; --cx-signal-soft: rgba(103,212,255,0.10);
+        
         }
         * { box-sizing: border-box; }
         body { margin: 0; font-family: 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif; }

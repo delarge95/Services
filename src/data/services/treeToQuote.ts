@@ -56,6 +56,12 @@ const clampa = (v: number, min: number, max: number) => Math.min(max, Math.max(m
 
 // ─── Helpers de picks ───
 
+/** Ciclo 25: respuesta multi (ids separados por coma) → conjunto. */
+const multi = (a: Answers, id: string): Set<string> => new Set(str(a, id).split(',').map((x) => x.trim()).filter(Boolean));
+
+/** Carga poligonal objetivo (detalle técnico) → RTA-01.polyCount; manda sobre el slider de detalle. */
+const POLY_POR_CARGA: Record<string, number> = { 'ultra-low': 8000, low: 30000, mid: 120000, high: 300000 };
+
 const pickVisor = (a: Answers, hotspots: number, notaEs?: string): WizardPick => {  const donde = str(a, 'donde-mostrar');
   return {
     serviceId: 'WEB-01',
@@ -64,7 +70,7 @@ const pickVisor = (a: Answers, hotspots: number, notaEs?: string): WizardPick =>
     notaEs,
     vals: {
       numHotspots: hotspots,
-      datos: 'Fijos (hardcode)',
+      datos: str(a, 'datos-hotspots') === 'cms' ? 'Dinámicos (CMS/API)' : 'Fijos (hardcode)',
       // Feria/pantalla táctil o app móvil exigen móvil; en web normal lo asumimos también.
       target: donde === 'feria' || donde === 'movil' || str(a, 'plataforma') === 'app' || donde === 'landing' ? 'Desktop + móvil' : 'Desktop',
     },
@@ -95,9 +101,10 @@ const pickModeloDesdeCero = (a: Answers): WizardPick => {
     labelEs: 'La creación del modelo 3D',
     vals: {
       fuente,
-      polyCount: polyDeNivel(nivel),
+      polyCount: POLY_POR_CARGA[str(a, 'carga-poligonal')] ?? polyDeNivel(nivel),
       numPiezas: piezas,
-      numTexturas: TEXTURAS_POR_ACABADO[acabado] ?? 2,
+      // detalle técnico "Cantidad de materiales" (si se dio) manda sobre el acabado
+      numTexturas: has(a, 'num-materiales') ? clampa(num(a, 'num-materiales'), 1, 10) : TEXTURAS_POR_ACABADO[acabado] ?? 2,
       tipoSuperficie: Math.round(superficie * 10) / 10,
     },
     notaEs: superficie >= 4.5
@@ -167,9 +174,11 @@ function planVerModelo(a: Answers): WizardQuotePlan {
 }
 
 function planInteractivo(a: Answers): WizardQuotePlan {
-  const tipo = str(a, 'tipo-interactividad');
+  // ciclo 25: selección múltiple (rotar / hotspots / configurar / desarmar)
+  const sel = multi(a, 'tipo-interactividad');
+  const tipo = sel.has('configurar') ? 'configurar' : sel.has('hotspots') ? 'hotspots' : sel.has('desarmar') ? 'desarmar' : str(a, 'tipo-interactividad');
   const plataforma = str(a, 'plataforma');
-  const appCompleta = plataforma === 'app' || tipo === 'configurar';
+  const appCompleta = plataforma === 'app' || sel.has('configurar');
   const picks: WizardPick[] = [];
   if (appCompleta) {
     picks.push({
@@ -179,10 +188,19 @@ function planInteractivo(a: Answers): WizardQuotePlan {
       vals: { numVariantes: 10, numSKUs: 1, fuenteDatos: 'Estáticos (JSON local)', auth: false },
     });
   } else {
-    const hotspots = tipo === 'hotspots' ? 8 : tipo === 'desarmar' ? 4 : 0;
-    picks.push(pickVisor(a, hotspots,
-      tipo === 'desarmar' ? 'El despiece interactivo se agrega como mecánica sobre el asset (RTA-06) — lo afinamos por chat.' : undefined));
+    const nHot = has(a, 'num-hotspots') ? clampa(num(a, 'num-hotspots'), 1, 30) : 8;
+    const hotspots = sel.has('hotspots') ? nHot : 0;
+    picks.push(pickVisor(a, hotspots));
   }
+  // ciclo 25: el despiece ya no es "lo afinamos por chat": se cotiza como mecánica RTA-06
+  if (sel.has('desarmar')) {
+    const prof = { simple: 'Explosión simple (una etapa)', etapas: 'Múltiples etapas con etiquetas', cotas: 'Completo con cotas y medición' }[str(a, 'profundidad-despiece')] ?? 'Explosión simple (una etapa)';
+    picks.push({
+      serviceId: 'RTA-06', role: 'complemento', labelEs: 'El despiece interactivo',
+      vals: { numPartes: has(a, 'cantidad-piezas') ? clampa(num(a, 'cantidad-piezas'), 1, 100) : SLIDER_DEFAULTS['cantidad-piezas'], profundidad: prof },
+    });
+  }
+  void tipo;
   if (str(a, 'modelo-existente') === 'no-crear') picks.push(pickModeloDesdeCero(a));
   else {
     const extra = extrasPorModeloExistente(a);

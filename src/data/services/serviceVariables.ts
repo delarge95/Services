@@ -72,6 +72,14 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
           { valorEs: 'Print (4K+)', tierHint: 'M' },
         ],
       },
+      { // ciclo 25
+        id: 'pipelineImagen', preguntaEs: '¿Cómo se producen las imágenes?', ayudaEs: 'La IA abarata y acelera; el 3D completo da control exacto del producto (medidas, materiales, ángulos).',
+        type: 'select', opciones: [{ valorEs: 'Solo IA (generativa, sin modelo 3D)', tierHint: 'S' }, { valorEs: '3D + IA (base 3D, variaciones/retoque con IA)', tierHint: 'M' }, { valorEs: 'Render 3D fotorrealista completo', tierHint: 'L' }],
+      },
+      { // ciclo 25
+        id: 'ambientacion', preguntaEs: '¿Fondo o ambientación?',
+        type: 'select', opciones: [{ valorEs: 'Fondo neutro de estudio', tierHint: 'S' }, { valorEs: 'Escena simple (mesa, pared, props)', tierHint: 'M' }, { valorEs: 'Escena lifestyle completa', tierHint: 'L' }],
+      },
     ],
   },
 
@@ -97,6 +105,14 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
         id: 'audioSync', preguntaEs: '¿Sincronización con audio?',
         type: 'toggle',
         tierSiActivo: 'L',
+      },
+      { // ciclo 25
+        id: 'motorRender', preguntaEs: '¿Cómo se renderiza el video?', ayudaEs: 'Tiempo real es más rápido y barato; el prerender da calidad cinematográfica.',
+        type: 'select', opciones: [{ valorEs: 'Tiempo real (Eevee / Unreal)', tierHint: 'S' }, { valorEs: 'Prerender fotorrealista (Cycles / Redshift)', tierHint: 'M' }, { valorEs: 'Prerender + simulación (Houdini)', tierHint: 'L' }],
+      },
+      { // ciclo 25
+        id: 'resolucionVideo', preguntaEs: '¿Resolución de salida?',
+        type: 'select', opciones: [{ valorEs: '1080p', tierHint: 'S' }, { valorEs: '2K / 1440p', tierHint: 'M' }, { valorEs: '4K', tierHint: 'L' }],
       },
     ],
   },
@@ -172,6 +188,10 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
         id: 'rig', preguntaEs: '¿Necesita rig (esqueleto para animar)?',
         type: 'toggle',
         tierSiActivo: 'M',
+      },
+      { // ciclo 25
+        id: 'tipoAnimacion', preguntaEs: '¿Qué tipo de animación?',
+        type: 'select', opciones: [{ valorEs: 'Mecánica (piezas que giran o se desplazan)', tierHint: 'S' }, { valorEs: 'Orgánica / deformación', tierHint: 'M' }, { valorEs: 'Personaje con rig completo', tierHint: 'L' }],
       },
     ],
   },
@@ -375,6 +395,14 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
         type: 'toggle',
         tierSiActivo: 'M',
       },
+      { // ciclo 25
+        id: 'carrito', preguntaEs: '¿Incluye carrito o cotización por producto?',
+        type: 'toggle', tierSiActivo: 'M',
+      },
+      { // ciclo 25
+        id: 'cmsCatalogo', preguntaEs: '¿El catálogo se administra desde un CMS?',
+        type: 'toggle', tierSiActivo: 'M',
+      },
     ],
   },
 
@@ -390,6 +418,10 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
         id: 'tiene3D', preguntaEs: '¿Incluye bloque 3D interactivo?',
         type: 'toggle',
         tierSiActivo: 'M',
+      },
+      { // ciclo 25
+        id: 'animacionesSlides', preguntaEs: '¿Nivel de animación entre slides?',
+        type: 'select', opciones: [{ valorEs: 'Transiciones simples', tierHint: 'S' }, { valorEs: 'Animaciones coreografiadas', tierHint: 'M' }, { valorEs: '3D guiado por la narrativa', tierHint: 'L' }],
       },
     ],
   },
@@ -414,6 +446,20 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
         type: 'toggle',
         tierSiActivo: 'L',
       },
+      { // ciclo 25
+        id: 'canales', preguntaEs: '¿En cuántos canales responde (web, WhatsApp, Slack…)?',
+        type: 'number', min: 1, max: 6, step: 1, unidadEs: 'canales',
+        tierMap: [{ maxVal: 1, tier: 'S' }, { maxVal: 2, tier: 'M' }, { maxVal: 4, tier: 'L' }, { maxVal: 6, tier: 'XL' }],
+      },
+      { // ciclo 25
+        id: 'integraciones', preguntaEs: '¿Con cuántos sistemas se conecta (CRM, agenda, inventario)?',
+        type: 'number', min: 0, max: 8, step: 1, unidadEs: 'sistemas',
+        tierMap: [{ maxVal: 0, tier: 'S' }, { maxVal: 2, tier: 'M' }, { maxVal: 5, tier: 'L' }, { maxVal: 8, tier: 'XL' }],
+      },
+      { // ciclo 25
+        id: 'volumen', preguntaEs: '¿Volumen de conversaciones esperado?', ayudaEs: 'El volumen define caché, límites y monitoreo; el costo de API lo paga el cliente.',
+        type: 'select', opciones: [{ valorEs: 'Bajo (< 500/mes)', tierHint: 'S' }, { valorEs: 'Medio (500–5.000/mes)', tierHint: 'M' }, { valorEs: 'Alto (> 5.000/mes)', tierHint: 'L' }],
+      },
     ],
   },
 
@@ -424,6 +470,14 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
         id: 'numFlujos', preguntaEs: '¿Cuántos flujos quieres automatizar?',
         type: 'number', min: 1, max: 15, step: 1, unidadEs: 'flujos',
         tierMap: [{ maxVal: 3, tier: 'S' }, { maxVal: 8, tier: 'M' }, { maxVal: 15, tier: 'L' }],
+      },
+      { // ciclo 25
+        id: 'datosPrivados', preguntaEs: '¿Procesa datos sensibles o privados?', ayudaEs: 'Exige anonimización, registros y controles adicionales.',
+        type: 'toggle', tierSiActivo: 'L',
+      },
+      { // ciclo 25
+        id: 'evaluacionIA', preguntaEs: '¿Qué nivel de evaluación de calidad?',
+        type: 'select', opciones: [{ valorEs: 'Pruebas manuales', tierHint: 'S' }, { valorEs: 'Set de casos automatizado', tierHint: 'M' }, { valorEs: 'Evaluación continua con métricas', tierHint: 'L' }],
       },
     ],
   },
@@ -445,6 +499,15 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
           { valorEs: 'Poco digitalizado (papel/excel)', tierHint: 'L' },
         ],
       },
+      { // ciclo 25
+        id: 'numSistemas', preguntaEs: '¿Cuántos sistemas o herramientas hay que conectar?',
+        type: 'number', min: 1, max: 10, step: 1, unidadEs: 'sistemas',
+        tierMap: [{ maxVal: 2, tier: 'S' }, { maxVal: 5, tier: 'M' }, { maxVal: 10, tier: 'L' }],
+      },
+      { // ciclo 25
+        id: 'aprobacionHumana', preguntaEs: '¿Requiere aprobación humana en el flujo?',
+        type: 'toggle', tierSiActivo: 'M',
+      },
     ],
   },
 
@@ -459,6 +522,15 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
           { valorEs: 'Mediana (20–100)', tierHint: 'M' },
           { valorEs: 'Grande (>100)', tierHint: 'L' },
         ],
+      },
+      { // ciclo 25
+        id: 'numAreas', preguntaEs: '¿Cuántas áreas o equipos se evalúan?',
+        type: 'number', min: 1, max: 8, step: 1, unidadEs: 'áreas',
+        tierMap: [{ maxVal: 1, tier: 'S' }, { maxVal: 3, tier: 'M' }, { maxVal: 8, tier: 'L' }],
+      },
+      { // ciclo 25
+        id: 'entregableIA', preguntaEs: '¿Qué entregable necesitas?',
+        type: 'select', opciones: [{ valorEs: 'Diagnóstico', tierHint: 'S' }, { valorEs: 'Diagnóstico + hoja de ruta', tierHint: 'M' }, { valorEs: 'Hoja de ruta + piloto', tierHint: 'L' }],
       },
     ],
   },
@@ -476,6 +548,15 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
           { valorEs: 'Con profundidad', tierHint: 'M' },
           { valorEs: 'Muy complejo (muchos elementos)', tierHint: 'L' },
         ],
+      },
+      { // ciclo 25
+        id: 'duracionVfx', preguntaEs: '¿Cuántos segundos de metraje con 3D?',
+        type: 'number', min: 2, max: 120, step: 1, unidadEs: 'segundos',
+        tierMap: [{ maxVal: 10, tier: 'S' }, { maxVal: 30, tier: 'M' }, { maxVal: 120, tier: 'L' }],
+      },
+      { // ciclo 25
+        id: 'tracking', preguntaEs: '¿La cámara se mueve?',
+        type: 'select', opciones: [{ valorEs: 'Cámara fija', tierHint: 'S' }, { valorEs: 'Tracking 2D', tierHint: 'M' }, { valorEs: 'Matchmove 3D', tierHint: 'L' }],
       },
     ],
   },
@@ -502,6 +583,15 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
         type: 'toggle',
         tierSiActivo: 'M',
       },
+      { // ciclo 25
+        id: 'duracionFx', preguntaEs: '¿Cuántos segundos de efecto?',
+        type: 'number', min: 2, max: 120, step: 1, unidadEs: 'segundos',
+        tierMap: [{ maxVal: 5, tier: 'S' }, { maxVal: 20, tier: 'M' }, { maxVal: 60, tier: 'L' }, { maxVal: 120, tier: 'XL' }],
+      },
+      { // ciclo 25
+        id: 'herramientaFx', preguntaEs: '¿Cómo se produce el efecto?', ayudaEs: 'Houdini da simulaciones físicas de mayor fidelidad; el tiempo real itera más rápido.',
+        type: 'select', opciones: [{ valorEs: 'Tiempo real (Unreal Niagara / EmberGen)', tierHint: 'S' }, { valorEs: 'Houdini prerenderizado', tierHint: 'L' }],
+      },
     ],
   },
 
@@ -522,6 +612,16 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
         type: 'toggle',
         tierSiActivo: 'L',
       },
+      { // ciclo 25
+        id: 'duracionMg', preguntaEs: '¿Duración total de la pieza?',
+        type: 'number', min: 5, max: 120, step: 1, unidadEs: 'segundos',
+        tierMap: [{ maxVal: 15, tier: 'S' }, { maxVal: 30, tier: 'M' }, { maxVal: 60, tier: 'L' }, { maxVal: 120, tier: 'XL' }],
+      },
+      { // ciclo 25
+        id: 'formatos', preguntaEs: '¿En cuántos formatos (16:9, 9:16, 1:1…)?',
+        type: 'number', min: 1, max: 5, step: 1, unidadEs: 'formatos',
+        tierMap: [{ maxVal: 1, tier: 'S' }, { maxVal: 3, tier: 'M' }, { maxVal: 5, tier: 'L' }],
+      },
     ],
   },
 
@@ -539,6 +639,10 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
         id: 'noai', preguntaEs: '¿Restricción NoAI (solo procedural)?',
         type: 'toggle',
       },
+      { // ciclo 25
+        id: 'resolucionTex', preguntaEs: '¿Resolución de las texturas?',
+        type: 'select', opciones: [{ valorEs: '2K', tierHint: 'S' }, { valorEs: '4K', tierHint: 'M' }, { valorEs: '8K', tierHint: 'L' }],
+      },
     ],
   },
 
@@ -549,6 +653,14 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
         id: 'numScripts', preguntaEs: '¿Cuántos scripts o herramientas?',
         type: 'number', min: 1, max: 20, step: 1, unidadEs: 'scripts',
         tierMap: [{ maxVal: 3, tier: 'S' }, { maxVal: 8, tier: 'M' }, { maxVal: 20, tier: 'L' }],
+      },
+      { // ciclo 25
+        id: 'dcc', preguntaEs: '¿En qué herramienta?',
+        type: 'select', opciones: [{ valorEs: 'Blender', tierHint: 'S' }, { valorEs: 'Houdini o Substance', tierHint: 'M' }, { valorEs: 'Varias herramientas (multi-DCC)', tierHint: 'L' }],
+      },
+      { // ciclo 25
+        id: 'interfaz', preguntaEs: '¿Necesita interfaz gráfica (panel / add-on)?',
+        type: 'toggle', tierSiActivo: 'M',
       },
     ],
   },

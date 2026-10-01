@@ -64,6 +64,49 @@ const dirExplosion = (home: THREE.Vector3, centro: THREE.Vector3, nombre: string
   return hashDir(nombre || String(len)).multiplyScalar(0.45 + 0.3 * semilla);
 };
 
+/**
+ * Ciclo 25 — explosión ORDENADA (sustituye a dirExplosion en el dron).
+ * Problema: en el GLB del HolyBro casi todas las meshes tienen la geometría
+ * "horneada" con position ≈ 0 → dirExplosion caía al hash por nombre y cada
+ * pieza salía en una dirección aleatoria (vista caótica).
+ * Ahora: la dirección sale del CENTRO GEOMÉTRICO real de cada pieza respecto al
+ * centro del modelo (ambos en mundo, en la pose de reposo), con estratificación
+ * vertical (capas superiores suben, inferiores bajan: lectura de despiece técnico)
+ * y magnitud proporcional a la distancia. Sin azar. Se cachea por mesh la primera
+ * vez (con la pieza en su home) y se convierte al espacio local del padre.
+ */
+function orderedExplodeOffset(m: THREE.Mesh, root: THREE.Object3D, factor: number): THREE.Vector3 {
+  let unit = m.userData.exUnit as THREE.Vector3 | undefined;
+  if (!unit) {
+    root.updateMatrixWorld(true);
+    let center = root.userData.exCenter as THREE.Vector3 | undefined;
+    let radius = root.userData.exRadius as number | undefined;
+    if (!center || radius === undefined) {
+      const box = new THREE.Box3().setFromObject(root);
+      center = box.getCenter(new THREE.Vector3());
+      radius = Math.max(1e-3, box.getSize(new THREE.Vector3()).length() / 2);
+      root.userData.exCenter = center; root.userData.exRadius = radius;
+    }
+    const g = m.geometry;
+    if (!g.boundingBox) g.computeBoundingBox();
+    const cWorld = g.boundingBox!.getCenter(new THREE.Vector3()).applyMatrix4(m.matrixWorld);
+    const d = cWorld.clone().sub(center);
+    const r = d.length() / radius;                      // 0 = centro · 1 = borde
+    const horiz = new THREE.Vector3(d.x, 0, d.z);
+    // capas: lo de arriba sube y lo de abajo baja (×1.6); lo periférico se abre en XZ
+    const dirW = horiz.multiplyScalar(1.0).add(new THREE.Vector3(0, d.y * 1.6, 0));
+    if (dirW.lengthSq() < 1e-8) dirW.set(0, 1, 0);      // pieza central: sube (pila)
+    dirW.normalize().multiplyScalar(radius * (0.25 + 0.75 * Math.min(1, r)));
+    // a espacio local del padre (anula la rotación/escala del modelo en ese instante)
+    const parent = m.parent ?? root;
+    const a0 = parent.worldToLocal(cWorld.clone());
+    const a1 = parent.worldToLocal(cWorld.clone().add(dirW));
+    unit = a1.sub(a0);
+    m.userData.exUnit = unit;
+  }
+  return unit.clone().multiplyScalar(factor);
+}
+
 export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface = 1, variantSel, variantSlots, finish = 'detallado', estilo = 2, hotspots = 0, lang = 'es', height = 290 }: {
   mode: PreviewMode;
   /** Slider continuo 1–5 (detail). */
@@ -399,37 +442,41 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         if (mat.envMapIntensity !== undefined) mat.envMapIntensity = v;
       });
     };
-    const applyLuzPreset = (idx: number) => {
-      if (idx === 0) {        // estudio: neutra fría, sombras definidas, rim notable
-        hemi.intensity = 0.5; hemi.color.setHex(0xffffff); hemi.groundColor.setHex(0xdde4ee);
-        key.intensity = 1.4; key.color.setHex(0xffffff); key.position.copy(keyHome);
-        rim.intensity = 1.1; rim.color.setHex(0xeaf2ff);
-        renderer.toneMappingExposure = 0.7;
-        scene.environmentIntensity = 0.12;
-        setEnv(0.55); applyDroneEnv(0.55);
-      } else if (idx === 1) { // natural: cálida dorada, suave y luminosa
-        hemi.intensity = 1.6; hemi.color.setHex(0xffd9a8); hemi.groundColor.setHex(0xe7dbc8);
-        key.intensity = 1.2; key.color.setHex(0xffd9a8); key.position.copy(keyHome);
-        rim.intensity = 0.35; rim.color.setHex(0xffe0b8);
-        renderer.toneMappingExposure = 1.5;
-        scene.environmentIntensity = 1.2;
-        setEnv(1.35); applyDroneEnv(1.35);
-      } else if (idx === 2) { // dramática: contraste fuerte, key baja, rim azul frío
-        hemi.intensity = 0.18; hemi.color.setHex(0xffffff); hemi.groundColor.setHex(0x2a2d33);
-        key.intensity = 4.2; key.color.setHex(0xffffff); key.position.set(keyHome.x, 0.5, keyHome.z);
-        rim.intensity = 1.2; rim.color.setHex(0x9ecbff);
-        renderer.toneMappingExposure = 0.75;
-        scene.environmentIntensity = 0.08;
-        setEnv(0.25); applyDroneEnv(0.25);
-      } else {                // neutral (sin preset activo)
-        hemi.intensity = 1.05; hemi.color.setHex(0xffffff); hemi.groundColor.setHex(0xdde4ee);
-        key.intensity = 1.4; key.color.setHex(0xffffff); key.position.copy(keyHome);
-        rim.intensity = 0.8; rim.color.setHex(0x9ecbff);
-        renderer.toneMappingExposure = 1.0;
-        scene.environmentIntensity = 0.85;
-        setEnv(0.9); applyDroneEnv(0.9);
-      }
+    // Ciclo 25 — presets reales y TRANSICIÓN SUAVE (microinteracción): el preset fija
+    // un objetivo y el loop interpola luces/entorno/exposición (~0,6 s) en vez de saltar.
+    //  0 estudio  : tres puntos clásicos (key suave alta, fill por hemisferio, rim blanco de contra).
+    //  1 natural  : hora dorada — sol cálido bajo y lateral + cielo azul de relleno.
+    //  2 dramática: clave baja — key dura rasante, casi sin ambiente, contra fría intensa.
+    // -1 neutral  : la luz base del preview.
+    type LuzT = { hI: number; hC: number; gC: number; kI: number; kC: number; kP: THREE.Vector3; rI: number; rC: number; rP: THREE.Vector3; exp: number; env: number; mat: number };
+    const rimHome = rim.position.clone();
+    const LUZ: Record<number, LuzT> = {
+      0: { hI: 0.55, hC: 0xffffff, gC: 0xd9dee6, kI: 2.1, kC: 0xffffff, kP: new THREE.Vector3(-3, 5, 4), rI: 2.2, rC: 0xffffff, rP: new THREE.Vector3(2.5, 3, -4), exp: 0.95, env: 0.45, mat: 0.6 },
+      1: { hI: 1.25, hC: 0xbcd6ff, gC: 0x8a7a63, kI: 2.6, kC: 0xffc48a, kP: new THREE.Vector3(5, 1.6, 2), rI: 0.9, rC: 0xffd7a8, rP: new THREE.Vector3(-4, 2, -3), exp: 1.15, env: 0.75, mat: 0.95 },
+      2: { hI: 0.08, hC: 0xffffff, gC: 0x1a1c20, kI: 5.2, kC: 0xfff1e0, kP: new THREE.Vector3(-4.5, 0.45, 1.5), rI: 3.0, rC: 0x7fb8ff, rP: new THREE.Vector3(3.5, 2.5, -3.5), exp: 0.85, env: 0.06, mat: 0.2 },
+      [-1]: { hI: 1.05, hC: 0xffffff, gC: 0xdde4ee, kI: 1.4, kC: 0xffffff, kP: keyHome.clone(), rI: 0.8, rC: 0x9ecbff, rP: rimHome.clone(), exp: 1.0, env: 0.85, mat: 0.9 },
     };
+    let luzTarget: LuzT | null = null;
+    let luzMat = 0.9;
+    const cTmp = new THREE.Color();
+    const applyLuzPreset = (idx: number) => { luzTarget = LUZ[idx] ?? LUZ[-1]; };
+    /** Un paso de interpolación hacia el preset objetivo (llamado por frame en variants). */
+    const stepLuz = (dt: number) => {
+      if (!luzTarget) return;
+      const k = 1 - Math.exp(-dt * 7);
+      const T = luzTarget;
+      hemi.intensity += (T.hI - hemi.intensity) * k;
+      hemi.color.lerp(cTmp.setHex(T.hC), k); hemi.groundColor.lerp(cTmp.setHex(T.gC), k);
+      key.intensity += (T.kI - key.intensity) * k; key.color.lerp(cTmp.setHex(T.kC), k); key.position.lerp(T.kP, k);
+      rim.intensity += (T.rI - rim.intensity) * k; rim.color.lerp(cTmp.setHex(T.rC), k); rim.position.lerp(T.rP, k);
+      renderer.toneMappingExposure += (T.exp - renderer.toneMappingExposure) * k;
+      scene.environmentIntensity += (T.env - scene.environmentIntensity) * k;
+      luzMat += (T.mat - luzMat) * k; setEnv(luzMat); applyDroneEnv(luzMat);
+    };
+    /** Ciclo 25: plano de corte en espacio del dron (local) y su copia en mundo por frame. */
+    const varClipLocal = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
+    const varClipPlane = varClipLocal.clone();
+    let varClipOn = false;
     let lastSlotsKey = '';
     let slotsDeformWanted = false;
 
@@ -760,11 +807,13 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       variantEdges.forEach(e => { e.visible = lineartOn; });
 
       // ── 4. corte transversal (clipping plane) ──
-      if (on('cortes-transversales')) {
-        const plane = new THREE.Plane(new THREE.Vector3(0, 0, -1), 0);
-        renderer.clippingPlanes = [plane];
+      varClipOn = on('cortes-transversales');
+      if (varClipOn) {
+        // ciclo 25: plano en coordenadas del DRON (se actualiza por frame en el loop) y solo
+        // clipping local: antes era un plano fijo del mundo y el dron giraba "a través" de él.
+        renderer.clippingPlanes = [];
         renderer.localClippingEnabled = true;
-        root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh && m.material) (m.material as THREE.Material).clippingPlanes = [plane]; });
+        root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh && m.material) { const mat = m.material as THREE.Material; mat.clippingPlanes = [varClipPlane]; mat.clipShadows = true; mat.side = THREE.DoubleSide; } });
       } else {
         renderer.clippingPlanes = [];
         root.traverse(o => { const m = o as THREE.Mesh; if (m.isMesh && m.material) (m.material as THREE.Material).clippingPlanes = []; });
@@ -1128,7 +1177,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
             if (!m.isMesh || !m.visible) return;
             const home = m.userData.assmHome as THREE.Vector3 | undefined;
             if (!home) return;
-            const target = home.clone().add(dirExplosion(home, hbCenter, m.name ?? String(m.id), 0.95).multiplyScalar(e));
+            const target = home.clone().add(orderedExplodeOffset(m, holybroReady!, 0.9).multiplyScalar(e)); // ciclo 25: despiece ordenado
             m.position.lerp(target, 0.12);
           });
         }
@@ -1241,7 +1290,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
                 if (!m.isMesh) return;
                 const home = m.userData.storyHome as THREE.Vector3 | undefined;
                 if (!home) return;
-                const target = home.clone().add(dirExplosion(home, storyCenter, m.name ?? String(m.id), 1.1).multiplyScalar(k));
+                const target = home.clone().add(orderedExplodeOffset(m, storyDroneReady!, 0.9).multiplyScalar(k)); // ciclo 25: despiece ordenado
                 m.position.copy(target);
               });
             }
@@ -1281,6 +1330,9 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         }
       }
       if (cur.mode === 'variants') {
+        stepLuz(dt); // ciclo 25: transición suave entre presets de luz
+        // ciclo 25: el corte transversal GIRA con el dron (plano en espacio del modelo)
+        if (varClipOn) { variantDroneRoot.updateMatrixWorld(true); varClipPlane.copy(varClipLocal).applyMatrix4(variantDroneRoot.matrixWorld); }
         if (cur.variantSlots) {
           // ciclo 6: slots sobre el drone HolyBro (frame + piezas extra desbloqueables)
           prod.visible = false;
@@ -1317,7 +1369,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
               if (!m.isMesh || !m.visible) return;
               const home = m.userData.variantHome as THREE.Vector3 | undefined;
               if (!home) return;
-              const target = home.clone().add(dirExplosion(home, new THREE.Vector3(), m.name ?? String(m.id), 0.7).multiplyScalar(e));
+              const target = home.clone().add(orderedExplodeOffset(m, variantDroneReady!, 0.75).multiplyScalar(e)); // ciclo 25: despiece ordenado
               m.position.lerp(target, 0.12);
             });
           }

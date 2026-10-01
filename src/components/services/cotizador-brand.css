@@ -17,8 +17,16 @@
   isolation: isolate;
 }
 
-/* Ciclo 24 — paleta "Instrumento" (ref. presentación de tesis): negro frío, tinta,
-   lima como señal técnica; el naranja sigue como acento en oscuro (oliva en claro).
+/* Ciclo 25 — SISTEMA DE COLOR "Ascua" (teoría aplicada):
+   1. Un solo tono de marca: naranja (~20°). Oscuro #FF7A3D; claro #C4400D (misma
+      familia, más profundo) para cumplir AA como TEXTO y como FONDO de botón (5,1:1 sobre blanco · 4,8:1 sobre el fondo).
+   2. Contrapunto COMPLEMENTARIO: azul (~200°) como "señal" técnica (foco, etiquetas,
+      barrido). Cálido sobre frío = contraste simultáneo: el naranja se ve limpio.
+      (La iteración clara anterior ponía naranja sobre papel beige: cálido sobre cálido,
+      análogo → apagado/"barroso". Por eso ahora los neutros claros son FRÍOS.)
+   3. Regla 60-30-10: 60 % neutros (fondo/superficies), 30 % tinta (texto navy/blanco
+      roto), 10 % naranja (acciones, precio, selección). El azul es <5 %: solo señales.
+   4. El naranja nunca se usa para estados de error (rojo propio) ni para texto largo.
    Fondo: retícula técnica + resplandor (sustituye el "confeti" de cubos) */
 .cx-root::before {
   content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
@@ -134,3 +142,12 @@
   background: linear-gradient(90deg, transparent, var(--cx-signal) 30%, var(--cx-accent) 70%, transparent);
   opacity: .8;
 }
+
+/* Ciclo 25 — tarjetas de selección múltiple: casilla visible + microinteracción */
+.cx-choice { transition: border-color .2s, background .2s, transform .2s var(--cx-ease) !important; }
+.cx-choice:hover { transform: translateY(-2px); }
+.cx-choice:active { transform: scale(.985); }
+.cx-check { position: absolute; top: 14px; right: 14px; width: 20px; height: 20px; border-radius: 6px;
+  display: grid; place-items: center; font: 700 12px/1 var(--cx-sans); color: var(--cx-on-accent);
+  border: 1.5px solid var(--cx-border-strong); background: transparent; transition: background .2s, border-color .2s, transform .25s var(--cx-ease); }
+.cx-check[data-on='true'] { background: var(--cx-accent); border-color: var(--cx-accent); transform: scale(1.08); }

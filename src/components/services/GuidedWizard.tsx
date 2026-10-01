@@ -19,7 +19,7 @@ import { BRAND } from '../../data/services/branding';
 import { VARIANT_SLOTS, SLOT_DEFAULT_COLORS, polyLabel } from './previewConstants';
 import LazyModelPreview from './LazyModelPreview';
 import type { PreviewMode, VariantSlotsState } from './previewConstants';
-import { TreeIcon, ChatIcon, MailIcon, GearIcon, InfoIcon, ExternalIcon } from './icons';
+import { TreeIcon, ChatIcon, MailIcon, GearIcon, InfoIcon, ExternalIcon, SparkIcon } from './icons';
 
 type Answers = Record<string, string | number | boolean>;
 
@@ -36,10 +36,15 @@ const branchEn = (id: string): BranchEn | undefined =>
   (TREE_EN.branches as Record<string, BranchEn | undefined>)[id];
 
 export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal = 0 }: { onComplete?: (plan: WizardQuotePlan, answers?: Record<string, string | number | boolean>) => void; onProgress?: (plan: WizardQuotePlan) => void; lang?: Lang; homeSignal?: number }) {
-  const [level, setLevel] = useState(1);
-  const [rootChoice, setRootChoice] = useState('');
-  const [subChoice, setSubChoice] = useState('');
-  const [answers, setAnswers] = useState<Answers>({});
+  // ciclo 25: el wizard se DESMONTA al abrir la cotización final; al volver con Atrás se
+  // remonta y su listener de popstate aún no existía → caía al paso 1 sin respuestas.
+  // Se hidrata el estado inicial desde history.state (fuente de verdad de la navegación).
+  const initHist = typeof window !== 'undefined' ? window.history.state : null;
+  const initOk = !!initHist && initHist.cx === 'cotizador' && (initHist.level === 2 || initHist.level === 3);
+  const [level, setLevel] = useState(initOk ? initHist.level : 1);
+  const [rootChoice, setRootChoice] = useState<string>(initOk ? initHist.rootChoice ?? 'web-3d' : '');
+  const [subChoice, setSubChoice] = useState<string>(initOk && initHist.level === 3 ? initHist.subChoice ?? '' : '');
+  const [answers, setAnswers] = useState<Answers>(initOk && initHist.level === 3 ? initHist.answers ?? {} : {});
   const [showAdvanced, setShowAdvanced] = useState(false);
   const en = lang === 'en';
   const W = EN.wizard;
@@ -51,7 +56,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
   useEffect(() => {
     if (level === 1) return;
     const state = level === 2
-      ? { cx: 'cotizador', level: 2 }
+      ? { cx: 'cotizador', level: 2, rootChoice } // ciclo 25: recordar la raíz (antes volvía siempre a web-3d)
       : { cx: 'cotizador', level: 3, rootChoice, subChoice, answers };
     const cur = window.history.state;
     if (cur && cur.cx === 'cotizador' && cur.level === state.level && !cur.config) {
@@ -74,7 +79,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
       const st = window.history.state;
       if (st && st.cx === 'cotizador') {
         if (st.level === 2) {
-          setLevel(2); setRootChoice('web-3d'); setSubChoice('');
+          setLevel(2); setRootChoice(st.rootChoice ?? 'web-3d'); setSubChoice('');
         } else if (st.level === 3) {
           setLevel(3); setRootChoice(st.rootChoice ?? 'web-3d'); setSubChoice(st.subChoice ?? ''); setAnswers(st.answers ?? {});
         } else if (st.config !== undefined) {
@@ -96,6 +101,18 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
       setLevel(1); setRootChoice(''); setSubChoice(''); setAnswers({}); setShowAdvanced(false);
     }
   }, [homeSignal]);
+
+  /** Ciclo 25: Atrás de la página. Usa el historial solo si la entrada anterior es del
+   *  cotizador; si no (p.ej. se entró directo), retrocede un paso internamente. */
+  const goBack = () => {
+    const st = typeof window !== 'undefined' ? window.history.state : null;
+    if (st && st.cx === 'cotizador' && (st.level === 2 || st.level === 3) && window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    if (level === 3) { setLevel(2); setSubChoice(''); }
+    else { setLevel(1); setRootChoice(''); setSubChoice(''); }
+  };
 
   const branch: TreeBranch | null = useMemo(() => {
     if (rootChoice === 'web-3d' && subChoice) return WEB3D_BRANCHES[subChoice] ?? null;
@@ -147,7 +164,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
               const t = optText('__root', o);
               return (
                 <button key={o.id}
-                  onClick={() => { setRootChoice(o.id); setLevel(o.id === 'no-se' ? 1 : 2); }}
+                  onClick={() => { setRootChoice(o.id); setAnswers({}); setLevel(o.id === 'no-se' ? 1 : 2); }}
                   className={`cx-option ds-anim ds-anim-${(i % 3) + 1}`}
                   style={{
                     display: 'flex', alignItems: 'flex-start', gap: 14, padding: '20px 22px',
@@ -184,7 +201,14 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
         <div style={{ paddingTop: 60, textAlign: 'center' }}>
           <h2 style={{ fontSize: 'clamp(1.8rem,3vw,2.4rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 8px' }}>{en ? W.ideaTitle : 'Cuéntame tu idea'}</h2>
           <p style={{ fontSize: 15, color: 'var(--cx-muted)', margin: '0 0 40px' }}>{en ? W.ideaSub : 'No necesitas saber cómo se llama — describe lo que imaginas.'}</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 14, maxWidth: 520, margin: '0 auto' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 14, maxWidth: 760, margin: '0 auto' }}>
+            {/* ciclo 25: el asistente con precios reales también como camino para indecisos */}
+            <button type="button" className="cx-option" onClick={() => window.dispatchEvent(new CustomEvent('cx-open-chat', { detail: { prompt: '¿Qué servicios hay?' } }))}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '28px 24px', background: 'var(--cx-card)', backdropFilter: 'blur(12px)', border: '1px solid var(--cx-accent-border)', borderRadius: 20, font: 'inherit', textAlign: 'center', cursor: 'pointer' }}>
+              <span className="cx-option-icon" style={{ color: 'var(--cx-accent)', display: 'flex' }}><SparkIcon size={24} /></span>
+              <strong style={{ fontSize: 17, fontWeight: 700, color: 'var(--cx-text)' }}>{en ? 'Ask the assistant' : 'Pregúntale al asistente'}</strong>
+              <span style={{ fontSize: 13, color: 'var(--cx-muted)' }}>{en ? 'Instant answers with real prices' : 'Respuestas al instante con precios reales'}</span>
+            </button>
             <a href={`https://wa.me/${BRAND.whatsappNumber}`} target='_blank' rel='noopener noreferrer' style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '28px 24px', background: 'var(--cx-card)', backdropFilter: 'blur(12px)', border: '1px solid var(--cx-border)', borderRadius: 20, textDecoration: 'none', font: 'inherit', textAlign: 'center' }}>
               <span style={{ color: 'var(--cx-accent)', display: 'flex' }}><ChatIcon size={30} /></span>
               <strong style={{ fontSize: 17, fontWeight: 700, color: 'var(--cx-text)' }}>{en ? W.whatsapp : 'WhatsApp'}</strong>
@@ -204,7 +228,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
       {/* ═══ NIVEL 2 (ciclo 24): ramas generadas del catálogo — video, imágenes, IA, otros ═══ */}
       {level === 2 && SERVICE_ROOTS[rootChoice] && (
         <div style={{ paddingTop: 40 }}>
-          <button onClick={() => { if (typeof window !== 'undefined') window.history.back(); }} className="cx-back"
+          <button onClick={goBack} className="cx-back"
             style={{ font: '500 14px inherit', color: 'var(--cx-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 20 }}>
             {en ? W.back : '← Atrás'}
           </button>
@@ -260,7 +284,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
       {/* ═══ NIVEL 2 (web-3d): ¿Qué tipo de experiencia? ═══ */}
       {level === 2 && rootChoice === 'web-3d' && (
         <div style={{ paddingTop: 40 }}>
-          <button onClick={() => { if (typeof window !== 'undefined') window.history.back(); }} className="cx-back"
+          <button onClick={goBack} className="cx-back"
             style={{ font: '600 14px inherit', color: 'var(--cx-accent)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 20 }}>{en ? W.back : '← Atrás'}</button>
           <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 8px' }}>
             {en ? W.l2Title : '¿Qué tipo de web con 3D?'}
@@ -271,7 +295,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
               const t = optText('__level2', o);
               return (
                 <button key={o.id}
-                  onClick={() => { setSubChoice(o.id); setLevel(3); }}
+                  onClick={() => { setSubChoice(o.id); setAnswers({}); setLevel(3); }} // ciclo 25: sin arrastrar respuestas de otra rama
                   className={`cx-option ds-anim ds-anim-${(i % 3) + 1}`}
                   style={{
                     display: 'flex', flexDirection: 'column', gap: 6, padding: '22px 20px',
@@ -295,7 +319,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
       {/* ═══ NIVEL 3: Preguntas específicas de la rama ═══ */}
       {level === 3 && branch && (
         <div style={{ paddingTop: 40 }}>
-          <button onClick={() => { if (typeof window !== 'undefined') window.history.back(); }} className="cx-back"
+          <button onClick={goBack} className="cx-back"
             style={{ font: '600 14px inherit', color: 'var(--cx-accent)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 20 }}>{en ? W.back : '← Atrás'}</button>
           <h2 style={{ fontSize: 'clamp(1.6rem, 3vw, 2.2rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 6px' }}>
             {en ? branchEn(branch.id)?.title ?? branch.title : branch.title}
@@ -518,16 +542,28 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
             const t = en
               ? { label: qEn?.options?.[o.id]?.label ?? o.label, desc: qEn?.options?.[o.id]?.desc ?? o.desc }
               : { label: o.label, desc: o.desc };
+            // ciclo 25: selección múltiple (ids separados por coma); las exclusivas limpian el resto
+            const picked = q.multi ? String(current ?? '').split(',').filter(Boolean) : [];
+            const isOn = q.multi ? picked.includes(o.id) : current === o.id;
+            const toggle = () => {
+              if (!q.multi) { onAnswer(q.id, o.id); return; }
+              const exclusives = new Set((q.options ?? []).filter(x => x.exclusive).map(x => x.id));
+              let next = isOn ? picked.filter(x => x !== o.id) : [...picked, o.id];
+              if (!isOn && o.exclusive) next = [o.id];
+              else if (!isOn) next = next.filter(x => !exclusives.has(x));
+              onAnswer(q.id, next.join(','));
+            };
             return (
-              <button key={o.id} onClick={() => onAnswer(q.id, o.id)}
+              <button key={o.id} onClick={toggle} aria-pressed={isOn} className="cx-choice"
                 style={{
-                  padding: '16px 18px', borderRadius: 16, font: 'inherit', cursor: 'pointer', textAlign: 'left',
-                  border: current === o.id ? '2px solid var(--cx-accent)' : '1px solid var(--cx-border)',
-                  background: current === o.id ? 'var(--cx-accent-soft)' : 'var(--cx-card-solid)',
+                  padding: '16px 18px', borderRadius: 16, font: 'inherit', cursor: 'pointer', textAlign: 'left', position: 'relative',
+                  border: isOn ? '2px solid var(--cx-accent)' : '1px solid var(--cx-border)',
+                  background: isOn ? 'var(--cx-accent-soft)' : 'var(--cx-card-solid)',
                   color: 'var(--cx-text)',
                   transition: 'border-color 0.2s, background 0.2s',
                 }}>
-                <div style={{ fontSize: 15, fontWeight: 600 }}>{t.label}</div>
+                {q.multi && <span className="cx-check" data-on={isOn} aria-hidden="true">{isOn ? '✓' : ''}</span>}
+                <div style={{ fontSize: 15, fontWeight: 600, paddingRight: q.multi ? 26 : 0 }}>{t.label}</div>
                 {t.desc && <div style={{ fontSize: 12, color: 'var(--cx-muted)', marginTop: 2, lineHeight: 1.4 }}>{t.desc}</div>}
               </button>
             );
@@ -584,7 +620,8 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
           }} />
         </div>
       )}
-      <details style={{ marginTop: 12 }}>
+      {/* ciclo 25: solo se muestra si hay detalles técnicos que de verdad mueven el precio */}
+      {(q.advancedOptions || []).length > 0 && <details style={{ marginTop: 12 }}>
         <summary style={{ cursor: 'pointer', fontSize: 12, color: 'var(--cx-faint)', listStyle: 'none', userSelect: 'none' }}>
           {en ? EN.wizard.detalles : '+ Detalles técnicos (opcional)'}
         </summary>
@@ -604,19 +641,21 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
                 )}
                 {adv.type === 'slider' && (() => {
                   const av = answers[adv.id];
-                  return (
+                  const shownAdv = typeof av === 'number' ? av : adv.defaultFrom?.(answers) ?? adv.defaultValue ?? adv.min ?? 1;
+                  return (<>
+                    <div style={{ font: '600 13px var(--cx-mono, monospace)', color: 'var(--cx-accent)' }}>{shownAdv}{adv.unit ? ` ${adv.unit}` : ''}</div>
                     <input type='range' min={adv.min || 1} max={adv.max || 5} step={adv.step || 1}
-                      value={typeof av === 'number' ? av : adv.defaultValue ?? adv.min ?? 1}
+                      value={typeof av === 'number' ? av : adv.defaultFrom?.(answers) ?? adv.defaultValue ?? adv.min ?? 1}
                       onChange={e => onAnswer(adv.id, Number(e.target.value))}
+                      aria-label={aEn?.label ?? adv.label}
                       style={{ width: '100%', height: 4, accentColor: 'var(--cx-accent)' }} />
-                  );
+                  </>);
                 })()}
               </div>
             );
           })}
-          {!(q.advancedOptions || []).length && <span style={{ fontSize: 12, color: 'var(--cx-faint)' }}>{en ? EN.wizard.sinOpciones : 'Sin opciones para esta pregunta.'}</span>}
         </div>
-      </details>
+      </details>}
     </div>
   );
 }

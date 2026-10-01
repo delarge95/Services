@@ -44,3 +44,30 @@ describe('ciclo 24 — catálogo ampliado al wizard guiado', () => {
     }
   });
 });
+
+describe('ciclo 25 — interactivo multi-selección y detalles técnicos', () => {
+  const total = (a: Record<string, string | number | boolean>) =>
+    planFromTreeAnswers('web-3d', 'interactivo', a).picks.reduce((s, p) => s + computeQuoteContinuous(p.serviceId, p.vals, 'COP')!.totalPoint, 0);
+
+  it('hotspots + desarmar cotiza el visor con hotspots Y el despiece (RTA-06)', () => {
+    const plan = planFromTreeAnswers('web-3d', 'interactivo', { 'tipo-interactividad': 'hotspots,desarmar' });
+    expect(plan.picks.map((p) => p.serviceId)).toEqual(['WEB-01', 'RTA-06']);
+    expect(plan.picks[0].vals.numHotspots).toBe(8);
+    expect(total({ 'tipo-interactividad': 'hotspots,desarmar' })).toBeGreaterThan(total({ 'tipo-interactividad': 'hotspots' }));
+  });
+
+  it('configurar + desarmar → app (WEB-04) + despiece', () => {
+    const ids = planFromTreeAnswers('web-3d', 'interactivo', { 'tipo-interactividad': 'configurar,desarmar' }).picks.map((p) => p.serviceId);
+    expect(ids).toEqual(['WEB-04', 'RTA-06']);
+  });
+
+  it('los detalles técnicos mueven el precio', () => {
+    const base = { 'tipo-interactividad': 'hotspots' };
+    expect(total({ ...base, 'num-hotspots': 30 })).toBeGreaterThan(total({ ...base, 'num-hotspots': 2 }));
+    expect(total({ ...base, 'datos-hotspots': 'cms' })).toBeGreaterThan(total(base));
+    const d = { 'tipo-interactividad': 'desarmar' };
+    expect(total({ ...d, 'profundidad-despiece': 'cotas' })).toBeGreaterThan(total(d));
+    const m = { 'modelo-existente': 'no-crear' };
+    expect(total({ ...m, 'carga-poligonal': 'high' })).toBeGreaterThan(total({ ...m, 'carga-poligonal': 'ultra-low' }));
+  });
+});

@@ -14,6 +14,8 @@ export interface TreeOption {
   serviceIds?: string[];
   /** Preguntas del siguiente nivel (si hay más ramas). */
   children?: TreeQuestion[];
+  /** Ciclo 25: en preguntas multi, esta opción excluye a las demás (p.ej. "Solo rotarlo"). */
+  exclusive?: boolean;
 }
 
 export interface AdvancedOption {
@@ -22,6 +24,8 @@ export interface AdvancedOption {
   help?: string;
   type: 'slider' | 'select';
   min?: number; max?: number; step?: number; unit?: string; defaultValue?: number;
+  /** Ciclo 25: default dependiente de otras respuestas (mostrado = cotizado). */
+  defaultFrom?: (answers: Record<string, string | number | boolean | undefined>) => number | undefined;
   options?: Array<{ id: string; label: string }>;
 }
 
@@ -32,6 +36,8 @@ export interface TreeQuestion {
   help?: string;
   /** Tipo de control: cards, slider, toggle, select. */
   type: 'cards' | 'slider' | 'toggle' | 'select';
+  /** Ciclo 25: tarjetas de selección MÚLTIPLE (respuesta = ids separados por coma). */
+  multi?: boolean;
   /** Opciones si es cards/select. */
   options?: TreeOption[];
   /** Configuración si es slider. */
@@ -172,8 +178,8 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
         slider: { min: 1, max: 5, step: 0.1, unit: 'nivel', preview: 'detail-level', continuous: true,
           tierMap: [{max:1,tier:'XS'},{max:2,tier:'S'},{max:3,tier:'M'},{max:4,tier:'L'},{max:5,tier:'XL'}] },
         advancedOptions: [
-          { id: 'num-materiales', label: 'Cantidad de materiales', help: 'Cada material único añade trabajo.', type: 'slider', min:1, max:15, step:1, defaultValue:2 },
-          { id: 'nivel-fidelidad', label: 'Fidelidad visual', help: '1 = estilizado, 5 = réplica exacta del real.', type: 'slider', min:1, max:5, step:1, defaultValue:3 },
+          { id: 'num-materiales', label: 'Cantidad de materiales', help: 'Cada material único añade trabajo. Por defecto según el acabado.', type: 'slider', min:1, max:10, step:1, unit: 'materiales',
+            defaultFrom: (a) => ({ simple: 1, variado: 3, detallado: 6 } as Record<string, number>)[String(a['materiales-acabado'] ?? '')] ?? 2 },
           { id: 'carga-poligonal', label: 'Carga poligonal objetivo', help: 'Para web: bajo o medio.', type: 'select',
             options: [{id:'ultra-low',label:'Ultra bajo (<10k) móvil antiguo'},{id:'low',label:'Bajo (10-50k) móvil moderno'},{id:'mid',label:'Medio (50-200k) PC'},{id:'high',label:'Alto (200k+) solo desktop'}] },
           { id: 'texturas-res', label: 'Resolución de texturas', help: '1K-2K suficiente para web.', type: 'select',
@@ -239,12 +245,22 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
       {
         id: 'tipo-interactividad',
         question: '¿Qué quieres que pueda hacer el visitante?',
+        help: 'Puedes elegir varias.',
         type: 'cards',
+        multi: true,
         options: [
-          { id: 'rotar', label: 'Solo rotarlo y verlo', desc: 'Vista 360° sin más interacción' },
+          { id: 'rotar', label: 'Solo rotarlo y verlo', desc: 'Vista 360° sin más interacción', exclusive: true },
           { id: 'hotspots', label: 'Ver información de partes', desc: 'Click en una pieza → mostrar nombre, specs o descripción' },
           { id: 'configurar', label: 'Configurar el producto', desc: 'Cambiar colores, materiales, tamaños, opciones' },
           { id: 'desarmar', label: 'Desarmarlo / explorarlo', desc: 'Vista explosionada, abrir/cerrar partes, cortes' },
+        ],
+        // ciclo 25: detalles técnicos que SÍ mueven el precio (WEB-01 / RTA-06)
+        advancedOptions: [
+          { id: 'num-hotspots', label: 'Cantidad de puntos de información', help: 'Cada punto con texto/ficha propia. Por defecto 8.', type: 'slider', min: 1, max: 30, step: 1, defaultValue: 8 },
+          { id: 'datos-hotspots', label: 'Origen de la información', help: 'Conectar a un CMS o API suma integración.', type: 'select',
+            options: [{ id: 'fijos', label: 'Fija (la escribimos nosotros)' }, { id: 'cms', label: 'Dinámica (CMS / API)' }] },
+          { id: 'profundidad-despiece', label: 'Profundidad del despiece', help: 'Solo aplica si eligió desarmar.', type: 'select',
+            options: [{ id: 'simple', label: 'Explosión simple' }, { id: 'etapas', label: 'Varias etapas con etiquetas' }, { id: 'cotas', label: 'Con cotas y medición' }] },
         ],
       },
       {
