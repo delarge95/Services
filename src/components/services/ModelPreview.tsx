@@ -90,6 +90,8 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
   const mountRef = useRef<HTMLDivElement>(null);
   const uiRef = useRef<HTMLDivElement>(null);
   const badgeRef = useRef<HTMLDivElement>(null);
+  /** Ciclo 24: indicador de carga del GLB del modo actual (microinteracción). */
+  const loaderRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef({ mode, detail, pieces, story, surface, variantSel, variantSlots, finish, estilo, hotspots, lang });
   stateRef.current = { mode, detail, pieces, story, surface, variantSel, variantSlots, finish, estilo, hotspots, lang };
@@ -516,7 +518,15 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
         hemi.color.setHex(0xffffff); hemi.groundColor.setHex(0xdde4ee);
         key.color.setHex(0xffffff); rim.color.setHex(0x9ecbff); rim.intensity = 0.8;
       }
-      if (m === 'surface') startAnvil();
+      if (m === 'surface') {
+        // ciclo 24: el yunque (acero pulido, clearcoat) se leía negro sobre el fondo
+        // oscuro — más entorno, key más fuerte y un rim cálido que dibuja la silueta.
+        scene.environmentIntensity = 1.6; // el material del GLB usa el entorno de escena
+        key.intensity = 2.3;
+        rim.color.setHex(0xffb58a); rim.intensity = 1.8;
+        renderer.toneMappingExposure = 1.15;
+        startAnvil();
+      }
       if (m === 'story') startStoryDrone();
       if (m === 'variants') startVariantDrone();
     };
@@ -1011,6 +1021,16 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       const cur = stateRef.current;
 
       if (cur.mode !== group.userData.mode) { group.userData.mode = cur.mode; applyModeVisibility(cur.mode); }
+      // ciclo 24: barra de escaneo mientras el modelo real del modo aún carga
+      if (loaderRef.current) {
+        const m = cur.mode;
+        const waiting = (m === 'surface' && !anvilReady)
+          || ((m === 'finish' || m === 'assembly') && !holybroReady)
+          || (m === 'story' && !storyDroneReady)
+          || (m === 'variants' && !!cur.variantSlots && !variantDroneReady);
+        const want = waiting ? '1' : '0';
+        if (loaderRef.current.style.opacity !== want) loaderRef.current.style.opacity = want;
+      }
 
       if (cur.mode === 'detail') {
         const d = Math.max(1, Math.min(5, cur.detail));
@@ -1415,8 +1435,19 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
            colapsa a 100% en ≤640px; el ResizeObserver del preview recalcula
            el tamaño del canvas cuando el alto cambia. */
         @media (max-width: 640px) { .cx-preview-mount { height: 240px !important; } }
+        .cx-preview-loader { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none;
+          display: flex; flex-direction: column; align-items: center; gap: 8px; transition: opacity .45s ease;
+          font: 500 10.5px var(--cx-mono, ui-monospace, monospace); letter-spacing: .18em; text-transform: uppercase; color: var(--cx-muted); }
+        .cx-preview-loader i { position: relative; display: block; width: 120px; height: 2px; background: var(--cx-soft); overflow: hidden; border-radius: 2px; }
+        .cx-preview-loader i::after { content: ''; position: absolute; inset: 0; width: 40%;
+          background: linear-gradient(90deg, transparent, var(--cx-signal, var(--cx-accent)), transparent); animation: cx-scan 1.1s cubic-bezier(.22,1,.36,1) infinite; }
+        @keyframes cx-scan { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+        @media (prefers-reduced-motion: reduce) { .cx-preview-loader i::after { animation: none; } }
       `}</style>
       <div ref={mountRef} className="cx-preview-mount" style={{ width: '100%', height, cursor: 'grab' }} aria-hidden="true" />
+      <div ref={loaderRef} className="cx-preview-loader" role="status" aria-live="polite" style={{ opacity: 1 }}>
+        <span>{lang === 'en' ? 'Loading 3D model' : 'Cargando modelo 3D'}</span><i />
+      </div>
       <div ref={uiRef} style={{
         position: 'absolute', top: 6, right: 6, fontSize: 11, fontWeight: 600, color: 'var(--cx-muted)',
         fontVariantNumeric: 'tabular-nums', opacity: 0, transition: 'opacity 0.3s', pointerEvents: 'none',

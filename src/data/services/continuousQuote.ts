@@ -215,3 +215,21 @@ function quoteAtPosition(svc: ServiceDef, p: number, currency: Currency, opts: N
     spreadPct: Math.round(s * 100),
   };
 }
+
+/** Línea del desglose: horas y costo por subtarea en la posición cotizada (ciclo 24, chatbot). */
+export interface BreakdownLine { id: string; nameEs: string; rateClass: RateClass; hours: number; rate: number; cost: number }
+
+/** Desglose transparente del punto central: Σ horas × tarifa cotizada por subtarea. */
+export function breakdownContinuous(serviceId: string, vals: Vals, currency: Currency): BreakdownLine[] {
+  const svc = SERVICES.find((s) => s.id === serviceId);
+  if (!svc) return [];
+  const p = Math.max(derivarPosicion(serviceId, vals), minSupportedPosition(svc));
+  return svc.subtasks
+    .filter((st) => !st.optional)
+    .map((st) => {
+      const hours = midHoursAt(st.hours, p);
+      const rate = quotedRate(st.rateClass as RateClass, currency);
+      return { id: st.id, nameEs: st.nameEs, rateClass: st.rateClass as RateClass, hours: Math.round(hours * 10) / 10, rate, cost: Math.round(hours * rate) };
+    })
+    .filter((l) => l.hours > 0);
+}

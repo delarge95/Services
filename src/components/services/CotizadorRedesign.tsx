@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { SERVICES } from '../../data/services/catalogCore';
 import { getRateCard } from '../../data/services/formula';
 import { computeQuoteContinuous, minContinuousPrice } from '../../data/services/continuousQuote';
+import { CotizadorChat } from './chat/CotizadorChat';
 import { LAUNCH_DISCOUNT } from '../../data/services/rateCard';
 import { SERVICE_VARIABLES, derivarTier, recommendedValue } from '../../data/services/serviceVariables';
 import type { ServiceVariable } from '../../data/services/serviceVariables';
@@ -575,59 +576,70 @@ export function CotizadorRedesign() {
 
   return (
     <div className="cx-root" data-theme={theme} style={{ minHeight: '100vh', background: 'var(--cx-bg)', position: 'relative' }}>
-      <WebGLBackground dark={theme === 'dark'} />
+      {/* ciclo 24: fondo WebGL de cubos retirado del montaje (canvas a pantalla completa
+          renderizando oculto); el fondo es la retícula CSS de cotizador-brand.css. */}
+      {/* ciclo 24: asistente con cotización real, montado en toda la página (antes solo en DirectCotizador, que no se usa) */}
+      <CotizadorChat
+        section={svc ? 'variables' : livePlan?.picks[0] ? 'variables' : 'inicio'}
+        serviceName={svc ? svc.nameEs : livePlan?.picks[0]?.labelEs}
+        serviceId={svc ? svc.id : livePlan?.picks[0]?.serviceId}
+        vals={svc ? vals : livePlan?.picks[0]?.vals}
+        currency={currency}
+        totalRange={quote ? `${quote.totalMin}–${quote.totalMax} ${currency}` : undefined}
+        contactEmail={BRAND.contactEmail}
+      />
       <style>{`
         .cx-root {
-          --cx-bg: #f7f5f0;
-          --cx-card: rgba(255,255,255,0.78);
+          --cx-bg: #f3f4f0;
+          --cx-card: rgba(255,255,255,0.82);
           --cx-card-solid: #ffffff;
-          --cx-tile: #efece5;
-          --cx-text: #17150f;
-          --cx-muted: #6b665c;
-          --cx-faint: #9c968a;
-          --cx-border: rgba(23,21,15,0.08);
-          --cx-border-strong: rgba(23,21,15,0.16);
-          --cx-soft: rgba(23,21,15,0.06);
-          --cx-accent: #c2410c;
-          --cx-accent-hover: #9a3412;
-          --cx-accent-soft: rgba(234,88,12,0.10);
-          --cx-accent-border: rgba(194,65,12,0.32);
-          --cx-shadow-card: 0 1px 2px rgba(23,21,15,0.04), 0 8px 24px -12px rgba(23,21,15,0.10);
-          --cx-shadow-hover: 0 2px 4px rgba(23,21,15,0.05), 0 18px 40px -18px rgba(194,65,12,0.35);
-          --cx-shadow-knob: 0 2px 8px rgba(23,21,15,0.18);
-          --cx-obj-shadow: rgba(23,21,15,0.14);
+          --cx-tile: #e9ebe4;
+          --cx-text: #0b0d10;
+          --cx-muted: #5b6068;
+          --cx-faint: #8a8f96;
+          --cx-border: rgba(11,13,16,0.09);
+          --cx-border-strong: rgba(11,13,16,0.18);
+          --cx-soft: rgba(11,13,16,0.06);
+          --cx-accent: #3f6212;
+          --cx-accent-hover: #365314;
+          --cx-accent-soft: rgba(77,124,15,0.10);
+          --cx-accent-border: rgba(63,98,18,0.34);
+          --cx-shadow-card: 0 1px 2px rgba(11,13,16,0.04), 0 8px 24px -12px rgba(11,13,16,0.12);
+          --cx-shadow-hover: 0 2px 4px rgba(11,13,16,0.05), 0 18px 40px -18px rgba(63,98,18,0.40);
+          --cx-shadow-knob: 0 2px 8px rgba(11,13,16,0.18);
+          --cx-obj-shadow: rgba(11,13,16,0.14);
           --cx-on-accent: #ffffff;
-          --cx-accent-2: #e11d48;
-          --cx-glow: rgba(234,88,12,0.14);
-          --cx-glow-2: rgba(14,165,233,0.08);
-          --cx-grid: rgba(23,21,15,0.045);
+          --cx-accent-2: #a16207;
+          --cx-glow: rgba(77,124,15,0.10);
+          --cx-glow-2: rgba(161,98,7,0.07);
+          --cx-grid: rgba(11,13,16,0.05); --cx-signal: #4d7c0f; --cx-signal-soft: rgba(77,124,15,0.10);
         }
         /* Blindaje ciclo 10b: las variables oscuras aplican si html ya sabe el
            tema (script inline) aunque el data-theme del div llegue tarde. */
         html[data-cx-theme='dark'] .cx-root, .cx-root[data-theme='dark'] {
-          --cx-bg: #0b0a09;
-          --cx-card: rgba(24,22,20,0.72);
-          --cx-card-solid: #191715;
-          --cx-tile: #24211e;
-          --cx-text: #f4f1ea;
-          --cx-muted: #a59f94;
-          --cx-faint: #6f6a61;
-          --cx-border: rgba(244,241,234,0.08);
-          --cx-border-strong: rgba(244,241,234,0.16);
-          --cx-soft: rgba(244,241,234,0.10);
+          --cx-bg: #07080a;
+          --cx-card: rgba(14,16,19,0.78);
+          --cx-card-solid: #0e1013;
+          --cx-tile: #16191d;
+          --cx-text: #edeee8;
+          --cx-muted: #9ba0a6;
+          --cx-faint: #767c85;
+          --cx-border: rgba(237,238,232,0.09);
+          --cx-border-strong: rgba(237,238,232,0.17);
+          --cx-soft: rgba(237,238,232,0.08);
           --cx-accent: #ff7a3d;
           --cx-accent-hover: #ff9566;
-          --cx-accent-soft: rgba(255,122,61,0.13);
+          --cx-accent-soft: rgba(255,122,61,0.12);
           --cx-accent-border: rgba(255,122,61,0.38);
-          --cx-shadow-card: 0 1px 0 rgba(255,255,255,0.03) inset, 0 12px 32px -16px rgba(0,0,0,0.7);
-          --cx-shadow-hover: 0 1px 0 rgba(255,255,255,0.05) inset, 0 24px 48px -20px rgba(255,122,61,0.30);
+          --cx-shadow-card: 0 1px 0 rgba(237,238,232,0.03) inset, 0 12px 32px -16px rgba(0,0,0,0.8);
+          --cx-shadow-hover: 0 1px 0 rgba(237,238,232,0.05) inset, 0 24px 48px -22px rgba(255,122,61,0.28);
           --cx-shadow-knob: 0 2px 8px rgba(0,0,0,0.6);
-          --cx-obj-shadow: rgba(0,0,0,0.65);
-          --cx-on-accent: #1a0a02;
-          --cx-accent-2: #ffb547;
-          --cx-glow: rgba(255,122,61,0.16);
-          --cx-glow-2: rgba(94,224,255,0.07);
-          --cx-grid: rgba(244,241,234,0.035);
+          --cx-obj-shadow: rgba(0,0,0,0.7);
+          --cx-on-accent: #07080a;
+          --cx-accent-2: #ffb224;
+          --cx-glow: rgba(255,122,61,0.10);
+          --cx-glow-2: rgba(200,245,63,0.06);
+          --cx-grid: rgba(237,238,232,0.045); --cx-signal: #c8f53f; --cx-signal-soft: rgba(200,245,63,0.12);
         }
         * { box-sizing: border-box; }
         body { margin: 0; font-family: 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif; }
@@ -713,8 +725,8 @@ export function CotizadorRedesign() {
             <HomeIcon size={16} />
           </button>
           <button onClick={goHome}
-            style={{ fontSize: 16, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.02em', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit' }}>
-            {BRAND.name}
+            style={{ fontSize: 16, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.02em', background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <span className="cx-brand-mark" aria-hidden="true" />{BRAND.name}
           </button>
         </div>
         <div className="cx-nav-right" style={{ display: 'flex', gap: 16, alignItems: 'center' }}>

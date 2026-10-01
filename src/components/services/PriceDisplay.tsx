@@ -49,9 +49,12 @@ export function PriceDisplay({ min, max, currency, lang = 'es' }: {
     <div className="cx-price">
       <div className="cx-price-row">
         <span className="cx-price-num">{fmt(currency, minA, lang)}</span>
-        <span className="cx-price-dash">—</span>
-        <span className="cx-price-num">{fmt(currency, maxA, lang)}</span>
-        <span className="cx-price-cur">{currency}</span>
+        {/* ciclo 24: si el mínimo de proyecto colapsa la banda, una sola cifra (no "400k — 400k") */}
+        {max > min ? (<>
+          <span className="cx-price-dash">—</span>
+          <span className="cx-price-num">{fmt(currency, maxA, lang)}</span>
+        </>) : null}
+        <span className="cx-price-cur">{currency}{max > min ? '' : (lang === 'es' ? ' · proyecto mínimo' : ' · minimum project')}</span>
         {delta && (
           <span key={delta.k} className={`cx-price-delta ${delta.v > 0 ? 'up' : 'down'}`}>
             {delta.v > 0 ? '+' : '−'}{fmt(currency, Math.abs(delta.v), lang)}

@@ -126,6 +126,7 @@ export const TREE_EN = {
     'video-anim': { label: 'A video or animation', desc: 'I need a 3D video, product animation or VFX' },
     'imagenes': { label: 'Product images', desc: 'Photoreal renders for e-commerce, print or marketing' },
     'ia': { label: 'Artificial intelligence', desc: 'Chatbot, automation or AI integration for my business' },
+    'otros': { label: 'Technical services & support', desc: 'CAD to web, animated models, tools, consulting or monthly support' },
     'no-se': { label: 'Not sure', desc: 'Show me the full catalog with filters' },
   },
   level2: {

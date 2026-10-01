@@ -37,6 +37,8 @@ export interface TreeQuestion {
   /** Configuración si es slider. */
   slider?: {
     min: number; max: number; step: number; unit: string;
+    /** Ciclo 24: valor inicial (mostrado = cotizado) para ramas generadas del catálogo. */
+    defaultValue?: number;
     /** Slider progresivo con puntos de snapping en los enteros (1.1). */
     continuous?: boolean;
     /** Preview 3D: qué modelo mostrar que cambie con el valor. */
@@ -84,7 +86,7 @@ export const SLIDER_DEFAULTS: Record<string, number> = {
 
 /** Valor inicial de un slider sin respuesta. */
 export const sliderDefault = (q: Pick<TreeQuestion, 'id' | 'slider'>): number =>
-  SLIDER_DEFAULTS[q.id] ?? q.slider?.min ?? 0;
+  SLIDER_DEFAULTS[q.id] ?? q.slider?.defaultValue ?? q.slider?.min ?? 0;
 
 export const requiereModelado = (a: A): boolean =>
   a['modelo-existente'] === 'no-crear' || a['modelo-para-scroll'] === 'no' ||
@@ -120,6 +122,13 @@ export const ROOT_OPTIONS: TreeOption[] = [
     label: 'Inteligencia artificial',
     desc: 'Chatbot, automatización o integración de IA en mi negocio',
     icon: 'chip',
+  },
+  // ciclo 24: el resto del catálogo (CAD, modelos animados, catálogo 3D, soporte…)
+  {
+    id: 'otros',
+    label: 'Servicios técnicos y soporte',
+    desc: 'CAD a web, modelos animados, herramientas, consultoría o soporte mensual',
+    icon: 'gear',
   },
   {
     id: 'no-se',

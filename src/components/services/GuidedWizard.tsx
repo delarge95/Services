@@ -9,6 +9,7 @@ import type { CSSProperties, Dispatch, SetStateAction } from 'react';
 import { ROOT_OPTIONS, WEB3D_LEVEL2, WEB3D_BRANCHES, sliderDefault } from '../../data/services/decisionTree';
 import type { TreeQuestion, TreeBranch, TreeOption } from '../../data/services/decisionTree';
 import { planFromTreeAnswers } from '../../data/services/treeToQuote';
+import { SERVICE_ROOTS, buildServiceBranch } from '../../data/services/serviceBranches';
 import type { WizardQuotePlan } from '../../data/services/treeToQuote';
 import { EN, TREE_EN } from '../../data/services/i18n';
 import type { Lang } from '../../data/services/i18n';
@@ -98,6 +99,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
 
   const branch: TreeBranch | null = useMemo(() => {
     if (rootChoice === 'web-3d' && subChoice) return WEB3D_BRANCHES[subChoice] ?? null;
+    if (SERVICE_ROOTS[rootChoice] && subChoice) return buildServiceBranch(subChoice);
     return null;
   }, [rootChoice, subChoice]);
 
@@ -155,6 +157,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
                     transition: 'transform 0.25s cubic-bezier(0.25,0.8,0.4,1), box-shadow 0.25s',
                   }}
                 >
+                  <span className="cx-option-idx" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
                   <span className="cx-option-icon" style={{ color: 'var(--cx-accent)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                     <TreeIcon name={o.icon ?? ''} size={22} />
                   </span>
@@ -198,7 +201,41 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
       )}
 
       {/* RAMAS PRÓXIMAMENTE (video / imágenes / IA): contacto directo, sin dead-end */}
-      {level === 2 && rootChoice !== 'web-3d' && (
+      {/* ═══ NIVEL 2 (ciclo 24): ramas generadas del catálogo — video, imágenes, IA, otros ═══ */}
+      {level === 2 && SERVICE_ROOTS[rootChoice] && (
+        <div style={{ paddingTop: 40 }}>
+          <button onClick={() => { if (typeof window !== 'undefined') window.history.back(); }} className="cx-back"
+            style={{ font: '500 14px inherit', color: 'var(--cx-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 20 }}>
+            {en ? W.back : '← Atrás'}
+          </button>
+          <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 8px' }}>
+            {SERVICE_ROOTS[rootChoice].title}
+          </h2>
+          <p style={{ fontSize: 15, color: 'var(--cx-muted)', margin: '0 0 32px' }}>{SERVICE_ROOTS[rootChoice].subtitle}</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
+            {SERVICE_ROOTS[rootChoice].options.map((o, i) => (
+              <button key={o.id}
+                onClick={() => { setSubChoice(o.id); setAnswers({}); setLevel(3); }}
+                className={`cx-option ds-anim ds-anim-${(i % 3) + 1}`}
+                style={{
+                  display: 'flex', flexDirection: 'column', gap: 6, padding: '22px 20px',
+                  background: 'var(--cx-card)', backdropFilter: 'blur(12px)',
+                  border: '1px solid var(--cx-border)', borderRadius: 20,
+                  cursor: 'pointer', font: 'inherit', textAlign: 'left',
+                }}>
+                <span className="cx-option-idx" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+                <span className="cx-option-icon" style={{ color: 'var(--cx-accent)', display: 'flex', marginBottom: 8 }}>
+                  <TreeIcon name={o.icon ?? ''} size={22} />
+                </span>
+                <strong style={{ fontSize: 17, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.01em' }}>{o.label}</strong>
+                <span style={{ fontSize: 13, color: 'var(--cx-muted)', lineHeight: 1.45 }}>{o.desc}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {level === 2 && rootChoice !== 'web-3d' && !SERVICE_ROOTS[rootChoice] && (
         <div style={{ paddingTop: 60, textAlign: 'center' }}>
           <h2 style={{ fontSize: 'clamp(1.8rem,3vw,2.4rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 8px' }}>{en ? W.comingTitle : 'Te cotizo esto personalmente'}</h2>
           <p style={{ fontSize: 15, color: 'var(--cx-muted)', margin: '0 auto 40px', maxWidth: 440, lineHeight: 1.5 }}>
@@ -242,6 +279,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
                     border: '1px solid var(--cx-border)', borderRadius: 20,
                     cursor: 'pointer', font: 'inherit', textAlign: 'left',
                   }}>
+                  <span className="cx-option-idx" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
                   <span className="cx-option-icon" style={{ color: 'var(--cx-accent)', display: 'flex', marginBottom: 8 }}>
                     <TreeIcon name={o.icon ?? ''} size={22} />
                   </span>

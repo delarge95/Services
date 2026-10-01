@@ -120,6 +120,19 @@ export function quickRepliesFor(ctx: ChatContext): string[] {
   return ['¿Por qué este precio?', '¿Qué pasa después?', '¿Y si es urgente?'];
 }
 
+/** Ciclo 24: id de la intención general reconocida (para priorizar pago/proceso/contacto
+ *  sobre el asistente de cotización cuando la pregunta no es de precio). */
+export function matchIntentId(input: string): string | null {
+  const q = normalize(input);
+  let best: { id: string; score: number } | null = null;
+  for (const intent of INTENTS) {
+    let score = 0;
+    for (const k of intent.kw) if (q.includes(normalize(k))) score += k.includes(' ') ? 3 : 1;
+    if (score > 0 && (!best || score > best.score)) best = { id: intent.id, score };
+  }
+  return best?.id ?? null;
+}
+
 /** Devuelve la respuesta al input; null si no reconoce (el widget usa su fallback). */
 export function matchIntent(input: string, ctx: ChatContext): string | null {
   const q = normalize(input);

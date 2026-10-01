@@ -169,7 +169,29 @@ export function ExternalIcon({ size = 24, color }: IconProps) {
 }
 
 /** Mapa nombre→icono para los datos del árbol (decisionTree usa ids, no emojis). */
+/** Ciclo 24 — ramas del catálogo ampliado. */
+export function CubeIcon({ size = 24, color }: IconProps) {
+  return (
+    <svg {...base(size)} color={color}>
+      <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" />
+      <path d="M4 7.5l8 4.5 8-4.5M12 12v9" />
+    </svg>
+  );
+}
+export function LayersIcon({ size = 24, color }: IconProps) {
+  return (
+    <svg {...base(size)} color={color}>
+      <path d="M12 3l9 5-9 5-9-5z" />
+      <path d="M3 13l9 5 9-5" />
+    </svg>
+  );
+}
+
 const ICONS: Record<string, (p: IconProps) => ReactElement> = {
+  cube: CubeIcon,
+  layers: LayersIcon,
+  info: InfoIcon,
+  sparkles: SparkIcon,
   globe: GlobeIcon,
   film: FilmIcon,
   camera: CameraIcon,

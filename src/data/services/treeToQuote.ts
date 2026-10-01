@@ -12,6 +12,7 @@
  */
 
 import { SLIDER_DEFAULTS } from './decisionTree';
+import { SERVICE_ROOTS, serviceValsFromAnswers, buildServiceBranch } from './serviceBranches';
 
 export type Val = number | string | boolean;
 
@@ -262,8 +263,17 @@ function planWebApp(a: Answers): WizardQuotePlan {
  * con derivarTier + computeQuote.
  */
 export function planFromTreeAnswers(rootChoice: string, subChoice: string, answers: Answers): WizardQuotePlan {
+  // Ciclo 24: ramas generadas desde el catálogo (video, imágenes, IA, otros).
+  if (SERVICE_ROOTS[rootChoice]) {
+    if (!subChoice || !buildServiceBranch(subChoice)) return { rootChoice, subChoice, picks: [] };
+    const opt = SERVICE_ROOTS[rootChoice].options.find((o) => o.id === subChoice);
+    return {
+      rootChoice, subChoice,
+      picks: [{ serviceId: subChoice, role: 'principal', labelEs: opt?.label ?? subChoice, vals: serviceValsFromAnswers(subChoice, answers) }],
+    };
+  }
   if (rootChoice !== 'web-3d') {
-    // Ramas fuera de web-3d aún no tienen wizard: devolver plan vacío.
+    // Ramas sin wizard: devolver plan vacío.
     return { rootChoice, subChoice, picks: [] };
   }
   switch (subChoice) {
