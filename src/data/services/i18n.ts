@@ -8,6 +8,7 @@
  */
 
 import type { Currency } from './types';
+import { VARS_EN_MORE, CATALOG_EN_MORE } from './i18nMore';
 
 export type Lang = 'es' | 'en';
 export const LANG_CURRENCY: Record<Lang, Currency> = { es: 'COP', en: 'USD' };
@@ -380,3 +381,10 @@ export const EXTRA_NOTAS_EN: Record<string, string> = {
   'Tu archivo (escaneo o fotos) se reconstruye como modelo optimizado para web.': 'Your file (scan or photos) is rebuilt as a web-optimized model.',
   'El despiece interactivo se agrega como mecánica sobre el asset (RTA-06) — lo afinamos por chat.': 'The interactive exploded view is added as mechanics on the asset (RTA-06) — we fine-tune it by chat.',
 };
+
+// ─── Ciclo 30: fusión ADITIVA de las traducciones que faltaban (i18nMore.ts) ───
+for (const [sid, vars] of Object.entries(VARS_EN_MORE)) {
+  VARS_EN[sid] = VARS_EN[sid] ?? {};
+  for (const [vid, t] of Object.entries(vars)) if (!VARS_EN[sid][vid]) VARS_EN[sid][vid] = t;
+}
+for (const [sid, t] of Object.entries(CATALOG_EN_MORE)) if (!CATALOG_EN[sid]) CATALOG_EN[sid] = t;

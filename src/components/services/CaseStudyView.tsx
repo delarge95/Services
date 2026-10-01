@@ -6,6 +6,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { CaseStudy } from '../../data/services/caseStudies';
+import { MiniDeck } from './MiniDeck';
 
 type Tab = 'steps' | 'videos' | 'facts';
 
@@ -27,9 +28,17 @@ function LoopVideo({ src, poster, label }: { src: string; poster: string; label:
   );
 }
 
-export function CaseStudyView({ cs, lang = 'es' }: { cs: CaseStudy; lang?: 'es' | 'en' }) {
+export function CaseStudyView({ cs: csEs, lang = 'es' }: { cs: CaseStudy; lang?: 'es' | 'en' }) {
+  // ciclo 30: textos en el idioma del visitante (las imágenes/videos/cifras son las mismas)
+  const e = lang === 'en' ? csEs.en : undefined;
+  const cs: CaseStudy = e ? {
+    ...csEs, title: e.title, subtitle: e.subtitle, source: e.source,
+    steps: csEs.steps?.map((st, i) => ({ ...st, title: e.steps?.[i]?.[0] ?? st.title, text: e.steps?.[i]?.[1] ?? st.text })),
+    videos: csEs.videos?.map((vd, i) => ({ ...vd, label: e.videos?.[i] ?? vd.label })),
+    facts: csEs.facts?.map((f, i) => ({ ...f, label: e.facts?.[i] ?? f.label })),
+  } : csEs;
   const tabs: Tab[] = [cs.steps?.length ? 'steps' : null, cs.videos?.length ? 'videos' : null, cs.facts?.length ? 'facts' : null].filter(Boolean) as Tab[];
-  const [tab, setTab] = useState<Tab>(tabs[0]);
+  const [tab, setTab] = useState<Tab | undefined>(tabs[0]);
   const [step, setStep] = useState(0);
   const [hold, setHold] = useState(0);
   const n = cs.steps?.length ?? 0;
@@ -86,6 +95,7 @@ export function CaseStudyView({ cs, lang = 'es' }: { cs: CaseStudy; lang?: 'es' 
           {tabs.map((t) => <button key={t} type="button" role="tab" aria-selected={tab === t} className="cs-tab" onClick={() => setTab(t)}>{L[t]}</button>)}
         </div>
       )}
+      {cs.deck && <MiniDeck lang={lang} liveUrl={cs.liveUrl} />}
       {tab === 'steps' && cur && (
         <div role="tabpanel">
           <div className="cs-stage"><img key={cur.img} src={cur.img} alt={cur.title} loading="lazy" /></div>

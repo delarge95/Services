@@ -17,6 +17,8 @@ export interface CotizadorChatProps extends ChatContext {
   currency?: Currency;
   serviceId?: string;
   vals?: Record<string, number | string | boolean>;
+  /** Ciclo 30: idioma del visitante (UI del chat y respuestas). */
+  lang?: 'es' | 'en';
 }
 
 /**
@@ -40,11 +42,19 @@ export function CotizadorChat(props: CotizadorChatProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const aiEnabled = !!CHAT_ENDPOINT;
+  const en = props.lang === 'en';
+  const L = en
+    ? { badge: 'QUESTIONS?', open: 'Open estimate assistant', head: 'Assistant · real prices', title: 'Chat your estimate', close: 'Close assistant', dialog: 'Estimate assistant',
+        typing: 'Typing', ai: 'AI · verified figures', basic: 'Basic mode', send: 'Send', ph: 'E.g. how much is a 30-second video?', input: 'Message for the assistant',
+        privacy: 'AI-powered (Google Gemini). Do not share sensitive personal data.' }
+    : { badge: '¿DUDAS?', open: 'Abrir asistente de cotización', head: 'Asistente · precios reales', title: 'Cotiza conversando', close: 'Cerrar asistente', dialog: 'Asistente de cotización',
+        typing: 'Escribiendo', ai: 'IA · cifras verificadas', basic: 'Modo básico', send: 'Enviar', ph: 'Ej.: ¿cuánto cuesta un video de 30 segundos?', input: 'Mensaje para el asistente',
+        privacy: CHAT_PRIVACY_NOTE };
 
   const ctx: ChatContext = useMemo(() => ({ ...props, contactEmail: CONTACT_EMAIL }), [props]);
 
   useEffect(() => {
-    if (open && msgs.length === 0) setMsgs([{ role: 'bot', text: greetingFor(ctx.section, ctx.serviceName) }]);
+    if (open && msgs.length === 0) setMsgs([{ role: 'bot', text: greetingFor(ctx.section, ctx.serviceName, en) }]);
     if (open) setTimeout(() => inputRef.current?.focus(), 120);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -78,7 +88,7 @@ export function CotizadorChat(props: CotizadorChatProps) {
 
   /** Modo básico (determinista). Actualiza la memoria del último servicio. */
   const basic = (clean: string): Msg => {
-    const r = basicReply(clean, { currency: props.currency ?? 'COP', serviceId: props.serviceId, vals: props.vals, lastServiceId: lastSvc.current, lastVals: lastVals.current });
+    const r = basicReply(clean, { currency: props.currency ?? 'COP', serviceId: props.serviceId, vals: props.vals, lastServiceId: lastSvc.current, lastVals: lastVals.current, lang: props.lang });
     if (r.serviceId) {
       lastVals.current = r.serviceId === lastSvc.current ? { ...lastVals.current, ...(r.vals ?? {}) } : { ...(r.vals ?? {}) };
       lastSvc.current = r.serviceId;
@@ -96,7 +106,7 @@ export function CotizadorChat(props: CotizadorChatProps) {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal,
         body: JSON.stringify({
           messages: history.slice(-12).map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', text: m.text })),
-          context: { currency: props.currency ?? 'COP', serviceId: props.serviceId ?? lastSvc.current, vals: props.vals },
+          context: { currency: props.currency ?? 'COP', serviceId: props.serviceId ?? lastSvc.current, vals: props.vals, lang: props.lang ?? 'es' },
         }),
       });
       const data = (await res.json()) as { reply?: string; actions?: OpenQuoteAction[]; fallback?: boolean };
@@ -134,8 +144,8 @@ export function CotizadorChat(props: CotizadorChatProps) {
   const last = msgs[msgs.length - 1];
   const chips = last?.role === 'bot' && last.chips?.length ? last.chips.slice(0, 4)
     : props.serviceId
-      ? ['¿Por qué este precio?', '¿Qué incluye?', '¿Cómo lo hago más barato?']
-      : ['¿Qué servicios hay?', 'Video de producto de 30 segundos', '¿Cuánto cuesta un chatbot?', ...quickRepliesFor(ctx).slice(2, 3)];
+      ? (en ? ['Why this price?', "What's included?", 'How can I make it cheaper?'] : ['¿Por qué este precio?', '¿Qué incluye?', '¿Cómo lo hago más barato?'])
+      : (en ? ['What services do you offer?', '30-second product video', 'How much is a chatbot?'] : ['¿Qué servicios hay?', 'Video de producto de 30 segundos', '¿Cuánto cuesta un chatbot?', ...quickRepliesFor(ctx).slice(2, 3)]);
 
   return (
     <>
@@ -174,19 +184,19 @@ export function CotizadorChat(props: CotizadorChatProps) {
         @media (prefers-reduced-motion: reduce) { .cx-chat-panel, .cx-chat-msg, .cx-chat-typing i { animation: none; } }
       `}</style>
       {!open && (
-        <button className="cx-chat-fab" data-noprint onClick={() => setOpen(true)} aria-label="Abrir asistente de cotización">
+        <button className="cx-chat-fab" data-noprint onClick={() => setOpen(true)} aria-label={L.open}>
           <MessageCircle size={22} />
-          <span className="cx-chat-badge">¿DUDAS?</span>
+          <span className="cx-chat-badge">{L.badge}</span>
         </button>
       )}
       {open && (
-        <div className="cx-chat-panel" role="dialog" aria-label="Asistente de cotización" data-noprint>
+        <div className="cx-chat-panel" role="dialog" aria-label={L.dialog} data-noprint>
           <div className="cx-chat-head">
             <div>
-              <small>Asistente · precios reales{aiEnabled ? ' · IA' : ''}</small>
-              <strong style={{ fontSize: 14 }}>{props.serviceName ?? 'Cotiza conversando'}</strong>
+              <small>{L.head}{aiEnabled ? (en ? ' · AI' : ' · IA') : ''}</small>
+              <strong style={{ fontSize: 14 }}>{props.serviceName ?? L.title}</strong>
             </div>
-            <button onClick={() => setOpen(false)} aria-label="Cerrar asistente"
+            <button onClick={() => setOpen(false)} aria-label={L.close}
               style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--cx-muted)', lineHeight: 1 }}>×</button>
           </div>
 
@@ -199,21 +209,21 @@ export function CotizadorChat(props: CotizadorChatProps) {
                     {m.actions.map((a, k) => <button key={k} type="button" className="cx-chat-action" onClick={() => go(a)}>{a.label} →</button>)}
                   </div>
                 )}
-                {m.role === 'bot' && m.source && <span className="cx-chat-src">{m.source === 'ai' ? 'IA · cifras verificadas' : 'Modo básico'}</span>}
+                {m.role === 'bot' && m.source && <span className="cx-chat-src">{m.source === 'ai' ? L.ai : L.basic}</span>}
               </div>
             ))}
-            {typing && <div className="cx-chat-typing" aria-label="Escribiendo"><i /><i /><i /></div>}
+            {typing && <div className="cx-chat-typing" aria-label={L.typing}><i /><i /><i /></div>}
           </div>
 
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', padding: '8px 12px 0' }}>
             {chips.map((c) => <button key={c} className="cx-chat-chip" onClick={() => void send(c)}>{c}</button>)}
           </div>
 
-          {aiEnabled && <div style={{ padding: '6px 12px 0', fontSize: 10.5, color: 'var(--cx-faint)' }}>{CHAT_PRIVACY_NOTE}</div>}
+          {aiEnabled && <div style={{ padding: '6px 12px 0', fontSize: 10.5, color: 'var(--cx-faint)' }}>{L.privacy}</div>}
           <form onSubmit={(e) => { e.preventDefault(); void send(input); }} style={{ display: 'flex', gap: 8, padding: 12 }}>
             <input ref={inputRef} className="cx-chat-input" value={input} onChange={(e) => setInput(e.target.value)} maxLength={600}
-              placeholder="Ej.: ¿cuánto cuesta un video de 30 segundos?" aria-label="Mensaje para el asistente" />
-            <button type="submit" className="cx-chat-send" disabled={typing}>Enviar</button>
+              placeholder={L.ph} aria-label={L.input} />
+            <button type="submit" className="cx-chat-send" disabled={typing}>{L.send}</button>
           </form>
         </div>
       )}
@@ -221,7 +231,12 @@ export function CotizadorChat(props: CotizadorChatProps) {
   );
 }
 
-function greetingFor(section: ChatContext['section'], serviceName?: string): string {
+function greetingFor(section: ChatContext['section'], serviceName?: string, en = false): string {
+  if (en) {
+    if (section === 'inicio') return 'Hi! Tell me what you want to achieve or ask a price with your quantities — e.g. “30-second product video” — and I will answer with the real figure from the estimator and a link to fine-tune it.';
+    if (section === 'variables') return `You are configuring ${serviceName ?? 'a service'}. I can break down the price, tell you how to lower it, what is included, or estimate other quantities.`;
+    return 'Questions about your estimate? Ask me about the breakdown, timelines, process or files.';
+  }
   if (section === 'inicio') {
     return '¡Hola! Cuéntame qué quieres lograr o pregúntame un precio con tus cantidades —por ejemplo “video de producto de 30 segundos”— y te respondo con la cifra real del cotizador y un enlace para ajustarlo.';
   }

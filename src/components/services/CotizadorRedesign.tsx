@@ -4,6 +4,7 @@
  * Dos modos: guiado + catálogo. Mínimo texto, máximo impacto visual.
  */
 
+import { NAME_ES_DISPLAY, SERVICE_ROOTS_EN } from '../../data/services/i18nMore';
 import './cotizador-brand.css';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import * as THREE from 'three';
@@ -47,6 +48,8 @@ const WIZARD_INFORMED: Record<string, string[]> = {
 };
 
 type Val = number | string | boolean;
+/** Ciclo 30: etiqueta EN de un servicio de las ramas generadas. */
+const SERVICE_ROOTS_EN_LABEL = (id: string): string | undefined => Object.values(SERVICE_ROOTS_EN).map((r) => r.options[id]?.label).find(Boolean);
 type Urgency = 'none' | '72h' | '24h';
 
 /** Solo Web 3D — el enfoque del negocio. */
@@ -177,7 +180,7 @@ function ServiceCard({ svc, currency, onPick, index, lang }: {
       <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--cx-accent)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
         {lang === 'en' ? EN.families[svc.family] ?? svc.family : svc.family === 'web-3d' ? 'Web 3D' : svc.family}
       </span>
-      <strong style={{ fontSize: 17, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.01em', lineHeight: 1.3 }}>{lang === 'en' ? (CATALOG_EN[svc.id]?.name ?? svc.nameEs) : svc.nameEs}</strong>
+      <strong style={{ fontSize: 17, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.01em', lineHeight: 1.3 }}>{lang === 'en' ? (CATALOG_EN[svc.id]?.name ?? svc.nameEs) : NAME_ES_DISPLAY[svc.id] ?? svc.nameEs}</strong>
       <span style={{ fontSize: 13, color: 'var(--cx-muted)', lineHeight: 1.4 }}>{lang === 'en' ? (CATALOG_EN[svc.id]?.unit ?? svc.unitEs) : svc.unitEs}</span>
       {desde != null && (
         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--cx-text)', marginTop: 6 }}>
@@ -592,7 +595,7 @@ export function CotizadorRedesign() {
     return b;
   }, [wizardDraft, lang]);
 
-  const svcName = svc ? (lang === 'en' ? CATALOG_EN[svc.id]?.name ?? svc.nameEs : svc.nameEs) : '';
+  const svcName = svc ? (lang === 'en' ? CATALOG_EN[svc.id]?.name ?? svc.nameEs : NAME_ES_DISPLAY[svc.id] ?? svc.nameEs) : '';
   // ── Ciclo 11: DESGLOSE EXACTO para el deep link de WhatsApp (y email) —
   // encabezado con id, una línea por servicio (nombre, código, nivel, rango
   // COP/USD), total proyecto con bundle, pago sugerido, entrega conservadora,
@@ -629,10 +632,11 @@ export function CotizadorRedesign() {
       {/* ciclo 24: asistente con cotización real, montado en toda la página (antes solo en DirectCotizador, que no se usa) */}
       <CotizadorChat
         section={svc ? 'variables' : livePlan?.picks[0] ? 'variables' : 'inicio'}
-        serviceName={svc ? svc.nameEs : livePlan?.picks[0]?.labelEs}
+        serviceName={svc ? (lang === 'en' ? CATALOG_EN[svc.id]?.name ?? svc.nameEs : NAME_ES_DISPLAY[svc.id] ?? svc.nameEs) : livePlan?.picks[0] ? (lang === 'en' ? EXTRA_LABELS_EN[livePlan.picks[0].labelEs] ?? SERVICE_ROOTS_EN_LABEL(livePlan.picks[0].serviceId) ?? livePlan.picks[0].labelEs : livePlan.picks[0].labelEs) : undefined}
         serviceId={svc ? svc.id : livePlan?.picks[0]?.serviceId}
         vals={svc ? vals : livePlan?.picks[0]?.vals}
         currency={currency}
+        lang={lang}
         totalRange={quote ? `${quote.totalMin}–${quote.totalMax} ${currency}` : undefined}
         contactEmail={BRAND.contactEmail}
       />
@@ -843,7 +847,7 @@ export function CotizadorRedesign() {
                 style={{ alignSelf: 'flex-start', font: '600 14px inherit', color: 'var(--cx-accent)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 8 }}>
                 {lang === 'es' ? '← Cambiar servicio' : EN.changeService}
               </button>
-              <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: 0 }}>{lang === 'en' ? (CATALOG_EN[svc.id]?.name ?? svc.nameEs) : svc.nameEs}</h2>
+              <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: 0 }}>{lang === 'en' ? (CATALOG_EN[svc.id]?.name ?? svc.nameEs) : NAME_ES_DISPLAY[svc.id] ?? svc.nameEs}</h2>
 
               {/* #6: 'Editar detalles' despliega el menú anterior (wizard) con
                   todas las configuraciones hechas y las respuestas conservadas */}

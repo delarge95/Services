@@ -8,6 +8,7 @@
  * se rechazan con un error explícito (la IA debe preguntar en vez de adivinar).
  * Salidas JSON-serializables (viajan del worker al modelo).
  */
+import { NAME_ES_DISPLAY } from '../../../data/services/i18nMore';
 import { SERVICES } from '../../../data/services/catalogCore';
 import { SERVICE_VARIABLES } from '../../../data/services/serviceVariables';
 import { serviceValsFromAnswers, SERVICE_ROOTS } from '../../../data/services/serviceBranches';
@@ -30,7 +31,7 @@ export const fmtMoney = (c: Currency, v: number) =>
 
 export const displayName = (id: string): string =>
   Object.values(SERVICE_ROOTS).flatMap((r) => r.options).find((o) => o.id === id)?.label
-  ?? SERVICES.find((s) => s.id === id)?.nameEs ?? id;
+  ?? NAME_ES_DISPLAY[id] ?? SERVICES.find((s) => s.id === id)?.nameEs ?? id;
 
 export function lineOf(id: string): string {
   return rootOf(id) ?? (WEB3D_IDS.includes(id) ? 'web-3d' : 'otros');

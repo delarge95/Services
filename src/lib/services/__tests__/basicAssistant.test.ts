@@ -58,7 +58,7 @@ describe('ciclo 26 — modo básico reforzado', () => {
   it('R6: memoria del último servicio', () => {
     const r = basicReply('¿y con 10 imágenes?', { ...ctx, lastServiceId: 'RND-01' });
     expect(r.serviceId).toBe('RND-01');
-    expect(r.text).toMatch(/numImagenes: 10/);
+    expect(r.text).toMatch(/10 imágenes/);
   });
   it('más barato / por qué / incluye / comparar / líneas', () => {
     expect(basicReply('¿cómo lo hago más barato?', { ...ctx, lastServiceId: 'AI-01' }).text).toMatch(/ahorra/);
@@ -82,7 +82,7 @@ describe('ciclo 26 — opciones en lenguaje natural', () => {
     expect(extractOptions('RND-01', 'renders solo IA')).toMatchObject({ pipelineImagen: 'Solo IA (generativa, sin modelo 3D)' });
   });
   it('la cotización usa las opciones detectadas', () => {
-    expect(basicReply('video de producto de 30 segundos en 4K', { currency: 'COP' }).text).toMatch(/resolucionVideo: 4K/);
+    expect(basicReply('video de producto de 30 segundos en 4K', { currency: 'COP' }).text).toMatch(/30 segundos, 4K/);
   });
 });
 
@@ -93,5 +93,35 @@ describe('ciclo 26 — memoria de valores', () => {
     const r = basicReply('¿cómo lo hago más barato?', { currency: 'COP', lastServiceId: first.serviceId, lastVals: first.vals });
     expect(r.text).toMatch(/canales/i);
     for (const m of r.text.match(/\$\s?[\d.]+/g) ?? []) expect(Number(m.replace(/[^\d]/g, '')) % 1000).toBe(0);
+  });
+});
+
+describe('ciclo 30 — modo básico en inglés (sin mezclar idiomas)', () => {
+  const en = { currency: 'USD' as const, lang: 'en' as const };
+  const SPANISH = /[áéíóúñ¿¡]|\b(con|tus|datos|sale en|días hábiles|incluye|cotizar|qué)\b/i;
+  it.each([
+    'How much is a 30 second product video in 4K?',
+    'how much for a chatbot on my website with 3 channels',
+    'what services do you offer?',
+    'Artificial intelligence',
+    'A 3D website',
+    'how does payment work?',
+    'tell me a joke',
+  ])('%s → respuesta en inglés', (q) => {
+    const r = basicReply(q, en);
+    expect(r.text, r.text).not.toMatch(SPANISH);
+    for (const a of r.actions) expect(a.label, a.label).not.toMatch(SPANISH);
+  });
+  it('entiende cantidades y opciones en inglés', () => {
+    const r = basicReply('How much is a 30 second product video in 4K?', en);
+    expect(r.text).toMatch(/30 seconds, 4K/);
+    expect(r.text).toMatch(/US\$|\$/);
+  });
+  it('why / cheaper / include en inglés', () => {
+    const ctx = { ...en, lastServiceId: 'AI-01', lastVals: { canales: 3 } };
+    for (const q of ['why this price?', 'how can I make it cheaper?', "what's included?"]) {
+      const r = basicReply(q, ctx);
+      expect(r.text, r.text).not.toMatch(SPANISH);
+    }
   });
 });

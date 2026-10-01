@@ -62,7 +62,8 @@ export type DiagramKind = 'timeline' | 'channels' | 'integrations' | 'dataflow' 
 
 const C = { line: 'var(--cx-border-strong)', text: 'var(--cx-muted)', acc: 'var(--cx-accent)', sig: 'var(--cx-signal, var(--cx-accent))', tile: 'var(--cx-tile)' };
 
-export function Diagram({ kind, value, max = 10, answers }: { kind: DiagramKind; value?: number | string | boolean; max?: number; answers?: Record<string, unknown> }) {
+export function Diagram({ kind, value, max = 10, answers, lang = 'es' }: { kind: DiagramKind; value?: number | string | boolean; max?: number; answers?: Record<string, unknown>; lang?: Lang }) {
+  const en = lang === 'en';
   const n = typeof value === 'number' ? value : Number(value) || 0;
   const box = { width: '100%', height: 150, display: 'block' } as const;
   if (kind === 'timeline') {
@@ -70,7 +71,7 @@ export function Diagram({ kind, value, max = 10, answers }: { kind: DiagramKind;
     const shots = Number(answers?.numShots ?? 0) || Math.max(1, Math.min(8, Math.round(n / 10)));
     const w = Math.max(8, Math.min(100, (n / max) * 100));
     return (
-      <svg viewBox="0 0 400 120" style={box} role="img" aria-label={`Línea de tiempo: ${n} ${max > 20 ? 'segundos' : ''}`}>
+      <svg viewBox="0 0 400 120" style={box} role="img" aria-label={`${en ? 'Timeline' : 'Línea de tiempo'}: ${n} ${max > 20 ? (en ? 'seconds' : 'segundos') : ''}`}>
         <line x1="20" y1="70" x2="380" y2="70" stroke={C.line} strokeWidth="2" />
         {Array.from({ length: 9 }, (_, i) => <line key={i} x1={20 + i * 45} y1="64" x2={20 + i * 45} y2="76" stroke={C.line} />)}
         <rect x="20" y="52" width={(360 * w) / 100} height="36" rx="6" fill={C.acc} opacity="0.18" style={{ transition: 'width .4s cubic-bezier(.22,1,.36,1)' }} />
@@ -82,10 +83,11 @@ export function Diagram({ kind, value, max = 10, answers }: { kind: DiagramKind;
     );
   }
   if (kind === 'channels' || kind === 'integrations') {
-    const labels = kind === 'channels' ? ['Web', 'WhatsApp', 'Slack', 'Teams', 'Email', 'App'] : ['CRM', 'Agenda', 'Inventario', 'ERP', 'Docs', 'Pagos', 'Soporte', 'Analítica'];
+    const labels = kind === 'channels' ? ['Web', 'WhatsApp', 'Slack', 'Teams', 'Email', 'App']
+      : en ? ['CRM', 'Calendar', 'Inventory', 'ERP', 'Docs', 'Payments', 'Support', 'Analytics'] : ['CRM', 'Agenda', 'Inventario', 'ERP', 'Docs', 'Pagos', 'Soporte', 'Analítica'];
     const k = Math.max(kind === 'channels' ? 1 : 0, Math.min(labels.length, n));
     return (
-      <svg viewBox="0 0 400 150" style={box} role="img" aria-label={`${k} ${kind === 'channels' ? 'canales' : 'sistemas conectados'}`}>
+      <svg viewBox="0 0 400 150" style={box} role="img" aria-label={`${k} ${kind === 'channels' ? (en ? 'channels' : 'canales') : (en ? 'connected systems' : 'sistemas conectados')}`}>
         <circle cx="200" cy="75" r="26" fill={C.acc} opacity="0.9" />
         <text x="200" y="80" textAnchor="middle" fill="var(--cx-on-accent)" fontSize="12" fontWeight="700">IA</text>
         {labels.map((l, i) => {
@@ -107,10 +109,12 @@ export function Diagram({ kind, value, max = 10, answers }: { kind: DiagramKind;
   }
   if (kind === 'dataflow') {
     const src = String(value ?? 'estaticos');
-    const nodes = src === 'api' ? ['API externa', 'Sincronización', 'Visor 3D'] : src === 'cms' ? ['CMS', 'Contenido', 'Visor 3D'] : ['Archivo JSON', 'Visor 3D'];
+    const nodes = en
+      ? (src === 'api' ? ['External API', 'Sync', '3D viewer'] : src === 'cms' ? ['CMS', 'Content', '3D viewer'] : ['JSON file', '3D viewer'])
+      : (src === 'api' ? ['API externa', 'Sincronización', 'Visor 3D'] : src === 'cms' ? ['CMS', 'Contenido', 'Visor 3D'] : ['Archivo JSON', 'Visor 3D']);
     const step = 360 / nodes.length;
     return (
-      <svg viewBox="0 0 400 110" style={box} role="img" aria-label={`Flujo de datos: ${nodes.join(' → ')}`}>
+      <svg viewBox="0 0 400 110" style={box} role="img" aria-label={`${en ? 'Data flow' : 'Flujo de datos'}: ${nodes.join(' → ')}`}>
         {nodes.map((t, i) => (
           <g key={t}>
             <rect x={20 + i * step} y="38" width={step - 30} height="34" rx="8" fill={C.tile} stroke={i === nodes.length - 1 ? C.acc : C.line} />
@@ -132,7 +136,7 @@ export function Diagram({ kind, value, max = 10, answers }: { kind: DiagramKind;
   const k = Math.max(1, Math.min(fmts.length, n || 1));
   let x = 20;
   return (
-    <svg viewBox="0 0 400 110" style={box} role="img" aria-label={`${k} formatos`}>
+    <svg viewBox="0 0 400 110" style={box} role="img" aria-label={`${k} ${en ? 'formats' : 'formatos'}`}>
       {fmts.map(([t, w, h], i) => {
         const g = (
           <g key={t} opacity={i < k ? 1 : 0.2} style={{ transition: 'opacity .35s' }}>

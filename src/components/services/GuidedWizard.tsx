@@ -15,7 +15,8 @@ import { ShowcaseScene } from './ShowcaseScene';
 import { CaseStudyView } from './CaseStudyView';
 import { CASE_STUDIES } from '../../data/services/caseStudies';
 import type { WizardQuotePlan } from '../../data/services/treeToQuote';
-import { EN, TREE_EN } from '../../data/services/i18n';
+import { EN, TREE_EN, VARS_EN, CATALOG_EN } from '../../data/services/i18n';
+import { SERVICE_ROOTS_EN, TREE_SHARED_EN } from '../../data/services/i18nMore';
 import type { Lang } from '../../data/services/i18n';
 import { BRAND } from '../../data/services/branding';
 // ciclo 13: polyLabel se importa para la caption del detail (el contador de
@@ -36,8 +37,34 @@ type BranchEn = {
     advanced?: Record<string, { label?: string; help?: string; options?: Record<string, string> }>;
   }>;
 };
-const branchEn = (id: string): BranchEn | undefined =>
-  (TREE_EN.branches as Record<string, BranchEn | undefined>)[id];
+const branchEn = (id: string): BranchEn | undefined => {
+  // ciclo 30: ramas generadas del catálogo ('svc:ID') → espejo EN desde VARS_EN / SERVICE_ROOTS_EN
+  if (id.startsWith('svc:')) {
+    const sid = id.slice(4);
+    const label = Object.values(SERVICE_ROOTS_EN).map((r) => r.options[sid]).find(Boolean)?.label;
+    const vars = VARS_EN[sid] ?? {};
+    return {
+      title: label ?? CATALOG_EN[sid]?.name,
+      subtitle: CATALOG_EN[sid]?.desc,
+      questions: Object.fromEntries(Object.entries(vars).map(([vid, v]) => [vid, {
+        question: v.question, help: v.help, unit: v.unit,
+        options: v.opciones ? Object.fromEntries(Object.entries(v.opciones).map(([k, l]) => [k, { label: l }])) : undefined,
+      }])),
+    };
+  }
+  const b = (TREE_EN.branches as Record<string, BranchEn | undefined>)[id];
+  // ciclo 30: completar con el inglés compartido por id de pregunta (preguntas/opciones/avanzadas nuevas)
+  const qs: NonNullable<BranchEn['questions']> = { ...(b?.questions ?? {}) };
+  for (const [qid, sh] of Object.entries(TREE_SHARED_EN)) {
+    const cur = qs[qid] ?? {};
+    qs[qid] = {
+      ...sh, ...Object.fromEntries(Object.entries(cur).filter(([, v]) => v !== undefined)),
+      options: { ...(sh.options ?? {}), ...(cur.options ?? {}) },
+      advanced: { ...(sh.advanced ?? {}), ...(cur.advanced ?? {}) },
+    };
+  }
+  return { ...(b ?? {}), questions: qs };
+};
 
 export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal = 0 }: { onComplete?: (plan: WizardQuotePlan, answers?: Record<string, string | number | boolean>) => void; onProgress?: (plan: WizardQuotePlan) => void; lang?: Lang; homeSignal?: number }) {
   // ciclo 25: el wizard se DESMONTA al abrir la cotización final; al volver con Atrás se
@@ -265,9 +292,9 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
             {en ? W.back : '← Atrás'}
           </button>
           <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 8px' }}>
-            {SERVICE_ROOTS[rootChoice].title}
+            {en ? SERVICE_ROOTS_EN[rootChoice]?.title ?? SERVICE_ROOTS[rootChoice].title : SERVICE_ROOTS[rootChoice].title}
           </h2>
-          <p style={{ fontSize: 15, color: 'var(--cx-muted)', margin: '0 0 32px' }}>{SERVICE_ROOTS[rootChoice].subtitle}</p>
+          <p style={{ fontSize: 15, color: 'var(--cx-muted)', margin: '0 0 32px' }}>{en ? SERVICE_ROOTS_EN[rootChoice]?.subtitle ?? SERVICE_ROOTS[rootChoice].subtitle : SERVICE_ROOTS[rootChoice].subtitle}</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
             {SERVICE_ROOTS[rootChoice].options.map((o, i) => (
               <button key={o.id}
@@ -283,9 +310,9 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
                 <span className="cx-option-icon" style={{ color: 'var(--cx-accent)', display: 'flex', marginBottom: 8 }}>
                   <TreeIcon name={o.icon ?? ''} size={22} />
                 </span>
-                <strong style={{ fontSize: 17, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.01em' }}>{o.label}</strong>
+                <strong style={{ fontSize: 17, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.01em' }}>{en ? SERVICE_ROOTS_EN[rootChoice]?.options[o.id]?.label ?? o.label : o.label}</strong>
                 {CASE_STUDIES[o.id] && <span className="cx-case-badge">{en ? 'Real case inside' : 'Con caso real'}</span>}
-                <span style={{ fontSize: 13, color: 'var(--cx-muted)', lineHeight: 1.45 }}>{o.desc}</span>
+                <span style={{ fontSize: 13, color: 'var(--cx-muted)', lineHeight: 1.45 }}>{en ? SERVICE_ROOTS_EN[rootChoice]?.options[o.id]?.desc ?? o.desc : o.desc}</span>
               </button>
             ))}
           </div>
@@ -509,7 +536,7 @@ function tipFor(q: TreeQuestion, en: boolean): string {
       : 'Dron real (HolyBro X500): cada unidad del slider añade exactamente una pieza. Tras 3 s sin mover el slider alterna armado/explosionado.',
     story: en
       ? 'The animations are examples of the moments your page will play on scroll. Click a moment to view it.'
-      : 'Las animaciones son ejemplos de los momentos que tu página reproducirá al hacer scroll. Haz click en un momento para verlo.',
+      : 'Las animaciones son ejemplos de los momentos que tu página reproducirá al hacer scroll. Haz clic en un momento para verlo.',
     'variant-swirl': en
       ? 'The options are examples of the real capabilities your configurator will offer.'
       : 'Las opciones son ejemplos de las capacidades reales que ofrecerá tu configurador.',
@@ -626,7 +653,7 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
       )}
 
       {/* ciclo 26: diagrama animado que reacciona a la respuesta */}
-      {q.diagram && <Diagram kind={q.diagram.kind} max={q.diagram.max} answers={answers}
+      {q.diagram && <Diagram kind={q.diagram.kind} max={q.diagram.max} answers={answers} lang={lang}
         value={current ?? (q.type === 'slider' ? sliderDefault(q) : q.options?.[0]?.id)} />}
 
       {/* SELECT */}

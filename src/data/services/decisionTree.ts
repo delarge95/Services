@@ -188,8 +188,6 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
             defaultFrom: (a) => ({ simple: 1, variado: 3, detallado: 6 } as Record<string, number>)[String(a['materiales-acabado'] ?? '')] ?? 2 },
           { id: 'carga-poligonal', label: 'Carga poligonal objetivo', help: 'Para web: bajo o medio.', type: 'select',
             options: [{id:'ultra-low',label:'Ultra bajo (<10k) móvil antiguo'},{id:'low',label:'Bajo (10-50k) móvil moderno'},{id:'mid',label:'Medio (50-200k) PC'},{id:'high',label:'Alto (200k+) solo desktop'}] },
-          { id: 'texturas-res', label: 'Resolución de texturas', help: '1K-2K suficiente para web.', type: 'select',
-            options: [{id:'sin-tex',label:'Sin texturas (solo color)'},{id:'1k',label:'1K (1024px) web estandar'},{id:'2k',label:'2K (2048px) detalle medio'},{id:'4k',label:'4K (4096px) maximo'}] },
         ],
       },
       {

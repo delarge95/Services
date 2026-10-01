@@ -17,6 +17,7 @@ import { computeQuoteContinuous, breakdownContinuous } from '../../../data/servi
 import { RATE_CLASSES, RATE_POSITION } from '../../../data/services/rateCard';
 import type { Currency, RateClass } from '../../../data/services/types';
 import { normalize } from './chatIntents';
+import { VARS_EN } from '../../../data/services/i18n';
 
 type Val = number | string | boolean;
 
@@ -59,6 +60,33 @@ const SYNONYMS: Record<string, string[]> = {
 export const displayName = (svc: ServiceDef): string =>
   Object.values(SERVICE_ROOTS).flatMap((r) => r.options).find((o) => o.id === svc.id)?.label ?? svc.nameEs;
 
+/** Ciclo 30: sinónimos en inglés (visitantes en EN). */
+const SYNONYMS_EN: Record<string, string[]> = {
+  'RND-01': ['render', 'renders', 'image', 'images', 'product photo', 'product shots', 'photoreal'],
+  'RND-02': ['video', 'animation', 'product video', 'product animation', 'seconds'],
+  'RTA-01': ['3d model', 'modeling', 'modelling', 'model my product'],
+  'RTA-03': ['animated model'],
+  'RTA-05': ['shader', 'shaders'],
+  'CAD-01': ['cad', 'step file', 'solidworks'],
+  'WEB-01': ['viewer', '3d viewer', '3d website', 'website with 3d'],
+  'WEB-04': ['configurator', 'web app'],
+  'WEB-05': ['scrollytelling', 'scroll story'],
+  'WEB-06': ['game', 'minigame', 'mini-game'],
+  'WEB-07': ['3d catalog', 'catalogue'],
+  'WEB-08': ['presentation', 'slides', 'pitch deck'],
+  'AI-01': ['chatbot', 'assistant', 'chat bot', 'rag'],
+  'AI-02': ['ai in my product', 'semantic search', 'recommendations'],
+  'AI-03': ['automate', 'automation', 'workflow'],
+  'AI-04': ['ai consulting', 'ai audit', 'ai strategy'],
+  'VFX-01': ['real footage', 'compositing', 'into my video'],
+  'VFX-02': ['vfx', 'effects', 'simulation', 'explosion', 'smoke'],
+  'VFX-03': ['motion graphics', 'logo reveal', 'intro'],
+  'TEX-01': ['texture', 'textures', 'pbr'],
+  'PIPE-01': ['script', 'scripts', 'pipeline', 'tool', 'addon', 'add-on'],
+  'CON-01': ['consulting', 'consultation', 'advice'],
+  'RET-01': ['retainer', 'monthly support', 'maintenance'],
+};
+
 const fmt = (c: Currency, v: number) =>
   new Intl.NumberFormat(c === 'COP' ? 'es-CO' : 'en-US', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(v);
 
@@ -67,7 +95,7 @@ export function detectService(input: string): ServiceDef | null {
   const q = ` ${normalize(input)} `;
   let best: { id: string; score: number } | null = null;
   for (const svc of SERVICES) {
-    const terms = [...(SYNONYMS[svc.id] ?? []), normalize(svc.nameEs)];
+    const terms = [...(SYNONYMS[svc.id] ?? []), ...(SYNONYMS_EN[svc.id] ?? []), normalize(svc.nameEs)];
     let score = 0;
     for (const t of terms) if (q.includes(normalize(t))) score += t.length; // frase más larga = más específica
     if (score > 0 && (!best || score > best.score)) best = { id: svc.id, score };
@@ -87,7 +115,8 @@ export function extractQuantities(serviceId: string, input: string): Record<stri
     const word = m[2];
     const stem = word.replace(/(es|s)$/, '').slice(0, 5);
     const v = vars.find((x) => {
-      const hay = normalize(`${x.unidadEs ?? ''} ${x.preguntaEs} ${x.id}`);
+      const e = VARS_EN[serviceId]?.[x.id];
+      const hay = normalize(`${x.unidadEs ?? ''} ${x.preguntaEs} ${x.id} ${e?.unit ?? ''} ${e?.question ?? ''}`);
       return stem.length >= 3 && hay.includes(stem);
     });
     if (v) out[v.id] = Math.max(v.min ?? n, Math.min(v.max ?? n, n));
