@@ -210,6 +210,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       const push = (ep: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, c: THREE.Vector3, A: number[], O: number[], D: number[], Lr?: number[]) => {
         for (let k = 0; k < ep.count; k += 2) {
           const ax = ep.getX(k), ay = ep.getY(k), az = ep.getZ(k), bx = ep.getX(k + 1), by = ep.getY(k + 1), bz = ep.getZ(k + 1);
+          if (!Number.isFinite(ax + ay + az + bx + by + bz)) continue;   // aristas degeneradas del CAD
           A.push(ax, ay, az, bx, by, bz); O.push(c.x - center.x, c.y - center.y, c.z - center.z);
           D.push(Math.hypot((ax + bx) / 2 - center.x, (ay + by) / 2 - center.y, (az + bz) / 2 - center.z));
           Lr?.push(Math.hypot(bx - ax, by - ay, bz - az));
@@ -242,7 +243,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       const hub = new THREE.Vector3(center.x, planeY, center.z);
       const armLen = motors.length ? motors.reduce((a, m) => a + Math.hypot(m.x - hub.x, m.z - hub.z), 0) / motors.length : rH * 0.7;
       const SA: number[] = [], SO: number[] = [], SK: number[] = [];
-      const seg = (a: THREE.Vector3, b: THREE.Vector3, key: number, off: THREE.Vector3) => { SA.push(a.x, a.y, a.z, b.x, b.y, b.z); SO.push(off.x, off.y, off.z); SK.push(key); };
+      const seg = (a: THREE.Vector3, b: THREE.Vector3, key: number, off: THREE.Vector3) => { if (!Number.isFinite(a.x + a.y + a.z + b.x + b.y + b.z)) return; SA.push(a.x, a.y, a.z, b.x, b.y, b.z); SO.push(off.x, off.y, off.z); SK.push(key); };
       const zero = new THREE.Vector3();
       motors.sort((a, b) => Math.atan2(a.z - hub.z, a.x - hub.x) - Math.atan2(b.z - hub.z, b.x - hub.x));
       motors.forEach((m) => {
