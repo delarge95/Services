@@ -85,3 +85,13 @@ describe('ciclo 26 — opciones en lenguaje natural', () => {
     expect(basicReply('video de producto de 30 segundos en 4K', { currency: 'COP' }).text).toMatch(/resolucionVideo: 4K/);
   });
 });
+
+describe('ciclo 26 — memoria de valores', () => {
+  it('"más barato" conserva los datos dados antes y redondea el ahorro', () => {
+    const first = basicReply('quiero un chatbot para mi web en 3 canales', { currency: 'COP' });
+    expect(first.vals).toMatchObject({ canales: 3 });
+    const r = basicReply('¿cómo lo hago más barato?', { currency: 'COP', lastServiceId: first.serviceId, lastVals: first.vals });
+    expect(r.text).toMatch(/canales/i);
+    for (const m of r.text.match(/\$\s?[\d.]+/g) ?? []) expect(Number(m.replace(/[^\d]/g, '')) % 1000).toBe(0);
+  });
+});

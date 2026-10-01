@@ -30,6 +30,8 @@ export interface AssistantReply {
   chips: string[];
   /** Servicio sobre el que versa la respuesta (memoria de conversación). */
   serviceId?: string;
+  /** Valores usados (memoria: "¿y más barato?" conserva los datos ya dados). */
+  vals?: Record<string, Val>;
   source: 'rules' | 'ai';
 }
 
@@ -38,6 +40,8 @@ export interface BasicContext {
   serviceId?: string;
   vals?: Record<string, Val>;
   lastServiceId?: string;
+  /** Valores dados antes para lastServiceId. */
+  lastVals?: Record<string, Val>;
 }
 
 const has = (q: string, kws: string[]) => kws.some((k) => q.includes(k));
@@ -174,7 +178,11 @@ export function basicReply(input: string, ctx: BasicContext): AssistantReply {
   }
 
   const given: Record<string, Val> = { ...extractQuantities(svcId, input), ...extractOptions(svcId, input) };
-  const baseVals: Record<string, Val> = !mentioned && ctx.serviceId === svcId && ctx.vals ? { ...ctx.vals } : {};
+  // memoria: valores de la pantalla (si es ese servicio) y los ya dados en la conversación
+  const baseVals: Record<string, Val> = {
+    ...(ctx.serviceId === svcId && ctx.vals ? ctx.vals : {}),
+    ...(ctx.lastServiceId === svcId && ctx.lastVals ? ctx.lastVals : {}),
+  };
   const vals = { ...baseVals, ...given };
   const name = displayName(svcId);
 
@@ -183,14 +191,14 @@ export function basicReply(input: string, ctx: BasicContext): AssistantReply {
     if ('error' in e) return { text: String(e.error), actions: [], chips: [], source: 'rules' };
     const body = e.tareas.slice(0, 6).map((t) => `• ${t.tarea}: ${t.horas} h × ${fmtMoney(cur, t.tarifaHora)}/h (${t.rol})`).join('\n');
     const enc = e.queLoEncarece.length ? `\nLo que más lo encarece: ${e.queLoEncarece.map((d) => `${d.variable.replace(/[¿?]/g, '')} (${d.ahorroTexto} menos si se reduce)`).join('; ')}.` : '';
-    return { text: `Así se calcula ${name}:\n${body}\n${e.tarifas}; banda ±${e.bandaPct} %.${enc}`, actions: [openQuoteAction(svcId, vals)!].filter(Boolean), chips: ['¿Cómo lo hago más barato?', '¿Qué incluye?'], serviceId: svcId, source: 'rules' };
+    return { text: `Así se calcula ${name}:\n${body}\n${e.tarifas}; banda ±${e.bandaPct} %.${enc}`, actions: [openQuoteAction(svcId, vals)!].filter(Boolean), chips: ['¿Cómo lo hago más barato?', '¿Qué incluye?'], serviceId: svcId, vals, source: 'rules' };
   }
   if (has(q, K.cheaper)) {
     const e = explainTool(svcId, vals, cur);
     if ('error' in e || !e.queLoEncarece.length) {
       return { text: `${name} ya está en su alcance mínimo con estos datos. Otra vía: entregar por fases (lo esencial primero).`, actions: [openQuoteAction(svcId, vals)!].filter(Boolean), chips: [], serviceId: svcId, source: 'rules' };
     }
-    return { text: `Para bajar el precio de ${name}:\n${e.queLoEncarece.map((d) => `• Reducir “${d.variable.replace(/[¿?]/g, '')}” (hoy: ${d.valorActual}) ahorra ${d.ahorroTexto}.`).join('\n')}\nTambién puedes empezar por una fase esencial y ampliar después.`, actions: [openQuoteAction(svcId, vals, 'Ajustar en el cotizador')!].filter(Boolean), chips: ['¿Por qué este precio?'], serviceId: svcId, source: 'rules' };
+    return { text: `Para bajar el precio de ${name}:\n${e.queLoEncarece.map((d) => `• Reducir “${d.variable.replace(/[¿?]/g, '')}” (hoy: ${d.valorActual}) ahorra ${d.ahorroTexto}.`).join('\n')}\nTambién puedes empezar por una fase esencial y ampliar después.`, actions: [openQuoteAction(svcId, vals, 'Ajustar en el cotizador')!].filter(Boolean), chips: ['¿Por qué este precio?'], serviceId: svcId, vals, source: 'rules' };
   }
   if (has(q, K.include)) {
     const d = serviceDetails(svcId);
@@ -215,7 +223,7 @@ export function basicReply(input: string, ctx: BasicContext): AssistantReply {
   return {
     text: `${tuyos}${name} sale en ${r.rangoTexto} (≈ ${r.horasEstimadas} h).${dias}${ask}${avisos}`,
     actions: r.accion ? [r.accion] : [], chips: ['¿Por qué este precio?', '¿Qué incluye?', '¿Cómo lo hago más barato?'],
-    serviceId: svcId, source: 'rules',
+    serviceId: svcId, vals: Object.fromEntries((r.tusDatos ?? []).map((k) => [k, r.valoresUsados![k]])), source: 'rules',
   };
 }
 

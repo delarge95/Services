@@ -123,7 +123,8 @@ export function explainTool(id: string, vals: Record<string, unknown>, currency:
   const drivers = (SERVICE_VARIABLES[id]?.variables ?? []).map((x) => {
     const alt = { ...v, [x.id]: x.type === 'number' ? x.min ?? v[x.id] : x.type === 'toggle' ? false : x.opciones?.[0]?.valorEs ?? v[x.id] };
     const a = computeQuoteContinuous(id, alt, currency)!;
-    return { variable: x.preguntaEs, valorActual: v[x.id], ahorroSiSeReduce: Math.max(0, q.totalPoint - a.totalPoint) };
+    const step = currency === 'COP' ? 1000 : 10; // cifras redondas, como el resto del cotizador
+    return { variable: x.preguntaEs, valorActual: v[x.id], ahorroSiSeReduce: Math.round(Math.max(0, q.totalPoint - a.totalPoint) / step) * step };
   }).filter((d) => d.ahorroSiSeReduce > 0).sort((a, b) => b.ahorroSiSeReduce - a.ahorroSiSeReduce).slice(0, 3);
   return {
     nombre: displayName(id), moneda: currency, puntoCentral: q.totalPoint, bandaPct: q.spreadPct,

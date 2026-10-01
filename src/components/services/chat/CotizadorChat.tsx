@@ -34,6 +34,7 @@ export function CotizadorChat(props: CotizadorChatProps) {
   const [typing, setTyping] = useState(false);
   /** Último servicio del que se habló: permite seguir la conversación (“¿y con 10?”). */
   const lastSvc = useRef<string | undefined>(undefined);
+  const lastVals = useRef<Record<string, string | number | boolean>>({});
   /** Tras 2 fallos seguidos de la IA, el resto de la sesión va en modo básico (no hacer esperar). */
   const aiFailures = useRef(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -77,8 +78,11 @@ export function CotizadorChat(props: CotizadorChatProps) {
 
   /** Modo básico (determinista). Actualiza la memoria del último servicio. */
   const basic = (clean: string): Msg => {
-    const r = basicReply(clean, { currency: props.currency ?? 'COP', serviceId: props.serviceId, vals: props.vals, lastServiceId: lastSvc.current });
-    if (r.serviceId) lastSvc.current = r.serviceId;
+    const r = basicReply(clean, { currency: props.currency ?? 'COP', serviceId: props.serviceId, vals: props.vals, lastServiceId: lastSvc.current, lastVals: lastVals.current });
+    if (r.serviceId) {
+      lastVals.current = r.serviceId === lastSvc.current ? { ...lastVals.current, ...(r.vals ?? {}) } : { ...(r.vals ?? {}) };
+      lastSvc.current = r.serviceId;
+    }
     return { role: 'bot', text: r.text, actions: r.actions, chips: r.chips, source: 'rules' };
   };
 
