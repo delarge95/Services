@@ -199,9 +199,9 @@ export const TREE_EN = {
           question: 'What do you want the visitor to be able to do?',
           options: {
             rotar: { label: 'Just rotate and view it', desc: '360° view, nothing more' },
-            hotspots: { label: 'See part information', desc: 'Click a part → show name, specs or description' },
-            configurar: { label: 'Configure the product', desc: 'Change colors, materials, sizes, options' },
-            desarmar: { label: 'Disassemble / explore it', desc: 'Exploded view, open/close parts, cutaways' },
+            hotspots: { label: 'See part information', desc: 'Points on the parts: tap them to see name and data' },
+            configurar: { label: 'Configure the product', desc: 'Pick colors, materials and finishes live' },
+            desarmar: { label: 'Disassemble / explore it', desc: 'Exploded view: see every part separately' },
           },
         },
         'modelo-existente': {
@@ -263,9 +263,9 @@ export const TREE_EN = {
           question: 'What kind of application do you need?',
           options: {
             configurador: { label: 'Product configurator', desc: 'The customer customizes and sees the result in 3D' },
-            catalogo: { label: 'Interactive 3D catalog', desc: 'A list of products navigable in 3D' },
-            herramienta: { label: 'Technical tool', desc: 'CAD viewer, simulator, design tool' },
-            juego: { label: 'Minigame or experience', desc: 'Something playful for engagement' },
+            catalogo: { label: 'Interactive 3D catalog', desc: 'Several 3D products browsed one by one' },
+            herramienta: { label: 'Technical tool', desc: 'Engineering viewer: sections, edges and real measurements' },
+            juego: { label: 'Minigame or experience', desc: 'A game with your product (try it above)' },
           },
         },
         'num-variantes': {

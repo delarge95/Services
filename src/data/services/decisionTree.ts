@@ -257,9 +257,9 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
         choicePreview: 'interaction',
         options: [
           { id: 'rotar', label: 'Solo rotarlo y verlo', desc: 'Vista 360° sin más interacción', exclusive: true },
-          { id: 'hotspots', label: 'Ver información de partes', desc: 'Click en una pieza → mostrar nombre, specs o descripción' },
-          { id: 'configurar', label: 'Configurar el producto', desc: 'Cambiar colores, materiales, tamaños, opciones' },
-          { id: 'desarmar', label: 'Desarmarlo / explorarlo', desc: 'Vista explosionada, abrir/cerrar partes, cortes' },
+          { id: 'hotspots', label: 'Ver información de partes', desc: 'Puntos sobre las piezas: al tocarlos muestran su nombre y datos' },
+          { id: 'configurar', label: 'Configurar el producto', desc: 'Elegir colores, materiales y acabados en vivo' },
+          { id: 'desarmar', label: 'Desarmarlo / explorarlo', desc: 'Vista explosionada: ver cada pieza por separado' },
         ],
         // ciclo 25: detalles técnicos que SÍ mueven el precio (WEB-01 / RTA-06)
         advancedOptions: [
@@ -436,9 +436,9 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
         choicePreview: 'app-type',
         options: [
           { id: 'configurador', label: 'Configurador de producto', desc: 'El cliente personaliza y ve el resultado en 3D' },
-          { id: 'catalogo', label: 'Catálogo 3D interactivo', desc: 'Lista de productos navegables en 3D' },
-          { id: 'herramienta', label: 'Herramienta técnica', desc: 'Visor CAD, simulador, herramienta de diseño' },
-          { id: 'juego', label: 'Minijuego o experiencia', desc: 'Algo lúdico para engagement' },
+          { id: 'catalogo', label: 'Catálogo 3D interactivo', desc: 'Varios productos en 3D que se recorren uno a uno' },
+          { id: 'herramienta', label: 'Herramienta técnica', desc: 'Visor de ingeniería: cortes, aristas y medidas reales' },
+          { id: 'juego', label: 'Minijuego o experiencia', desc: 'Un juego con tu producto (pruébalo arriba)' },
         ],
       },
       {

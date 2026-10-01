@@ -436,6 +436,25 @@ export function CotizadorRedesign() {
     return () => window.removeEventListener('cx-open-quote', onOpen);
   }, []);
 
+  // ciclo 27: nivel del wizard (lo emite GuidedWizard) para el botón Atrás global
+  const [wizardLevel, setWizardLevel] = useState(1);
+  useEffect(() => {
+    const on = (e: Event) => setWizardLevel(Number((e as CustomEvent).detail?.level ?? 1));
+    window.addEventListener('cx-wizard-level', on);
+    return () => window.removeEventListener('cx-wizard-level', on);
+  }, []);
+  const canGoBack = !!serviceId || mode === 'catalog' || wizardLevel > 1;
+  const navBack = () => {
+    if (serviceId) {
+      const st = window.history.state;
+      if (st && st.cx === 'cotizador' && st.config !== undefined && window.history.length > 1) window.history.back();
+      else { setServiceId(''); setExtras([]); }
+      return;
+    }
+    if (mode === 'catalog') { setMode('guided'); return; }
+    window.dispatchEvent(new CustomEvent('cx-wizard-back'));
+  };
+
   /** #15: home real — resetea también al wizard montado (vía homeKey). */
   const [homeKey, setHomeKey] = useState(0);
   const [wizardDraft, setWizardDraft] = useState<{ rootChoice: string; subChoice: string; answers: Record<string, string | number | boolean> } | null>(null);
@@ -605,6 +624,8 @@ export function CotizadorRedesign() {
     <div className="cx-root" data-theme={theme} style={{ minHeight: '100vh', background: 'var(--cx-bg)', position: 'relative' }}>
       {/* ciclo 24: fondo WebGL de cubos retirado del montaje (canvas a pantalla completa
           renderizando oculto); el fondo es la retícula CSS de cotizador-brand.css. */}
+      {/* ciclo 27: en móvil la barra no es fija → Atrás flotante (simétrico al botón del chat) */}
+      {canGoBack && <button type="button" onClick={navBack} className="cx-navback-float" data-noprint aria-label={lang === 'es' ? 'Atrás' : 'Back'}>←</button>}
       {/* ciclo 24: asistente con cotización real, montado en toda la página (antes solo en DirectCotizador, que no se usa) */}
       <CotizadorChat
         section={svc ? 'variables' : livePlan?.picks[0] ? 'variables' : 'inicio'}
@@ -749,6 +770,8 @@ export function CotizadorRedesign() {
         borderBottom: '1px solid var(--cx-border)',
       }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {/* ciclo 27: Atrás SIEMPRE visible en la barra superior (deshabilitado en el inicio) */}
+          <button onClick={navBack} disabled={!canGoBack} className="cx-navback" aria-label={lang === 'es' ? 'Atrás' : 'Back'} title={lang === 'es' ? 'Atrás' : 'Back'}>←</button>
           <button onClick={goHome} aria-label={lang === 'es' ? 'Inicio' : 'Home'} title={lang === 'es' ? 'Inicio' : 'Home'}
             style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', background: 'var(--cx-tile)', border: 'none', cursor: 'pointer', color: 'var(--cx-text)' }}>
             <HomeIcon size={16} />

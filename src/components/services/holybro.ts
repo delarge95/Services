@@ -191,6 +191,10 @@ export function applyFinish(root: THREE.Group, kind: FinishKind, variado?: Varia
       m.material = m.userData.clayMat;
     } else {
       if (!m.userData.origMat) m.userData.origMat = m.material;
+      // ciclo 27: 'variado' = materiales REALES por familia de pieza (metal, plástico, goma,
+      // pintura). El muestreo de texturas daba un gris azulado uniforme (todas son grises).
+      const fam = variadoMaterialFor(m);
+      if (fam) { m.material = fam; return; }
       const preset = variado?.byMat.get(m.userData.origMat as THREE.Material);
       if (preset) {
         m.material = preset;
@@ -201,6 +205,44 @@ export function applyFinish(root: THREE.Group, kind: FinishKind, variado?: Varia
       m.material = presets[Math.abs(hash(m.name ?? '')) % presets.length];
     }
   });
+}
+
+// ─── 'variado' por familia (ciclo 27) ───
+const VARIADO_MATS: Record<string, () => THREE.MeshStandardMaterial> = {
+  carbon: () => new THREE.MeshPhysicalMaterial({ color: 0x17191d, roughness: 0.32, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.15 }),
+  anodizedBlue: () => new THREE.MeshStandardMaterial({ color: 0x1f7fd1, roughness: 0.3, metalness: 0.75 }),
+  motorMetal: () => new THREE.MeshStandardMaterial({ color: 0x2b2e34, roughness: 0.28, metalness: 0.9 }),
+  propPlastic: () => new THREE.MeshStandardMaterial({ color: 0xe8e8e4, roughness: 0.55, metalness: 0.0 }),
+  aluminium: () => new THREE.MeshStandardMaterial({ color: 0xb9bdc3, roughness: 0.3, metalness: 0.9 }),
+  rubber: () => new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.95, metalness: 0.0 }),
+  pcb: () => new THREE.MeshStandardMaterial({ color: 0x1f6b3a, roughness: 0.5, metalness: 0.1 }),
+  paintWhite: () => new THREE.MeshStandardMaterial({ color: 0xdcdcdc, roughness: 0.45, metalness: 0.05 }),
+  batteryWrap: () => new THREE.MeshStandardMaterial({ color: 0xd9a514, roughness: 0.4, metalness: 0.05 }),
+  paintGrey: () => new THREE.MeshStandardMaterial({ color: 0x6f757d, roughness: 0.55, metalness: 0.1 }),
+  steel: () => new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.22, metalness: 1.0 }),
+};
+const variadoShared = new Map<string, THREE.MeshStandardMaterial>();
+const vmat = (k: string) => { let m = variadoShared.get(k); if (!m) { m = VARIADO_MATS[k](); variadoShared.set(k, m); } return m; };
+
+/** Material 'variado' según nombre/paso de la pieza (null → fallback anterior). */
+function variadoMaterialFor(m: THREE.Mesh): THREE.MeshStandardMaterial | null {
+  const n = meshEffectiveName(m);
+  if (/JIAO-EVA|MAO-JIAO|EVA/i.test(n)) return vmat('rubber');              // patas de espuma/goma
+  if (/HMX5V-DIGAI|DIANJIZUO/i.test(n)) return vmat('anodizedBlue'); // soportes de motor anodizados (como el X500 real)
+  if (/GPS|gps/.test(n)) return vmat('paintWhite');
+  if (/PCB|PIXHAWK|IMU|TELEMETRY|telemetry/i.test(n)) return vmat('pcb');
+  let step = m.userData.step as number | undefined;
+  if (step === undefined) step = HOLYBRO_STEPS.findIndex((s) => s.match.test(n));
+  switch (step) {
+    case 0: return vmat('motorMetal');
+    case 1: return vmat('propPlastic');
+    case 2: case 3: case 4: return vmat('carbon');
+    case 5: return vmat('aluminium');
+    case 6: return vmat('pcb');
+    case 7: return vmat('batteryWrap');
+    case 8: return vmat('paintGrey');
+    default: return vmat('steel');
+  }
 }
 
 const hash = (s: string) => [...s].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7);

@@ -10,7 +10,10 @@ import { ROOT_OPTIONS, WEB3D_LEVEL2, WEB3D_BRANCHES, sliderDefault } from '../..
 import type { TreeQuestion, TreeBranch, TreeOption } from '../../data/services/decisionTree';
 import { planFromTreeAnswers } from '../../data/services/treeToQuote';
 import { SERVICE_ROOTS, buildServiceBranch } from '../../data/services/serviceBranches';
-import { ChoicePreview, Diagram, MediaVisual } from './OptionVisuals';
+import { Diagram, MediaVisual } from './OptionVisuals';
+import { ShowcaseScene } from './ShowcaseScene';
+import { CaseStudyView } from './CaseStudyView';
+import { CASE_STUDIES } from '../../data/services/caseStudies';
 import type { WizardQuotePlan } from '../../data/services/treeToQuote';
 import { EN, TREE_EN } from '../../data/services/i18n';
 import type { Lang } from '../../data/services/i18n';
@@ -96,6 +99,19 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
+  // ciclo 27: el botón Atrás global (barra superior) conoce el nivel y delega aquí
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('cx-wizard-level', { detail: { level } }));
+  }, [level]);
+  useEffect(() => {
+    const onBack = () => goBackRef.current();
+    window.addEventListener('cx-wizard-back', onBack);
+    return () => {
+      window.removeEventListener('cx-wizard-back', onBack);
+      window.dispatchEvent(new CustomEvent('cx-wizard-level', { detail: { level: 1 } }));
+    };
+  }, []);
+
   // ciclo 26: "Abrir en el cotizador" desde el asistente (wizard montado)
   useEffect(() => {
     const onOpen = (e: Event) => {
@@ -127,6 +143,8 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
     if (level === 3) { setLevel(2); setSubChoice(''); }
     else { setLevel(1); setRootChoice(''); setSubChoice(''); }
   };
+
+  const goBackRef = useRef(goBack); goBackRef.current = goBack;
 
   const branch: TreeBranch | null = useMemo(() => {
     if (rootChoice === 'web-3d' && subChoice) return WEB3D_BRANCHES[subChoice] ?? null;
@@ -266,6 +284,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
                   <TreeIcon name={o.icon ?? ''} size={22} />
                 </span>
                 <strong style={{ fontSize: 17, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.01em' }}>{o.label}</strong>
+                {CASE_STUDIES[o.id] && <span className="cx-case-badge">{en ? 'Real case inside' : 'Con caso real'}</span>}
                 <span style={{ fontSize: 13, color: 'var(--cx-muted)', lineHeight: 1.45 }}>{o.desc}</span>
               </button>
             ))}
@@ -342,6 +361,8 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
             {en ? branchEn(branch.id)?.subtitle ?? branch.subtitle : branch.subtitle}
           </p>
 
+          {/* ciclo 27: caso real interactivo (TwinSight X500) para los servicios que lo tienen */}
+          {branch.id.startsWith('svc:') && CASE_STUDIES[subChoice] && <CaseStudyView cs={CASE_STUDIES[subChoice]} lang={lang} />}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
             {branch.questions.filter(q => (!q.advanced || showAdvanced) && (!q.showWhen || q.showWhen(answers))).map((q) => (
               <QuestionCard key={q.id} q={q} answers={answers} onAnswer={set} lang={lang} branchId={branch.id} />
@@ -552,7 +573,7 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
 
       {/* CARDS */}
       {/* ciclo 26: vista 3D en vivo de la opción señalada/elegida */}
-      {q.type === 'cards' && q.choicePreview && <ChoicePreview kind={q.choicePreview} current={typeof current === 'string' ? current : undefined} hovered={hoverOpt} lang={lang} />}
+      {q.type === 'cards' && q.choicePreview && <ShowcaseScene kind={q.choicePreview === 'interaction' ? 'interaction' : 'app-type'} selected={typeof current === 'string' ? current : undefined} hovered={hoverOpt} lang={lang} />}
       {/* ciclo 26: asset producido de la opción elegida (cuando exista) */}
       {q.type === 'cards' && (() => { const o = q.options?.find(x => x.id === current && x.visual); return o?.visual ? <MediaVisual v={o.visual} /> : null; })()}
       {q.type === 'cards' && q.options && (

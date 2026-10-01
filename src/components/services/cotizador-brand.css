@@ -151,3 +151,20 @@
   display: grid; place-items: center; font: 700 12px/1 var(--cx-sans); color: var(--cx-on-accent);
   border: 1.5px solid var(--cx-border-strong); background: transparent; transition: background .2s, border-color .2s, transform .25s var(--cx-ease); }
 .cx-check[data-on='true'] { background: var(--cx-accent); border-color: var(--cx-accent); transform: scale(1.08); }
+
+/* Ciclo 27 — Atrás global: barra superior (siempre visible) + flotante en móvil */
+.cx-navback { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%;
+  font: 600 17px/1 var(--cx-sans); cursor: pointer; color: var(--cx-text); background: var(--cx-tile); border: 1px solid var(--cx-border);
+  transition: background .2s, transform .2s var(--cx-ease), opacity .2s; }
+.cx-navback:not(:disabled):hover { background: var(--cx-accent-soft); color: var(--cx-accent); transform: translateX(-2px); }
+.cx-navback:disabled { opacity: .35; cursor: default; }
+.cx-navback-float { display: none; }
+@media (max-width: 768px) {
+  .cx-navback-float { display: grid; place-items: center; position: fixed; left: 14px; bottom: 128px; z-index: 60; width: 48px; height: 48px;
+    border-radius: 14px; font: 600 20px/1 var(--cx-sans); cursor: pointer; color: var(--cx-text);
+    background: var(--cx-card-solid); border: 1px solid var(--cx-border-strong); box-shadow: var(--cx-shadow-card); }
+}
+
+/* Ciclo 27 — insignia de caso real en las tarjetas de servicio */
+.cx-case-badge { align-self: flex-start; margin-top: 4px; font: 600 10px var(--cx-mono, monospace); letter-spacing: .12em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 6px; color: var(--cx-accent); background: var(--cx-accent-soft); border: 1px solid var(--cx-accent-border); }
