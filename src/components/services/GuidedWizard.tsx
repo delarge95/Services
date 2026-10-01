@@ -6,7 +6,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import type { CSSProperties, Dispatch, SetStateAction } from 'react';
-import { ROOT_OPTIONS, WEB3D_LEVEL2, WEB3D_BRANCHES } from '../../data/services/decisionTree';
+import { ROOT_OPTIONS, WEB3D_LEVEL2, WEB3D_BRANCHES, sliderDefault } from '../../data/services/decisionTree';
 import type { TreeQuestion, TreeBranch, TreeOption } from '../../data/services/decisionTree';
 import { planFromTreeAnswers } from '../../data/services/treeToQuote';
 import type { WizardQuotePlan } from '../../data/services/treeToQuote';
@@ -122,12 +122,13 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
     <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 20px 80px' }}>
       {/* ═══ NIVEL 1: ¿Qué quieres lograr? ═══ */}
       {level === 1 && (
-        <div style={{ paddingTop: 60 }}>
+        <div style={{ paddingTop: 60, textAlign: 'center' }}>
+          <span className="cx-eyebrow">{en ? '3D · Web · AI — quote in 1 minute' : '3D · Web · IA — cotiza en 1 minuto'}</span>
           <h1 style={{
             fontSize: 'clamp(2.2rem, 5vw, 3.5rem)', fontWeight: 700,
             letterSpacing: '-0.03em', color: 'var(--cx-text)', textAlign: 'center',
             margin: '0 0 12px', lineHeight: 1.1,
-          }}>{en ? W.l1Title : '¿Qué quieres lograr?'}</h1>
+          }}>{en ? <>What do you want to <span className="cx-ember">achieve</span>?</> : <>¿Qué quieres <span className="cx-ember">lograr</span>?</>}</h1>
           <p style={{ fontSize: 17, color: 'var(--cx-muted)', textAlign: 'center', margin: '0 0 10px' }}>
             {en ? W.l1Sub : 'Elige una opción y te guiamos paso a paso.'}
           </p>
@@ -145,24 +146,23 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
               return (
                 <button key={o.id}
                   onClick={() => { setRootChoice(o.id); setLevel(o.id === 'no-se' ? 1 : 2); }}
+                  className={`cx-option ds-anim ds-anim-${(i % 3) + 1}`}
                   style={{
                     display: 'flex', alignItems: 'flex-start', gap: 14, padding: '20px 22px',
                     background: 'var(--cx-card)', backdropFilter: 'blur(12px)',
                     border: '1px solid var(--cx-border)', borderRadius: 20,
                     cursor: 'pointer', font: 'inherit', textAlign: 'left',
                     transition: 'transform 0.25s cubic-bezier(0.25,0.8,0.4,1), box-shadow 0.25s',
-                    animation: `cardIn 0.4s ${i * 0.06}s cubic-bezier(0.25,0.8,0.4,1) both`,
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = 'var(--cx-shadow-hover)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = ''; }}
                 >
-                  <span style={{ color: 'var(--cx-accent)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                    <TreeIcon name={o.icon ?? ''} size={26} />
+                  <span className="cx-option-icon" style={{ color: 'var(--cx-accent)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                    <TreeIcon name={o.icon ?? ''} size={22} />
                   </span>
                   <div>
                     <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--cx-text)', letterSpacing: '-0.01em' }}>{t.label}</div>
                     <div style={{ fontSize: 13, color: 'var(--cx-muted)', marginTop: 3, lineHeight: 1.4 }}>{t.desc}</div>
                   </div>
+                  <span className="cx-option-arrow" aria-hidden="true">→</span>
                 </button>
               );
             })}
@@ -235,15 +235,15 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
               return (
                 <button key={o.id}
                   onClick={() => { setSubChoice(o.id); setLevel(3); }}
+                  className={`cx-option ds-anim ds-anim-${(i % 3) + 1}`}
                   style={{
                     display: 'flex', flexDirection: 'column', gap: 6, padding: '22px 20px',
                     background: 'var(--cx-card)', backdropFilter: 'blur(12px)',
                     border: '1px solid var(--cx-border)', borderRadius: 20,
                     cursor: 'pointer', font: 'inherit', textAlign: 'left',
-                    animation: `cardIn 0.4s ${i * 0.06}s both`,
                   }}>
-                  <span style={{ color: 'var(--cx-accent)', display: 'flex', marginBottom: 8 }}>
-                    <TreeIcon name={o.icon ?? ''} size={24} />
+                  <span className="cx-option-icon" style={{ color: 'var(--cx-accent)', display: 'flex', marginBottom: 8 }}>
+                    <TreeIcon name={o.icon ?? ''} size={22} />
                   </span>
                   <strong style={{ fontSize: 17, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.01em' }}>{t.label}</strong>
                   <span style={{ fontSize: 13, color: 'var(--cx-muted)', lineHeight: 1.45 }}>{t.desc}</span>
@@ -267,7 +267,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-            {branch.questions.filter(q => !q.advanced || showAdvanced).map((q) => (
+            {branch.questions.filter(q => (!q.advanced || showAdvanced) && (!q.showWhen || q.showWhen(answers))).map((q) => (
               <QuestionCard key={q.id} q={q} answers={answers} onAnswer={set} lang={lang} branchId={branch.id} />
             ))}
 
@@ -296,12 +296,12 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
             }}
             style={{
               marginTop: 32, width: '100%', padding: '16px', borderRadius: 999,
-              background: '#0071e3', color: '#fff', border: 'none',
+              background: 'var(--cx-accent)', color: 'var(--cx-on-accent)', border: 'none',
               font: '700 16px inherit', letterSpacing: '-0.01em', cursor: 'pointer',
               transition: 'background 0.2s',
             }}
             onMouseEnter={e => e.currentTarget.style.background = 'var(--cx-accent-hover)'}
-            onMouseLeave={e => e.currentTarget.style.background = '#0071e3'}
+            onMouseLeave={e => e.currentTarget.style.background = 'var(--cx-accent)'}
           >
             {en ? W.verPrecio : 'Ver precio estimado →'}
           </button>
@@ -312,7 +312,6 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
       )}
 
       <style>{`
-        @keyframes cardIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
         .cx-tip:hover .cx-tip-box, .cx-tip:focus .cx-tip-box { opacity: 1 !important; visibility: visible !important; }
         /* ciclo 12 — área táctil del "?" invisible (16px visual -> 36px de hit
            area) sin romper el minimalismo; aplica en todos los viewports. */
@@ -357,7 +356,7 @@ export function WizardEditInline({ rootChoice, subChoice, initialAnswers, lang =
           {en ? 'Close ✕' : 'Cerrar ✕'}
         </button>
       </div>
-      {branch ? branch.questions.map(q => (
+      {branch ? branch.questions.filter(q => !q.showWhen || q.showWhen(answers)).map(q => (
         <QuestionCard key={q.id} q={q} answers={answers} onAnswer={set} lang={lang} branchId={branch.id} compact />
       )) : (
         <span style={{ fontSize: 13, color: 'var(--cx-muted)' }}>{en ? 'No questions for this branch.' : 'Sin preguntas para esta rama.'}</span>
@@ -365,11 +364,11 @@ export function WizardEditInline({ rootChoice, subChoice, initialAnswers, lang =
       <button
         onClick={() => onApply?.(answers)}
         style={{
-          padding: '13px', borderRadius: 999, background: '#0071e3', color: '#fff', border: 'none',
+          padding: '13px', borderRadius: 999, background: 'var(--cx-accent)', color: 'var(--cx-on-accent)', border: 'none',
           font: '700 15px inherit', cursor: 'pointer',
         }}
         onMouseEnter={e => e.currentTarget.style.background = 'var(--cx-accent-hover)'}
-        onMouseLeave={e => e.currentTarget.style.background = '#0071e3'}
+        onMouseLeave={e => e.currentTarget.style.background = 'var(--cx-accent)'}
       >
         {en ? 'Apply and update price →' : 'Aplicar y actualizar precio →'}
       </button>
@@ -503,8 +502,9 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
         <SliderWithPreview
           branchId={branchId}
           questionId={q.id}
+          label={q.question}
           config={q.slider}
-          value={typeof current === 'number' ? current : q.slider.min}
+          value={typeof current === 'number' ? current : sliderDefault(q)}
           onChange={(n) => onAnswer(q.id, n)}
           lang={lang}
         />
@@ -529,7 +529,12 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
 
       {/* TOGGLE (avanzado) */}
       {q.type === 'toggle' && (
-        <div onClick={() => onAnswer(q.id, !current)}
+        <div
+          role="switch"
+          aria-checked={Boolean(current)}
+          tabIndex={0}
+          onClick={() => onAnswer(q.id, !current)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onAnswer(q.id, !current); } }}
           style={{
             width: 48, height: 28, borderRadius: 14, cursor: 'pointer', position: 'relative',
             background: current ? '#30d158' : 'var(--cx-soft)', transition: 'background 0.25s',
@@ -565,7 +570,7 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
                     <input type='range' min={adv.min || 1} max={adv.max || 5} step={adv.step || 1}
                       value={typeof av === 'number' ? av : adv.defaultValue ?? adv.min ?? 1}
                       onChange={e => onAnswer(adv.id, Number(e.target.value))}
-                      style={{ width: '100%', height: 4, accentColor: '#0071e3' }} />
+                      style={{ width: '100%', height: 4, accentColor: 'var(--cx-accent)' }} />
                   );
                 })()}
               </div>
@@ -579,8 +584,8 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
 }
 
 // ═══ Slider con Preview 3D procedural ═══
-function SliderWithPreview({ branchId, questionId, config, value, onChange, lang }: {
-  branchId: string; questionId: string; config: NonNullable<TreeQuestion['slider']>;
+function SliderWithPreview({ branchId, questionId, label, config, value, onChange, lang }: {
+  branchId: string; questionId: string; label?: string; config: NonNullable<TreeQuestion['slider']>;
   value: number; onChange: (n: number) => void; lang: Lang;
 }) {
   const en = lang === 'en';
@@ -694,6 +699,23 @@ function SliderWithPreview({ branchId, questionId, config, value, onChange, lang
           bloqueo) y el slider no respondía — userSelect none + preventDefault */}
       <div
         style={{ position: 'relative', padding: '14px 0', cursor: 'pointer', touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
+        // ciclo 23: slider accesible (antes un div mudo sin teclado ni lector de pantalla)
+        role="slider" tabIndex={0}
+        aria-label={qEn?.question ?? label ?? questionId}
+        aria-valuemin={config.min} aria-valuemax={config.max} aria-valuenow={value}
+        aria-valuetext={`${Math.round(value * 10) / 10} ${unit}`}
+        onKeyDown={(e) => {
+          const step = continuous ? (e.shiftKey ? 0.1 : 1) : config.step;
+          const k = e.key;
+          let next: number | null = null;
+          if (k === 'ArrowRight' || k === 'ArrowUp') next = value + step;
+          else if (k === 'ArrowLeft' || k === 'ArrowDown') next = value - step;
+          else if (k === 'Home') next = config.min;
+          else if (k === 'End') next = config.max;
+          if (next === null) return;
+          e.preventDefault();
+          onChange(Math.round(Math.min(config.max, Math.max(config.min, next)) * 10) / 10);
+        }}
         onPointerDown={(e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); applyValue(e.clientX, e.currentTarget); }}
         onPointerMove={(e) => { if (e.buttons !== 1) return; applyValue(e.clientX, e.currentTarget); }}
         onPointerUp={snapOnRelease}
@@ -701,7 +723,7 @@ function SliderWithPreview({ branchId, questionId, config, value, onChange, lang
       <div style={{ position: 'relative', height: 6, borderRadius: 3, background: 'var(--cx-soft)' }}>
         <div style={{
           position: 'absolute', left: 0, top: 0, height: '100%', borderRadius: 3,
-          width: `${pct}%`, background: 'linear-gradient(90deg, #0071e3, #5ac8fa)',
+          width: `${pct}%`, background: 'linear-gradient(90deg, var(--cx-accent), var(--cx-accent-2))',
         }} />
         {continuous && Array.from({ length: Math.round(config.max - config.min) + 1 }, (_, i) => {
           const sp = config.min + i;

@@ -4,10 +4,12 @@
  * Dos modos: guiado + catálogo. Mínimo texto, máximo impacto visual.
  */
 
+import './cotizador-brand.css';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { SERVICES } from '../../data/services/catalogCore';
-import { computeQuote, getRateCard } from '../../data/services/formula';
+import { getRateCard } from '../../data/services/formula';
+import { computeQuoteContinuous, minContinuousPrice } from '../../data/services/continuousQuote';
 import { LAUNCH_DISCOUNT } from '../../data/services/rateCard';
 import { SERVICE_VARIABLES, derivarTier, recommendedValue } from '../../data/services/serviceVariables';
 import type { ServiceVariable } from '../../data/services/serviceVariables';
@@ -132,9 +134,8 @@ function ServiceCard({ svc, currency, onPick, index, lang }: {
 }) {
   const ref = useRef<HTMLButtonElement>(null);
   const desde = useMemo(() => {
-    const t = derivarTier(svc.id, {});
-    if (!t) return null;
-    try { const q = computeQuote(svc.id, t, currency, {}); return q ? q.totalMin : null; } catch { return null; }
+    // Mismo motor que el precio mostrado (continuousQuote), no el discreto.
+    try { return minContinuousPrice(svc.id, currency); } catch { return null; }
   }, [svc, currency]);
 
   const onMove = (e: React.MouseEvent) => {
@@ -155,6 +156,7 @@ function ServiceCard({ svc, currency, onPick, index, lang }: {
       onClick={onPick}
       onMouseMove={onMove}
       onMouseLeave={onLeave}
+      className={`ds-anim ds-anim-${(index % 3) + 1}`}
       style={{
         position: 'relative', display: 'flex', flexDirection: 'column', gap: 6,
         padding: '22px 20px 18px', textAlign: 'left', font: 'inherit',
@@ -163,13 +165,12 @@ function ServiceCard({ svc, currency, onPick, index, lang }: {
         cursor: 'pointer', overflow: 'hidden',
         transition: 'transform 0.3s cubic-bezier(0.25,0.8,0.4,1), box-shadow 0.3s',
         boxShadow: '0 2px 16px var(--cx-border)',
-        animation: `cardIn 0.5s ${index * 0.05}s cubic-bezier(0.25,0.8,0.4,1) both`,
       }}
     >
       {/* Glare effect */}
       <div style={{
         position: 'absolute', inset: 0, pointerEvents: 'none',
-        background: 'radial-gradient(circle at var(--glare-x,50%) var(--glare-y,50%), rgba(0,113,227,0.08) 0%, transparent 60%)',
+        background: 'radial-gradient(circle at var(--glare-x,50%) var(--glare-y,50%), rgba(255,122,61,0.08) 0%, transparent 60%)',
         opacity: 0, transition: 'opacity 0.3s',
       }} className="card-glare" />
       <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--cx-accent)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
@@ -184,7 +185,6 @@ function ServiceCard({ svc, currency, onPick, index, lang }: {
       )}
       <style>{`
         button:hover .card-glare { opacity: 1; }
-        @keyframes cardIn { from { opacity: 0; transform: translateY(24px) scale(0.96); } to { opacity: 1; transform: none; } }
       `}</style>
     </button>
   );
@@ -273,10 +273,14 @@ function VariableControl({ v, value, onValue, lang, serviceId }: {
       )}
       {v.type === 'toggle' && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
-          <div onClick={() => onValue(!val)}
-            style={{ width: 44, height: 26, borderRadius: 13, background: val ? '#30d158' : 'var(--cx-border-strong)', position: 'relative', transition: 'background 0.25s', flexShrink: 0 }}>
-            <div style={{ position: 'absolute', top: 2, left: val ? 20 : 2, width: 22, height: 22, borderRadius: '50%', background: 'var(--cx-card-solid)', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.25s cubic-bezier(0.3,0.9,0.4,1)' }} />
-          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={Boolean(val)}
+            onClick={() => onValue(!val)}
+            style={{ width: 44, height: 26, borderRadius: 13, background: val ? '#30d158' : 'var(--cx-border-strong)', position: 'relative', transition: 'background 0.25s', flexShrink: 0, border: 'none', padding: 0, cursor: 'pointer' }}>
+            <span style={{ position: 'absolute', top: 2, left: val ? 20 : 2, width: 22, height: 22, borderRadius: '50%', background: 'var(--cx-card-solid)', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.25s cubic-bezier(0.3,0.9,0.4,1)', display: 'block' }} />
+          </button>
           <span style={{ fontSize: 15, color: 'var(--cx-text)' }}>{lang === 'en' ? VARS_EN[serviceId]?.[v.id]?.question ?? v.preguntaEs : v.preguntaEs}</span>
         </label>
       )}
@@ -433,8 +437,9 @@ export function CotizadorRedesign() {
   }), [firstClient, quantity, urgencyPct]);
   const quote = useMemo(() => {
     if (!svc || !tier) return null;
-    try { return computeQuote(svc.id, tier, currency, quoteOpts); } catch { return null; }
-  }, [svc, tier, currency, quoteOpts]);
+    // ciclo 21: motor continuo — cada variable mueve el precio (DESPACHO-11 LAB-C1)
+    try { return computeQuoteContinuous(svc.id, vals, currency, quoteOpts); } catch { return null; }
+  }, [svc, tier, vals, currency, quoteOpts]);
 
   /** Aplica el plan del wizard: principal en configuración, resto como líneas extra. */
   /** Ciclo 17 — visor del precio: plan EN VIVO del wizard (antes de aplicar)
@@ -445,12 +450,10 @@ export function CotizadorRedesign() {
     const principal = livePlan.picks[0];
     if (!principal) return null;
     try {
-      const t = derivarTier(principal.serviceId, principal.vals);
-      const q = computeQuote(principal.serviceId, t, currency, quoteOpts);
+      const q = computeQuoteContinuous(principal.serviceId, principal.vals, currency, quoteOpts);
       if (!q) return null;
       const extrasQ = livePlan.picks.slice(1).map(p2 => {
-        const tt = derivarTier(p2.serviceId, p2.vals);
-        return computeQuote(p2.serviceId, tt, currency, quoteOpts);
+        return computeQuoteContinuous(p2.serviceId, p2.vals, currency, quoteOpts);
       }).filter((x): x is NonNullable<typeof x> => x !== null);
       const rawMin = q.totalMin + extrasQ.reduce((a, e) => a + e.totalMin, 0);
       const rawMax = q.totalMax + extrasQ.reduce((a, e) => a + e.totalMax, 0);
@@ -478,7 +481,7 @@ export function CotizadorRedesign() {
   const extraQuotes = useMemo(() => extras.map(p => {
     try {
       const t = derivarTier(p.serviceId, p.vals);
-      const q = computeQuote(p.serviceId, t, currency, quoteOpts);
+      const q = computeQuoteContinuous(p.serviceId, p.vals, currency, quoteOpts);
       return q ? { pick: p, tier: t, quote: q } : null;
     } catch { return null; }
   }).filter((x): x is NonNullable<typeof x> => x !== null), [extras, currency, quoteOpts]);
@@ -575,49 +578,59 @@ export function CotizadorRedesign() {
       <WebGLBackground dark={theme === 'dark'} />
       <style>{`
         .cx-root {
-          --cx-bg: #fbfbfd;
-          --cx-card: rgba(255,255,255,0.85);
+          --cx-bg: #f7f5f0;
+          --cx-card: rgba(255,255,255,0.78);
           --cx-card-solid: #ffffff;
-          --cx-tile: #f5f5f7;
-          --cx-text: #1d1d1f;
-          --cx-muted: #86868b;
-          --cx-faint: #aeaeb2;
-          --cx-border: rgba(0,0,0,0.05);
-          --cx-border-strong: rgba(0,0,0,0.10);
-          --cx-soft: rgba(0,0,0,0.06);
-          --cx-accent: #0071e3;
-          --cx-accent-hover: #0077ed;
-          --cx-accent-soft: #e8f0fe;
-          --cx-accent-border: rgba(0,113,227,0.3);
-          --cx-shadow-card: 0 2px 16px rgba(0,0,0,0.03);
-          --cx-shadow-hover: 0 8px 24px rgba(0,0,0,0.06);
-          --cx-shadow-knob: 0 2px 8px rgba(0,0,0,0.15);
-          --cx-obj-shadow: rgba(29,29,31,0.14);
+          --cx-tile: #efece5;
+          --cx-text: #17150f;
+          --cx-muted: #6b665c;
+          --cx-faint: #9c968a;
+          --cx-border: rgba(23,21,15,0.08);
+          --cx-border-strong: rgba(23,21,15,0.16);
+          --cx-soft: rgba(23,21,15,0.06);
+          --cx-accent: #c2410c;
+          --cx-accent-hover: #9a3412;
+          --cx-accent-soft: rgba(234,88,12,0.10);
+          --cx-accent-border: rgba(194,65,12,0.32);
+          --cx-shadow-card: 0 1px 2px rgba(23,21,15,0.04), 0 8px 24px -12px rgba(23,21,15,0.10);
+          --cx-shadow-hover: 0 2px 4px rgba(23,21,15,0.05), 0 18px 40px -18px rgba(194,65,12,0.35);
+          --cx-shadow-knob: 0 2px 8px rgba(23,21,15,0.18);
+          --cx-obj-shadow: rgba(23,21,15,0.14);
+          --cx-on-accent: #ffffff;
+          --cx-accent-2: #e11d48;
+          --cx-glow: rgba(234,88,12,0.14);
+          --cx-glow-2: rgba(14,165,233,0.08);
+          --cx-grid: rgba(23,21,15,0.045);
         }
         /* Blindaje ciclo 10b: las variables oscuras aplican si html ya sabe el
            tema (script inline) aunque el data-theme del div llegue tarde. */
         html[data-cx-theme='dark'] .cx-root, .cx-root[data-theme='dark'] {
-          --cx-bg: #0b0b0f;
-          --cx-card: rgba(28,28,32,0.82);
-          --cx-card-solid: #1c1c21;
-          --cx-tile: #26262c;
-          --cx-text: #f5f5f7;
-          --cx-muted: #98989d;
-          --cx-faint: #6e6e73;
-          --cx-border: rgba(255,255,255,0.09);
-          --cx-border-strong: rgba(255,255,255,0.16);
-          --cx-soft: rgba(255,255,255,0.12);
-          --cx-accent: #2997ff;
-          --cx-accent-hover: #40a3ff;
-          --cx-accent-soft: rgba(41,151,255,0.16);
-          --cx-accent-border: rgba(41,151,255,0.4);
-          --cx-shadow-card: 0 2px 16px rgba(0,0,0,0.45);
-          --cx-shadow-hover: 0 8px 24px rgba(0,0,0,0.5);
+          --cx-bg: #0b0a09;
+          --cx-card: rgba(24,22,20,0.72);
+          --cx-card-solid: #191715;
+          --cx-tile: #24211e;
+          --cx-text: #f4f1ea;
+          --cx-muted: #a59f94;
+          --cx-faint: #6f6a61;
+          --cx-border: rgba(244,241,234,0.08);
+          --cx-border-strong: rgba(244,241,234,0.16);
+          --cx-soft: rgba(244,241,234,0.10);
+          --cx-accent: #ff7a3d;
+          --cx-accent-hover: #ff9566;
+          --cx-accent-soft: rgba(255,122,61,0.13);
+          --cx-accent-border: rgba(255,122,61,0.38);
+          --cx-shadow-card: 0 1px 0 rgba(255,255,255,0.03) inset, 0 12px 32px -16px rgba(0,0,0,0.7);
+          --cx-shadow-hover: 0 1px 0 rgba(255,255,255,0.05) inset, 0 24px 48px -20px rgba(255,122,61,0.30);
           --cx-shadow-knob: 0 2px 8px rgba(0,0,0,0.6);
           --cx-obj-shadow: rgba(0,0,0,0.65);
+          --cx-on-accent: #1a0a02;
+          --cx-accent-2: #ffb547;
+          --cx-glow: rgba(255,122,61,0.16);
+          --cx-glow-2: rgba(94,224,255,0.07);
+          --cx-grid: rgba(244,241,234,0.035);
         }
         * { box-sizing: border-box; }
-        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Inter, system-ui, sans-serif; }
+        body { margin: 0; font-family: 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif; }
         @media (max-width: 768px) { .cx-desktop-only { display: none !important; } }
         /* ciclo 10 — el aside sticky scrollea DENTRO del viewport: sin max-height
            el final del panel (CTA imprimir/PDF) quedaba fuera de pantalla. */
@@ -725,7 +738,7 @@ export function CotizadorRedesign() {
                 style={{
                   padding: '6px 14px', font: `600 13px inherit`, border: 'none', cursor: 'pointer',
                   background: lang === l ? 'var(--cx-accent)' : 'transparent',
-                  color: lang === l ? '#fff' : 'var(--cx-muted)',
+                  color: lang === l ? 'var(--cx-on-accent)' : 'var(--cx-muted)',
                 }}>{l.toUpperCase()}</button>
             ))}
           </div>
@@ -733,11 +746,16 @@ export function CotizadorRedesign() {
           <div style={{ display: 'inline-flex', borderRadius: 999, overflow: 'hidden', border: '1px solid var(--cx-border-strong)' }}>
             {(['COP', 'USD'] as Currency[]).map(c => (
               <button key={c} onClick={() => setCurrency(c)}
+                aria-pressed={currency === c}
+                // ciclo 23: COP y USD son MERCADOS distintos (contrato nacional vs internacional), no una conversión
+                title={c === 'COP'
+                  ? (lang === 'en' ? 'Domestic contract (Colombia) — Colombian market rates' : 'Contrato nacional (Colombia) — tarifas del mercado colombiano')
+                  : (lang === 'en' ? 'International contract — international market rates' : 'Contrato internacional — tarifas del mercado internacional')}
                 style={{
                   padding: '6px 14px', font: `600 13px inherit`, border: 'none', cursor: 'pointer',
                   background: currency === c ? 'var(--cx-accent)' : 'transparent',
-                  color: currency === c ? '#fff' : 'var(--cx-muted)',
-                }}>{c}</button>
+                  color: currency === c ? 'var(--cx-on-accent)' : 'var(--cx-muted)',
+                }}>{c}<span className="cx-desktop-only" style={{ fontWeight: 500, opacity: 0.75 }}>{c === 'COP' ? (lang === 'en' ? ' · Colombia' : ' · Nacional') : (lang === 'en' ? ' · Intl' : ' · Internacional')}</span></button>
             ))}
           </div>
         </div>
@@ -822,10 +840,10 @@ export function CotizadorRedesign() {
                   ))}
                 </div>
                 <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 16, cursor: 'pointer' }}>
-                  <div onClick={() => setFirstClient(!firstClient)}
+                  <button type="button" onClick={() => setFirstClient(!firstClient)}
                     style={{ width: 44, height: 26, borderRadius: 13, background: firstClient ? '#30d158' : 'var(--cx-border-strong)', position: 'relative', flexShrink: 0 }}>
                     <div style={{ position: 'absolute', top: 2, left: firstClient ? 20 : 2, width: 22, height: 22, borderRadius: '50%', background: 'var(--cx-card-solid)', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.25s' }} />
-                  </div>
+                  </button>
                   <span style={{ fontSize: 14, color: 'var(--cx-muted)' }}>{lang === 'es' ? 'Descuento lanzamiento' : 'Launch discount'} −{LAUNCH_DISCOUNT.defaultPct}%</span>
                 </label>
               </div>

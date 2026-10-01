@@ -10,7 +10,7 @@ export function PriceWhy({ drivers, conditions, onLower }: {
 }) {
   return (
     <details style={{ marginTop: 10 }} data-noprint>
-      <summary style={{ cursor: 'pointer', fontSize: 13, color: '#0a84ff' }}>¿Por qué este precio?</summary>
+      <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--cx-accent)' }}>¿Por qué este precio?</summary>
       <div style={{ fontSize: 12.5, marginTop: 8, color: '#1a1d29' }}>
         {drivers.length === 0
           ? <p style={{ margin: 0 }}>Estás en configuración base: este es el punto de partida del servicio.</p>
@@ -23,7 +23,7 @@ export function PriceWhy({ drivers, conditions, onLower }: {
                   {' '}
                   <button onClick={() => onLower(d.varId, d.minValue)}
                     style={{
-                      font: 'inherit', fontSize: 11.5, color: '#0a84ff', background: 'none',
+                      font: 'inherit', fontSize: 11.5, color: 'var(--cx-accent)', background: 'none',
                       border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: 0,
                     }}>
                     bajar al mínimo

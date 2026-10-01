@@ -21,7 +21,7 @@
   /* === TEXTO (jerarquía B/N) === */
   --text-primary: #f5f5f7;
   --text-secondary: #98989d;
-  --text-tertiary: #636366;
+  --text-tertiary: #8e8e93; /* subido 3.2:1→~4.6:1 AA sobre surface-1 [V8] */
 
   /* === SEPARADORES Y BORDES (1px, baja opacidad) === */
   --separator: rgba(255, 255, 255, 0.08);
@@ -29,7 +29,9 @@
   --color-border-visible: rgba(255, 255, 255, 0.15);
 
   /* === ACENTOS SEMÁNTICOS (uso restringido) === */
-  --accent: #0a84ff;                   /* SOLO enlaces + focus rings */
+  --accent: #0a84ff;
+  /* Texto sobre acento: negro rinde 5.8:1 (AA); blanco solo 3.6:1 [vis 60-30-10] */
+  --on-accent: #000000;                   /* SOLO enlaces + focus rings */
   --accent-soft: rgba(10, 132, 255, 0.12);
   --accent-border: rgba(10, 132, 255, 0.35);
   --focus-ring: rgba(10, 132, 255, 0.45);

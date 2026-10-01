@@ -124,9 +124,9 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     // ── Materiales compartidos ──
     const bodyMat = new THREE.MeshStandardMaterial({ color: 0xeef0f2, metalness: 0.3, roughness: 0.4 });
     const solidMat = new THREE.MeshStandardMaterial({ color: 0xdfe3e8, metalness: 0.1, roughness: 0.7, flatShading: true });
-    const accentMat = new THREE.MeshStandardMaterial({ color: 0x0071e3, metalness: 0.5, roughness: 0.3 });
+    const accentMat = new THREE.MeshStandardMaterial({ color: 0xff7a3d, metalness: 0.5, roughness: 0.3 });
     const darkMat = new THREE.MeshStandardMaterial({ color: 0x3a3f47, metalness: 0.6, roughness: 0.35 });
-    const wireMat = new THREE.MeshBasicMaterial({ color: 0x0071e3, wireframe: true, transparent: true, opacity: 0.9 });
+    const wireMat = new THREE.MeshBasicMaterial({ color: 0xff7a3d, wireframe: true, transparent: true, opacity: 0.9 });
     const setEnv = (v: number) => { bodyMat.envMapIntensity = v; accentMat.envMapIntensity = v; darkMat.envMapIntensity = v; };
 
     // ═══ detail (1.1): MORPH real — edges → sólido → cuerpo suave en UNA malla ═══
@@ -151,7 +151,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     // Aristas azules (etapa 1): el wireframe ES esta malla
     const edges = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(1.3, 0.9, 1.0).translate(0, 0.15, 0)),
-      new THREE.LineBasicMaterial({ color: 0x0071e3, transparent: true, opacity: 1 }),
+      new THREE.LineBasicMaterial({ color: 0xff7a3d, transparent: true, opacity: 1 }),
     );
     detailRoot.add(edges);
     // Base placa (aparece rellenando en [1.5, 2.2], permanece)
@@ -354,7 +354,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
     // slot shader-rayos-x: fresnel aditivo semitransparente
     const xrayMat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
-      uniforms: { uColor: { value: new THREE.Color(0x2997ff) } },
+      uniforms: { uColor: { value: new THREE.Color(0xff7a3d) } },
       vertexShader: `varying vec3 vN; void main(){ vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
       fragmentShader: `uniform vec3 uColor; varying vec3 vN;
         void main(){ float fres = pow(1.0 - abs(normalize(vN).z), 1.8); gl_FragColor = vec4(uColor * (0.55 + fres), 0.32 + fres * 0.5); }`,
@@ -822,7 +822,7 @@ export function ModelPreview({ mode, detail = 3, pieces = 8, story = 5, surface 
       if (!holoMat) {
         holoMat = new THREE.ShaderMaterial({
           transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
-          uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(0x2997ff) } },
+          uniforms: { uTime: { value: 0 }, uColor: { value: new THREE.Color(0xff7a3d) } },
           vertexShader: `varying vec3 vN; varying vec3 vP; void main(){ vN = normalize(normalMatrix * normal); vec4 wp = modelViewMatrix * vec4(position,1.0); vP = wp.xyz; gl_Position = projectionMatrix * wp; }`,
           fragmentShader: `uniform float uTime; uniform vec3 uColor; varying vec3 vN; varying vec3 vP;
             void main(){

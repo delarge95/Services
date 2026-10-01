@@ -50,6 +50,9 @@ export interface TreeQuestion {
    *  muestra una nota profesional aclarando que la versión final usa los modelos
    *  del producto del cliente. */
   demoAsset?: boolean;
+  /** Ciclo 21 (DESPACHO-11 LAB-C1): la pregunta solo se muestra si el precio la usa.
+   *  Sin este filtro el cliente movía sliders que no cambiaban nada. */
+  showWhen?: (answers: Record<string, string | number | boolean | undefined>) => boolean;
   /** Si es expandible como "opciones avanzadas". */
   advanced?: boolean;
   advancedOptions?: AdvancedOption[];
@@ -61,6 +64,34 @@ export interface TreeBranch {
   subtitle: string;
   questions: TreeQuestion[];
 }
+
+
+// ─── Visibilidad condicionada al precio (ciclo 21) ───
+type A = Record<string, string | number | boolean | undefined>;
+/** Hay que modelar o rehacer el modelo → nivel de detalle y superficie entran al precio (treeToQuote: pickModeloDesdeCero / extras scan-fotos). */
+/**
+ * Valor que el slider MUESTRA antes de tocarlo y que treeToQuote COTIZA si no hay
+ * respuesta (ENC-OLA1-COTIZADOR / LAB-C: antes se mostraba `min` y se cotizaba
+ * otro valor, p.ej. superficie 1 vs 2). Única fuente para ambos.
+ */
+export const SLIDER_DEFAULTS: Record<string, number> = {
+  'nivel-detalle': 3,
+  superficie: 2,
+  'cantidad-piezas': 8,
+  escenas: 5,
+  'num-variantes': 10,
+};
+
+/** Valor inicial de un slider sin respuesta. */
+export const sliderDefault = (q: Pick<TreeQuestion, 'id' | 'slider'>): number =>
+  SLIDER_DEFAULTS[q.id] ?? q.slider?.min ?? 0;
+
+export const requiereModelado = (a: A): boolean =>
+  a['modelo-existente'] === 'no-crear' || a['modelo-para-scroll'] === 'no' ||
+  a['calidad-fuente'] === 'scan' || a['calidad-fuente'] === 'fotos';
+/** Piezas: además cuentan en la conversión CAD (CAD-01) y en la app completa. */
+export const piezasAfectanPrecio = (a: A): boolean =>
+  requiereModelado(a) || a['formato-archivo'] === 'step' || a['calidad-fuente'] === 'cad-limpio';
 
 // ═══════════════════════════════════════════════════════════════
 // NIVEL 1: ¿Qué quieres lograr?
@@ -124,6 +155,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
       },
       {
         id: 'nivel-detalle',
+        showWhen: requiereModelado,
         question: '¿Qué nivel de detalle necesitas?',
         help: 'Más detalle = más horas de modelado. Para web, el nivel 3 suele ser suficiente.',
         demoAsset: true,
@@ -141,6 +173,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
       },
       {
         id: 'superficie',
+        showWhen: requiereModelado,
         question: '¿Cómo es la superficie de tu producto?',
         help: 'De formas duras y prismáticas a curvas orgánicas. El extremo esculpido se acota en una sesión de discovery.',
         type: 'slider',
@@ -150,6 +183,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
       // 'estilo' retirada por decisión de producto (2026-08-30): no aportaba al precio.
       {
         id: 'cantidad-piezas',
+        showWhen: piezasAfectanPrecio,
         question: '¿Cuántas piezas o partes tiene tu producto?',
         help: 'Las instancias de una misma pieza cuentan una vez (40 tornillos = 1 tipo).',
         type: 'slider',
@@ -221,6 +255,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
       },
       {
         id: 'nivel-detalle',
+        showWhen: requiereModelado,
         question: '¿Qué nivel de detalle necesitas?',
         help: 'Más detalle = más horas de modelado. Para web, el nivel 3 suele ser suficiente.',
         demoAsset: true,
@@ -234,6 +269,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
       },
       {
         id: 'superficie',
+        showWhen: requiereModelado,
         question: '¿Cómo es la superficie de tu producto?',
         help: 'De formas duras y prismáticas a curvas orgánicas. El extremo esculpido se acota en una sesión de discovery.',
         type: 'slider',
@@ -243,6 +279,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
       // 'estilo' retirada por decisión de producto (2026-08-30): no aportaba al precio.
       {
         id: 'cantidad-piezas',
+        showWhen: piezasAfectanPrecio,
         question: '¿Cuántas piezas o partes tiene tu producto?',
         help: 'Las instancias de una misma pieza cuentan una vez (40 tornillos = 1 tipo).',
         type: 'slider',
@@ -312,6 +349,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
       },
       {
         id: 'nivel-detalle',
+        showWhen: requiereModelado,
         question: '¿Qué nivel de detalle necesita el modelo?',
         help: 'Para scrollytelling el 3D se ve en movimiento: el nivel 2-3 suele bastar.',
         demoAsset: true,
@@ -321,6 +359,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
       },
       {
         id: 'superficie',
+        showWhen: requiereModelado,
         question: '¿Cómo es la superficie de tu producto?',
         help: 'De formas duras y prismáticas a curvas orgánicas. El extremo esculpido se acota en discovery.',
         type: 'slider',
@@ -329,6 +368,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
       },
       {
         id: 'cantidad-piezas',
+        showWhen: piezasAfectanPrecio,
         question: '¿Cuántas piezas o partes tiene tu producto?',
         help: 'Las instancias de una misma pieza cuentan una vez (40 tornillos = 1 tipo).',
         type: 'slider',
@@ -378,6 +418,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
       },
       {
         id: 'superficie',
+        showWhen: requiereModelado,
         question: '¿Cómo es la superficie de tu producto?',
         help: 'De formas duras y prismáticas a curvas orgánicas. El extremo esculpido se acota en discovery.',
         type: 'slider',
@@ -386,6 +427,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
       },
       {
         id: 'cantidad-piezas',
+        showWhen: piezasAfectanPrecio,
         question: '¿Cuántas piezas o partes tiene tu producto?',
         help: 'Las instancias de una misma pieza cuentan una vez (40 tornillos = 1 tipo).',
         type: 'slider',

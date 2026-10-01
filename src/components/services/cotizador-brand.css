@@ -1,0 +1,100 @@
+/* ═══════════════════════════════════════════════════════════════
+   cotizador-brand.css — Sistema visual "Forja" (ciclo 23, 2026-09-30)
+   Sustituye la estética Apple-genérica (azul #0071e3 + gris plano) por una
+   identidad propia: tinta cálida + ascua (ember) como acento, display en
+   Space Grotesk, retícula técnica de fondo y foco visible en todo control.
+   Los tokens --cx-* se definen en CotizadorRedesign/cotizador.astro; aquí solo
+   van las capas de marca, tipografía e interacción.
+   ═══════════════════════════════════════════════════════════════ */
+
+.cx-root {
+  --cx-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --cx-sans: 'Inter', -apple-system, 'Segoe UI', system-ui, sans-serif;
+  --cx-ease: cubic-bezier(.2, .8, .2, 1);
+  font-family: var(--cx-sans);
+  -webkit-font-smoothing: antialiased;
+  isolation: isolate;
+}
+
+/* Fondo: retícula técnica + resplandor de ascua (sustituye el "confeti" de cubos) */
+.cx-root::before {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(60rem 30rem at 50% -8rem, var(--cx-glow), transparent 70%),
+    radial-gradient(40rem 24rem at 100% 100%, var(--cx-glow-2), transparent 70%),
+    linear-gradient(var(--cx-grid) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(90deg, var(--cx-grid) 1px, transparent 1px) 0 0 / 48px 48px;
+  -webkit-mask-image: linear-gradient(#000 0%, #000 55%, transparent 100%);
+          mask-image: linear-gradient(#000 0%, #000 55%, transparent 100%);
+}
+.cx-webgl-bg { display: none !important; }
+
+/* Tipografía display en todos los títulos */
+.cx-root h1, .cx-root h2, .cx-root h3 {
+  font-family: var(--cx-display) !important;
+  letter-spacing: -0.035em !important;
+  text-wrap: balance;
+}
+.cx-ember {
+  background: linear-gradient(100deg, var(--cx-accent) 10%, var(--cx-accent-2) 90%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* Eyebrow sobre el título */
+.cx-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px; margin: 0 auto 18px;
+  padding: 7px 12px; border-radius: 999px; font: 600 11px/1 var(--cx-sans);
+  letter-spacing: .14em; text-transform: uppercase; color: var(--cx-accent);
+  background: var(--cx-accent-soft); border: 1px solid var(--cx-accent-border);
+}
+.cx-eyebrow::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--cx-accent); box-shadow: 0 0 0 4px var(--cx-accent-soft); }
+
+/* Tarjetas de opción del wizard (nivel 1 y 2) */
+.cx-option {
+  position: relative; overflow: hidden;
+  border-radius: 18px !important;
+  transition: transform .3s var(--cx-ease), border-color .3s var(--cx-ease), box-shadow .3s var(--cx-ease) !important;
+}
+.cx-option::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(24rem 10rem at 0% 0%, var(--cx-accent-soft), transparent 70%);
+  transition: opacity .3s var(--cx-ease);
+}
+.cx-option:hover, .cx-option:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--cx-accent-border) !important;
+  box-shadow: var(--cx-shadow-hover) !important;
+}
+.cx-option:active { transform: translateY(-1px) scale(.995); }
+.cx-option:hover::after, .cx-option:focus-visible::after { opacity: 1; }
+.cx-option > * { position: relative; z-index: 1; }
+.cx-option-arrow { margin-left: auto; align-self: center; color: var(--cx-faint); transition: transform .3s var(--cx-ease), color .3s; }
+.cx-option:hover .cx-option-arrow { transform: translateX(4px); color: var(--cx-accent); }
+.cx-option-icon {
+  display: inline-flex !important; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+  background: var(--cx-accent-soft); border: 1px solid var(--cx-accent-border);
+}
+
+/* Foco visible accesible en todo control (antes: ninguno) */
+.cx-root :is(button, a, input, [tabindex]):focus-visible {
+  outline: 2px solid var(--cx-accent) !important; outline-offset: 3px;
+}
+
+/* Nav: barra translúcida (pegajosa solo en escritorio: en móvil ocupa 2 líneas) */
+@media (min-width: 769px) { .cx-nav { position: sticky !important; top: 0; } }
+.cx-nav {
+  background: color-mix(in srgb, var(--cx-bg) 72%, transparent);
+  backdrop-filter: saturate(1.4) blur(14px); -webkit-backdrop-filter: saturate(1.4) blur(14px);
+}
+
+/* Barra de precio: más presencia */
+.cx-pricebar { border-top: 1px solid var(--cx-accent-border) !important; box-shadow: 0 -12px 40px -20px var(--cx-glow); }
+.cx-pricebar-label { color: var(--cx-accent) !important; font-weight: 600; }
+.cx-price-dash { color: var(--cx-accent) !important; opacity: .7; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cx-option, .cx-option-arrow { transition: none !important; }
+  .cx-option:hover { transform: none; }
+}
+@media print { .cx-root::before { display: none; } }

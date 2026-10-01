@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { MessageCircle } from 'lucide-react';
 import { CONTACT_EMAIL } from '../../../lib/services/share';
 import { matchIntent, quickRepliesFor } from '../../../lib/services/chat/chatIntents';
 import type { ChatContext } from '../../../lib/services/chat/chatIntents';
@@ -49,7 +50,7 @@ export function CotizadorChat(props: ChatContext) {
             width: 52, height: 52, borderRadius: 999, fontSize: 22,
             background: '#0a84ff', color: '#fff', boxShadow: '0 6px 18px rgba(10,132,255,.35)',
           }}>
-          💬
+          <MessageCircle size={22} />
           <span style={{
             position: 'absolute', top: -6, right: -4, background: '#166534', color: '#fff',
             borderRadius: 999, fontSize: 10.5, padding: '2px 8px', whiteSpace: 'nowrap',

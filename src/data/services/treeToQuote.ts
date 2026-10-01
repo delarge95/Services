@@ -11,6 +11,8 @@
  * default documentado aquí — ningún número inventado en runtime.
  */
 
+import { SLIDER_DEFAULTS } from './decisionTree';
+
 export type Val = number | string | boolean;
 
 export interface WizardPick {
@@ -79,10 +81,10 @@ const polyDeNivel = (nivel: number): number => {
 
 /** RTA-01 para crear el modelo desde cero (cliente no lo tiene). */
 const pickModeloDesdeCero = (a: Answers): WizardPick => {
-  const nivel = has(a, 'nivel-detalle') ? clampa(num(a, 'nivel-detalle'), 1, 5) : 3;
+  const nivel = has(a, 'nivel-detalle') ? clampa(num(a, 'nivel-detalle'), 1, 5) : SLIDER_DEFAULTS['nivel-detalle'];
   const acabado = str(a, 'materiales-acabado');
-  const piezas = has(a, 'cantidad-piezas') ? clampa(num(a, 'cantidad-piezas'), 1, 200) : 8;
-  const superficie = has(a, 'superficie') ? clampa(num(a, 'superficie'), 1, 5) : 2;
+  const piezas = has(a, 'cantidad-piezas') ? clampa(num(a, 'cantidad-piezas'), 1, 200) : SLIDER_DEFAULTS['cantidad-piezas'];
+  const superficie = has(a, 'superficie') ? clampa(num(a, 'superficie'), 1, 5) : SLIDER_DEFAULTS.superficie;
   const fuente = str(a, 'modelo-existente') === 'no-crear' && (str(a, 'formato-archivo') === 'step' || str(a, 'calidad-fuente') === 'cad-limpio')
     ? 'Desde CAD (requiere conversión)'
     : 'Desde fotos (requiere modelado)';
@@ -95,7 +97,7 @@ const pickModeloDesdeCero = (a: Answers): WizardPick => {
       polyCount: polyDeNivel(nivel),
       numPiezas: piezas,
       numTexturas: TEXTURAS_POR_ACABADO[acabado] ?? 2,
-      tipoSuperficie: Math.round(superficie),
+      tipoSuperficie: Math.round(superficie * 10) / 10,
     },
     notaEs: superficie >= 4.5
       ? 'Superficies esculpidas/orgánicas: el alcance exacto se acota en una sesión de discovery.'
@@ -105,7 +107,7 @@ const pickModeloDesdeCero = (a: Answers): WizardPick => {
 
 /** Conversión CAD→Web (CAD-01) cuando el cliente YA tiene un CAD. */
 const pickConversionCAD = (a: Answers): WizardPick => {
-  const piezas = has(a, 'cantidad-piezas') ? clampa(num(a, 'cantidad-piezas'), 1, 300) : 10;
+  const piezas = has(a, 'cantidad-piezas') ? clampa(num(a, 'cantidad-piezas'), 1, 300) : SLIDER_DEFAULTS['cantidad-piezas'];
   const acabado = str(a, 'materiales-acabado');
   return {
     serviceId: 'CAD-01',
@@ -136,10 +138,10 @@ function extrasPorModeloExistente(a: Answers): WizardPick | null {
       notaEs: 'Tu archivo (escaneo o fotos) se reconstruye como modelo optimizado para web.',
       vals: {
         fuente: 'Desde fotos (requiere modelado)',
-        polyCount: polyDeNivel(has(a, 'nivel-detalle') ? clampa(num(a, 'nivel-detalle'), 1, 5) : 3),
-        numPiezas: has(a, 'cantidad-piezas') ? clampa(num(a, 'cantidad-piezas'), 1, 200) : 8,
+        polyCount: polyDeNivel(has(a, 'nivel-detalle') ? clampa(num(a, 'nivel-detalle'), 1, 5) : SLIDER_DEFAULTS['nivel-detalle']),
+        numPiezas: has(a, 'cantidad-piezas') ? clampa(num(a, 'cantidad-piezas'), 1, 200) : SLIDER_DEFAULTS['cantidad-piezas'],
         numTexturas: TEXTURAS_POR_ACABADO[str(a, 'materiales-acabado')] ?? 2,
-        tipoSuperficie: has(a, 'superficie') ? Math.round(clampa(num(a, 'superficie'), 1, 5)) : 2,
+        tipoSuperficie: has(a, 'superficie') ? Math.round(clampa(num(a, 'superficie'), 1, 5) * 10) / 10 : SLIDER_DEFAULTS.superficie,
       },
     };
   }
@@ -189,7 +191,7 @@ function planInteractivo(a: Answers): WizardQuotePlan {
 }
 
 function planScrollytelling(a: Answers): WizardQuotePlan {
-  const escenas = has(a, 'escenas') ? clampa(num(a, 'escenas'), 1, 15) : 5;
+  const escenas = has(a, 'escenas') ? clampa(num(a, 'escenas'), 1, 15) : SLIDER_DEFAULTS.escenas;
   const picks: WizardPick[] = [{
     serviceId: 'WEB-05',
     role: 'principal',
@@ -226,7 +228,7 @@ function planWebApp(a: Answers): WizardQuotePlan {
     };
   } else {
     // configurador y herramienta técnica comparten WEB-04
-    const variantes = has(a, 'num-variantes') ? clampa(num(a, 'num-variantes'), 2, 50) : 10;
+    const variantes = has(a, 'num-variantes') ? clampa(num(a, 'num-variantes'), 2, 50) : SLIDER_DEFAULTS['num-variantes'];
     const datosMap: Record<string, string> = {
       estaticos: 'Estáticos (JSON local)',
       cms: 'CMS',

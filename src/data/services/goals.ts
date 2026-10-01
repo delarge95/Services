@@ -1,6 +1,6 @@
 import { SERVICES } from './catalogCore';
 import type { ServiceDef } from './catalogCore';
-import { computeQuote } from './formula';
+import { minContinuousPrice } from './continuousQuote';
 import type { Currency } from './types';
 
 export interface GoalDef {
@@ -56,8 +56,8 @@ export function servicesForGoal(goalId: string): ServiceDef[] {
 /** Precio "desde" para tarjetas de servicio (nivel mínimo soportado, sin descuentos). */
 export function minPriceOf(serviceId: string, currency: Currency): number | null {
   try {
-    const q = computeQuote(serviceId, 'XS', currency, {});
-    return q && q.totalMin > 0 ? q.totalMin : null;
+    // Mismo motor que el precio mostrado (continuousQuote), no el discreto.
+    return minContinuousPrice(serviceId, currency);
   } catch {
     return null;
   }

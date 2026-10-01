@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { computeQuote } from '../../data/services/formula';
+import { computeQuoteAtLevel } from '../../data/services/continuousQuote';
 import { getGalleryAsset, familyIllustration, TIER_SCOPE, familyIcon } from '../../data/services/galleryManifest';
 import type { ServiceDef } from '../../data/services/catalogCore';
 import type { Currency, LevelId } from '../../data/services/types';
@@ -20,7 +20,7 @@ export function TierGallery({ svc, tier, currency, quoteOpts }: {
     const map = new Map<LevelId, { min: number; max: number }>();
     for (const l of BAR_LEVELS) {
       try {
-        const q = computeQuote(svc.id, l, currency, quoteOpts);
+        const q = computeQuoteAtLevel(svc.id, l, currency, quoteOpts); // mismo motor que el precio principal
         if (q) map.set(l, { min: q.totalMin, max: q.totalMax });
       } catch { /* nivel no soportado */ }
     }

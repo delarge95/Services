@@ -1,7 +1,7 @@
-import { computeQuote } from '../../data/services/formula';
-import { derivarTier } from '../../data/services/serviceVariables';
+// ciclo 21: mismo motor continuo que el precio mostrado (continuousQuote)
+import { computeQuoteContinuous } from '../../data/services/continuousQuote';
 import type { ServiceVariable } from '../../data/services/serviceVariables';
-import type { Currency, LevelId } from '../../data/services/types';
+import type { Currency } from '../../data/services/types';
 
 type Val = number | string | boolean;
 
@@ -32,9 +32,9 @@ export function computePriceDrivers(
 ): DriverInfo[] {
   let currentTotal = 0;
   try {
-    const q = computeQuote(serviceId, derivarTier(serviceId, vals) as LevelId, currency, opts);
+    const q = computeQuoteContinuous(serviceId, vals, currency, opts);
     if (!q) return [];
-    currentTotal = q.totalMax;
+    currentTotal = q.totalPoint;
   } catch {
     return [];
   }
@@ -45,9 +45,9 @@ export function computePriceDrivers(
     const cur = vals[v.id];
     if (typeof cur !== 'number' || cur <= v.min) continue;
     try {
-      const qMin = computeQuote(serviceId, derivarTier(serviceId, { ...vals, [v.id]: v.min }) as LevelId, currency, opts);
-      if (!qMin || qMin.totalMax <= 0) continue;
-      const pctUp = (currentTotal - qMin.totalMax) / qMin.totalMax;
+      const qMin = computeQuoteContinuous(serviceId, { ...vals, [v.id]: v.min }, currency, opts);
+      if (!qMin || qMin.totalPoint <= 0) continue;
+      const pctUp = (currentTotal - qMin.totalPoint) / qMin.totalPoint;
       if (pctUp < 0.03) continue;
       drivers.push({
         varId: v.id,

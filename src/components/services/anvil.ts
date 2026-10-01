@@ -33,7 +33,8 @@ export const ANVIL_URL = `${import.meta.env.BASE_URL}cotizador/models/yunke.glb`
  *  (figura invasora flotante a valores bajos del slider). El prisma correcto
  *  = el yunque clampeado a su caja envolvente: bloque duro de caras planas.
  *  Escritura SOLO de posiciones del target (delta): normales y winding intactos. */
-function reconstruirPrisma(g: any): void {
+/** @deprecated ciclo 21 — basada en leer deltas como absolutos; no se invoca. */
+export function reconstruirPrisma(g: any): void {
   if (!g?.isMesh || !g.morphAttributes?.position?.length || !g.attributes.position) return;
   const morph0 = g.morphAttributes.position[0];
   const pos = g.attributes.position;
@@ -48,7 +49,8 @@ function reconstruirPrisma(g: any): void {
   morph0.needsUpdate = true;
 }
 
-function extirparPlacaPrisma(g: any): number {
+/** @deprecated ciclo 21 — borraba triángulos reales del yunque base; no se invoca. */
+export function extirparPlacaPrisma(g: any): number {
   if (!g?.isMesh) return 0;
   const morph0 = g.morphAttributes?.position?.[0];
   const pos = g.attributes.position;
@@ -167,21 +169,17 @@ export function loadAnvil(): Promise<THREE.Group> {
           const loader = new GLTFLoader();
           loader.setMeshoptDecoder(MeshoptDecoder); // GLBs optimizados con meshopt (ciclo 15)
           loader.parse(buf, '', gltf => {
-            const raiz = normalize(gltf.scene);
-            let quitados = 0;
-            try {
-              raiz.traverse((o: any) => {
-                if (o.isMesh && o.geometry) {
-                  quitados += extirparPlacaPrisma(o.geometry);
-                  reconstruirPrisma(o.geometry);
-                }
-              });
-              console.info(`[anvil] placa invasora extirpada: ${quitados} triangulos`);
-            } catch (e) {
-              // la cirugia nunca debe tumbar la carga: sin cirugia, yunque con placa
-              console.error('[anvil] extirpacion fallo:', e);
-            }
-            resolve(raiz);
+            // Ciclo 21 (Misión Control, 2026-09-30): se RETIRA la cirugía de los
+            // ciclos 16e/16f. Diagnóstico: GLTFLoader marca morphTargetsRelative=true,
+            // así que los targets son DELTAS (Key 1 ≤ 0.11 en espacio cuantizado),
+            // no posiciones absolutas. Leerlos como absolutos hizo creer que Key 1
+            // "colapsaba a una caja en el origen". Consecuencias de la cirugía:
+            //  - extirparPlacaPrisma borraba triángulos del yunque BASE (paredes del
+            //    agujero cuadrado = outliers de delta) → hueco/cuadro claro a nivel 5;
+            //  - reconstruirPrisma escribía posiciones absolutas como delta → a
+            //    niveles 2-4 el yunque se sumaba a sí mismo (placa superpuesta).
+            // Las funciones se conservan documentadas (Regla de Oro) pero no se aplican.
+            resolve(normalize(gltf.scene));
           }, err => reject(err));
         })
         .catch(reject);

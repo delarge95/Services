@@ -33,8 +33,8 @@ export function RefDropzone({ onInventory }: { onInventory: (names: string[]) =>
         onDrop={(e) => { e.preventDefault(); setDragOver(false); addFiles(e.dataTransfer.files); }}
         style={{
           marginTop: 8, padding: '18px 14px', textAlign: 'center', cursor: 'pointer',
-          border: dragOver ? '2px solid #0a84ff' : '2px dashed #c7d7fe',
-          borderRadius: 10, background: dragOver ? '#e8f0fe' : '#fff', color: '#44485a',
+          border: dragOver ? '2px solid var(--cx-accent)' : '2px dashed #c7d7fe',
+          borderRadius: 10, background: dragOver ? 'var(--cx-accent-soft)' : '#fff', color: '#44485a',
         }}>
           <span style={{ fontSize: 20 }} aria-hidden="true">📎</span>
           <span style={{ display: 'block', fontSize: 13, marginTop: 4 }}>
@@ -64,7 +64,7 @@ export function RefDropzone({ onInventory }: { onInventory: (names: string[]) =>
           <button onClick={() => { setVerdicts([]); onInventory([]); }}
             style={{
               font: 'inherit', fontSize: 11.5, background: 'none', border: 'none',
-              cursor: 'pointer', color: '#0a84ff', textDecoration: 'underline', padding: 0, marginTop: 4,
+              cursor: 'pointer', color: 'var(--cx-accent)', textDecoration: 'underline', padding: 0, marginTop: 4,
             }}>
             Limpiar lista
           </button>

@@ -184,7 +184,7 @@ const ICONS: Record<string, (p: IconProps) => ReactElement> = {
   mail: MailIcon,
 };
 
-export function TreeIcon({ name, size = 22, color = '#0071e3' }: { name: string } & IconProps) {
+export function TreeIcon({ name, size = 22, color = 'currentColor' }: { name: string } & IconProps) {
   const Cmp = ICONS[name];
   if (!Cmp) return <span style={{ fontSize: size, lineHeight: 1 }}>{name}</span>; // compat: valor literal
   return <Cmp size={size} color={color} />;

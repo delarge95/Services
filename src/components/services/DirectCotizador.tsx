@@ -1,8 +1,10 @@
 import './cotizador.css';
+import { Package } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SERVICES } from '../../data/services/catalogCore';
 import type { ServiceDef } from '../../data/services/catalogCore';
 import { computeQuote } from '../../data/services/formula';
+import { computeQuoteContinuous } from '../../data/services/continuousQuote';
 import { LAUNCH_DISCOUNT } from '../../data/services/rateCard';
 import type { Currency, LevelId, Subtask } from '../../data/services/types';
 import {
@@ -41,9 +43,9 @@ type Val = number | string | boolean;
 
 // ─── Estilos ───
 // Sistema Apple-like: usar .cx-card en vez de box inline
-const box: React.CSSProperties = { background: '#fff', border: '1px solid #dde0e8', borderRadius: 12, padding: 20, marginBottom: 16 };
-const lbl: React.CSSProperties = { display: 'block', fontSize: 15, fontWeight: 600, marginBottom: 8, color: '#1a1d29' };
-const help: React.CSSProperties = { fontSize: 12.5, color: '#5a5e6e', marginTop: 4 };
+const box: React.CSSProperties = { background: 'var(--cx-card-solid)', border: '1px solid var(--cx-border-strong)', borderRadius: 12, padding: 20, marginBottom: 16 };
+const lbl: React.CSSProperties = { display: 'block', fontSize: 15, fontWeight: 600, marginBottom: 8, color: 'var(--cx-text)' };
+const help: React.CSSProperties = { fontSize: 12.5, color: 'var(--cx-muted)', marginTop: 4 };
 
 const CX_CSS = `
 @media (max-width: 480px) { .cx-step-label { display: none; } }
@@ -53,12 +55,12 @@ const CX_CSS = `
   #cotizador-resultado { border: none !important; padding: 0 !important; }
   /* Encabezado formal del PDF: marca + contacto + validez (visible SOLO al imprimir) */
   #print-header { display: flex !important; justify-content: space-between; align-items: flex-start;
-    border-bottom: 2px solid #0a84ff; padding-bottom: 8px; margin-bottom: 14px; }
+    border-bottom: 2px solid var(--cx-accent); padding-bottom: 8px; margin-bottom: 14px; }
   .cx-page { max-width: 100% !important; padding: 0 !important; }
 }
 #print-header { display: none; }
-.cx-term { position: relative; display: inline-flex; align-items: center; margin-left:  6px; cursor: help; color: #0a84ff; font-style: normal; font-weight: 400; }
-.cx-term:focus-visible { outline: 2px solid #0a84ff; border-radius: 4px; }
+.cx-term { position: relative; display: inline-flex; align-items: center; margin-left:  6px; cursor: help; color: var(--cx-accent); font-style: normal; font-weight: 400; }
+.cx-term:focus-visible { outline: 2px solid var(--cx-accent); border-radius: 4px; }
 .cx-term-pop {
   position: absolute; bottom: 135%; left: 50%; transform: translateX(-50%);
   width: min(270px, 74vw); background: #1a1d29; color: #fff; font-size: 12px; line-height: 1.45;
@@ -125,9 +127,9 @@ export function DirectCotizador() {
   const quote = useMemo(() => {
     if (!svc || !tier) return null;
     try {
-      return computeQuote(svc.id, tier, currency, quoteOpts);
+      return computeQuoteContinuous(svc.id, vals, currency, quoteOpts); // ciclo 21
     } catch { return null; }
-  }, [svc, tier, currency, quoteOpts]);
+  }, [svc, tier, vals, currency, quoteOpts]);
 
   // Progressive disclosure: un paso visible a la vez (Apple-style)
   const step = !goal ? 1 : !serviceId ? 2 : !quote ? 3 : 4;
@@ -201,16 +203,16 @@ export function DirectCotizador() {
   };
 
   return (
-    <div className="cx-root" style={{ maxWidth: 720, margin: '0 auto', padding: '24px 16px 60px' }}>
+    <div className="cx-root" style={{ maxWidth: '100%', padding: '24px 0 60px' }}>
       <style dangerouslySetInnerHTML={{ __html: CX_CSS }} />
 
       {/* Encabezado formal visible solo al imprimir/PDF (cotización) */}
       <div id="print-header">
         <div>
-          <strong style={{ fontSize: 15, color: '#1a1d29' }}>{BRAND.name}</strong>
-          <span style={{ display: 'block', fontSize: 11, color: '#5a5e6e' }}>{BRAND.role}</span>
+          <strong style={{ fontSize: 15, color: 'var(--cx-text)' }}>{BRAND.name}</strong>
+          <span style={{ display: 'block', fontSize: 11, color: 'var(--cx-muted)' }}>{BRAND.role}</span>
         </div>
-        <div style={{ textAlign: 'right', fontSize: 11, color: '#5a5e6e' }}>
+        <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--cx-muted)' }}>
           <span style={{ display: 'block' }}>{BRAND.contactEmail}</span>
           <span style={{ display: 'block' }}>{BRAND.links.portfolio}</span>
           <span style={{ display: 'block', marginTop: 4 }}>Cotización orientativa · válida 15 días</span>
@@ -228,7 +230,7 @@ export function DirectCotizador() {
           <React.Fragment key={label}>
             {i > 0 && <span className="cx-step-sep" style={{ opacity: step > i ? 1 : 0.3 }} />}
             <span className="cx-step" data-active={step === i + 1 || step > i + 1}>
-              <span className="cx-step-dot" style={step > i + 1 ? { background: 'var(--cx-accent)', borderColor: 'var(--cx-accent)', color: '#fff' } : undefined}>
+              <span className="cx-step-dot" style={step > i + 1 ? { background: 'var(--cx-accent)', borderColor: 'var(--cx-accent)', color: 'var(--cx-on-accent)' } : undefined}>
                 {step > i + 1 ? '✓' : i + 1}
               </span>
               <span className="cx-step-label">{label}</span>
@@ -247,7 +249,7 @@ export function DirectCotizador() {
       {/* Cómo funciona (no-engineer) + garantías — colapsable tras primera interacción */}
       {!serviceId && (
         <details data-noprint className="cx-card cx-anim" style={{ marginBottom: 14, padding: '20px 24px' }}>
-        <summary style={{ cursor: 'pointer', fontSize: '0.875rem', fontWeight: 600, color: 'var(--cx-text-2)', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <summary style={{ cursor: 'pointer', fontSize: 'var(--fs-body)', fontWeight: 600, color: 'var(--cx-text-2)', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 16 }}>ⓘ</span> Cómo funciona y garantías
         </summary>
         <div style={{ marginTop: 16 }}>
@@ -255,10 +257,10 @@ export function DirectCotizador() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10, marginBottom: 12 }}>
             {HOW_IT_WORKS.map((s) => (
               <div key={s.n} style={{ display: 'flex', gap: 8 }}>
-                <span style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 11, background: '#0a84ff', color: '#fff', font: '700 11.5px/22px inherit', textAlign: 'center' }}>{s.n}</span>
+                <span style={{ flexShrink: 0, width: 22, height: 22, borderRadius: 11, background: 'var(--cx-accent)', color: 'var(--cx-on-accent)', font: '700 11.5px/22px inherit', textAlign: 'center' }}>{s.n}</span>
                 <div>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#1a1d29' }}>{s.title}</div>
-                  <div style={{ fontSize: 11, color: '#5a5e6e', lineHeight: 1.45 }}>{s.desc}</div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--cx-text)' }}>{s.title}</div>
+                  <div style={{ fontSize: 11, color: 'var(--cx-muted)', lineHeight: 1.45 }}>{s.desc}</div>
                 </div>
               </div>
             ))}
@@ -272,16 +274,16 @@ export function DirectCotizador() {
           </div>
           <div style={{ marginTop: 10, fontSize: 11, color: '#8a8fa3' }}>
             Ver trabajo real:{' '}
-            <a href={BRAND.links.portfolio} target="_blank" rel="noopener noreferrer" style={{ color: '#0a84ff' }}>portafolio</a>
+            <a href={BRAND.links.portfolio} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--cx-accent)' }}>portafolio</a>
             {' · '}
-            <a href={BRAND.links.artstation} target="_blank" rel="noopener noreferrer" style={{ color: '#0a84ff' }}>ArtStation</a>
+            <a href={BRAND.links.artstation} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--cx-accent)' }}>ArtStation</a>
           </div>
         </div>
         </details>
       )}
       <Cotizador3DDemo />
 
-      <p style={{ margin: '0 0 18px', fontSize: 12, color: '#5a5e6e' }}>
+      <p style={{ margin: '0 0 18px', fontSize: 12, color: 'var(--cx-muted)' }}>
         Precios en {currency === 'USD' ? 'dólares (tarifa internacional)' : 'pesos colombianos (mercado local)'}
         <Term id="moneda" />
       </p>
@@ -296,8 +298,8 @@ export function DirectCotizador() {
               className="cx-service-card"
               data-selected={goal === g.id}>
               <span style={{ fontSize: 22, lineHeight: 1 }}>{g.icon}</span>
-              <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: '#1a1d29', marginTop: 2 }}>{g.labelEs}</span>
-              <span style={{ display: 'block', fontSize: 10.5, color: '#5a5e6e' }}>{g.descEs}</span>
+              <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: 'var(--cx-text)', marginTop: 2 }}>{g.labelEs}</span>
+              <span style={{ display: 'block', fontSize: 10.5, color: 'var(--cx-muted)' }}>{g.descEs}</span>
             </button>
           ))}
         </div>
@@ -317,7 +319,7 @@ export function DirectCotizador() {
             <FilterChip key={f.id} active={familyFilter === f.id} onClick={() => setFamilyFilter(f.id)} label={f.label} />
           ))}
         </div>
-        <div style={{ display: 'grid', gap: 6, maxHeight: 300, overflowY: 'auto' }}>
+        <div style={{ display: 'grid', gap: 6 }}>
           {filtered.length === 0 && (
             <p style={{ ...help, margin: 0 }}>Ningún servicio de este objetivo en esta familia. Prueba con “Todos”.</p>
           )}
@@ -327,8 +329,8 @@ export function DirectCotizador() {
               <button key={s.id} onClick={() => { setServiceId(s.id); setVals({}); setUnsure({}); }}
                 style={{
                   padding: 12, borderRadius: 10, cursor: 'pointer', font: 'inherit', textAlign: 'left',
-                  border: serviceId === s.id ? '2px solid #0a84ff' : '1px solid #dde0e8',
-                  background: serviceId === s.id ? '#e8f0fe' : '#fff', color: '#1a1d29',
+                  border: serviceId === s.id ? '2px solid var(--cx-accent)' : '1px solid var(--cx-border-strong)',
+                  background: serviceId === s.id ? 'var(--cx-accent-soft)' : 'var(--cx-card-solid)', color: 'var(--cx-text)',
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
                 }}>
                 <span>
@@ -349,7 +351,7 @@ export function DirectCotizador() {
               style={{
                 marginTop: 10, width: '100%', padding: '10px', borderRadius: 10,
                 border: '1px dashed #d5dbe8', background: 'transparent',
-                cursor: 'pointer', font: 'inherit', fontSize: 13, color: '#0071e3',
+                cursor: 'pointer', font: 'inherit', fontSize: 13, color: 'var(--cx-accent)',
               }}>
               {showAll ? 'Ver menos ↑' : `Ver ${filtered.length - 8} servicios más ↓`}
             </button>
@@ -387,10 +389,10 @@ export function DirectCotizador() {
             {(['XS', 'S', 'M', 'L', 'XL'] as LevelId[]).map((l) => (
               <div key={l} style={{
                 flex: 1, padding: '10px 4px', borderRadius: 10, textAlign: 'center',
-                border: tier === l ? '2px solid #0a84ff' : '1px solid #dde0e8',
-                background: tier === l ? '#e8f0fe' : '#fff',
+                border: tier === l ? '2px solid var(--cx-accent)' : '1px solid var(--cx-border-strong)',
+                background: tier === l ? 'var(--cx-accent-soft)' : 'var(--cx-card-solid)',
               }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: tier === l ? '#0a84ff' : '#5a5e6e' }}>{l}</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: tier === l ? 'var(--cx-accent)' : 'var(--cx-muted)' }}>{l}</div>
               </div>
             ))}
           </div>
@@ -414,9 +416,9 @@ export function DirectCotizador() {
                   style={{
                     flex: 1, padding: '10px 12px', borderRadius: 10,
                     cursor: 'pointer', font: 'inherit', textAlign: 'left',
-                    border: urgency === o.id ? '2px solid #0a84ff' : '1px solid #dde0e8',
-                    background: urgency === o.id ? '#e8f0fe' : '#fff',
-                    color: '#1a1d29',
+                    border: urgency === o.id ? '2px solid var(--cx-accent)' : '1px solid var(--cx-border-strong)',
+                    background: urgency === o.id ? 'var(--cx-accent-soft)' : 'var(--cx-card-solid)',
+                    color: 'var(--cx-text)',
                   }}>
                   <strong style={{ fontSize: 13.5 }}>{o.label}</strong>
                   <div style={{ fontSize: 11, opacity: 0.65 }}>{o.desc}</div>
@@ -427,7 +429,7 @@ export function DirectCotizador() {
           </div>
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
             <input type="checkbox" checked={firstClient} onChange={(e) => setFirstClient(e.target.checked)} />
-            <span style={{ fontSize: 14, color: '#1a1d29' }}>
+            <span style={{ fontSize: 14, color: 'var(--cx-text)' }}>
               Descuento Lanzamiento (<strong>−{LAUNCH_DISCOUNT.defaultPct}%</strong>)
             </span>
           </label>
@@ -438,9 +440,9 @@ export function DirectCotizador() {
       {svc && tier && quote && (
         <div id="cotizador-resultado" className="cx-card" data-noprint={false}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <strong style={{ fontSize: 16, color: '#1a1d29' }}>{svc.nameEs}</strong>
+            <strong style={{ fontSize: 16, color: 'var(--cx-text)' }}>{svc.nameEs}</strong>
             <span style={{
-              background: '#0071e3', color: '#fff', padding: '4px 14px',
+              background: 'var(--cx-accent)', color: 'var(--cx-on-accent)', padding: '4px 14px',
               borderRadius: 999, fontSize: 14, fontWeight: 700, letterSpacing: '0.02em',
             }}>
               {tier}
@@ -449,8 +451,8 @@ export function DirectCotizador() {
 
           {svc.entregablesEs.length > 0 && (
             <div style={{ background: '#f0faf4', border: '1px solid #c3e6cb', borderRadius: 10, padding: 14, marginBottom: 12 }}>
-              <strong style={{ fontSize: 13, color: '#1b8a5a' }}>📦 Recibes:</strong>
-              <ul style={{ fontSize: 13, paddingLeft: 16, marginTop: 6, color: '#1a1d29' }}>
+              <strong style={{ fontSize: 13, color: '#1b8a5a' }}><Package size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} />Recibes:</strong>
+              <ul style={{ fontSize: 13, paddingLeft: 16, marginTop: 6, color: 'var(--cx-text)' }}>
                 {quote.entregables.map((e: string) => <li key={e}>✓ {e}</li>)}
               </ul>
             </div>
@@ -459,7 +461,7 @@ export function DirectCotizador() {
           {quote.noIncluye.length > 0 && (
             <div style={{ background: '#fff8f0', border: '1px solid #f0d0a0', borderRadius: 10, padding: 14, marginBottom: 12 }}>
               <strong style={{ fontSize: 13, color: '#8a6d00' }}>⚠️ NO incluido:</strong>
-              <ul style={{ fontSize: 13, paddingLeft: 16, marginTop: 6, color: '#1a1d29' }}>
+              <ul style={{ fontSize: 13, paddingLeft: 16, marginTop: 6, color: 'var(--cx-text)' }}>
                 {quote.noIncluye.map((e: string) => <li key={e}>✗ {e}</li>)}
               </ul>
             </div>
@@ -472,13 +474,13 @@ export function DirectCotizador() {
           </div>
 
           {svc.entregaDiasEs && svc.entregaDiasEs[1] > 0 && (
-            <p style={{ fontSize: 13, color: '#5a5e6e', marginBottom: 8 }}>
+            <p style={{ fontSize: 13, color: 'var(--cx-muted)', marginBottom: 8 }}>
               ⏱ Entrega: {svc.entregaDiasEs[0]}–{svc.entregaDiasEs[1]} días hábiles
             </p>
           )}
 
           {/* S7: comparador de niveles */}
-          <TierGallery svc={svc} tier={tier} currency={currency} quoteOpts={quoteOpts} />
+          <TierGallery svc={svc} tier={quote?.level ?? tier} currency={currency} quoteOpts={quoteOpts} />
 
           {/* S10: transparencia del precio */}
           <PriceWhy drivers={drivers} conditions={conditions}
@@ -486,8 +488,8 @@ export function DirectCotizador() {
 
           {/* S2: desglose por fases */}
           <details style={{ marginTop: 8 }} open>
-            <summary style={{ cursor: 'pointer', fontSize: 13, color: '#0a84ff' }}>¿Cómo se calcula? ({variables.length} variables)</summary>
-            <div style={{ fontSize: 12.5, marginTop: 8, color: '#1a1d29' }}>
+            <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--cx-accent)' }}>¿Cómo se calcula? ({variables.length} variables)</summary>
+            <div style={{ fontSize: 12.5, marginTop: 8, color: 'var(--cx-text)' }}>
               {PHASES.map(({ id, label, icon }) => {
                 const g = phaseGroups.find((gr) => gr.phase === id);
                 if (!g) return null;
@@ -516,7 +518,7 @@ export function DirectCotizador() {
 
           <QuoteCta summary={summary} url={shareUrl} />
 
-          <p style={{ fontWeight: 600, fontSize: 13, marginTop: 12, color: '#1a1d29' }}>
+          <p style={{ fontWeight: 600, fontSize: 13, marginTop: 12, color: 'var(--cx-text)' }}>
             ⚠️ Rango orientativo, no cotización.
           </p>
         </div>
@@ -555,8 +557,8 @@ function VariableControl({ v, value, unsure, recReason, onChange, onToggleUnsure
       <button onClick={onToggleUnsure} aria-pressed={unsure}
         style={{
           flexShrink: 0, font: 'inherit', fontSize: 11.5, cursor: 'pointer',
-          border: unsure ? '1px solid #0a84ff' : '1px solid #dde0e8', borderRadius: 999,
-          padding: '2px 10px', background: unsure ? '#e8f0fe' : '#fff', color: unsure ? '#0a84ff' : '#5a5e6e',
+          border: unsure ? '1px solid var(--cx-accent)' : '1px solid var(--cx-border-strong)', borderRadius: 999,
+          padding: '2px 10px', background: unsure ? 'var(--cx-accent-soft)' : 'var(--cx-card-solid)', color: unsure ? 'var(--cx-accent)' : 'var(--cx-muted)',
         }}>
         {unsure ? '✓ Usando recomendado' : 'No sé'}
       </button>
@@ -569,14 +571,14 @@ function VariableControl({ v, value, unsure, recReason, onChange, onToggleUnsure
       <div style={{ marginBottom: 18, opacity: unsure ? 0.72 : 1 }}>
         <label style={{ ...lbl, fontSize: 15 }}>{head}</label>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-          <strong style={{ fontSize: 22, color: '#0a84ff' }}>{current} {v.unidadEs}</strong>
+          <strong style={{ fontSize: 22, color: 'var(--cx-accent)' }}>{current} {v.unidadEs}</strong>
         </div>
         <input type="range" min={v.min} max={v.max} step={v.step ?? 1} value={current}
           onChange={(e) => onChange(Number(e.target.value))}
           className="cx-slider" style={{ width: '100%' }} />
         {unsure && <p className="cx-caption">✔ {recReason}. Mueve el control para ajustarlo tú.</p>}
         {!unsure && v.tierMap && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, opacity: 0.55, marginTop: 2, color: '#5a5e6e' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10.5, opacity: 0.55, marginTop: 2, color: 'var(--cx-muted)' }}>
             {v.tierMap.map((tm: { maxVal: number; tier: LevelId }) => <span key={tm.tier}>≤{tm.maxVal}={tm.tier}</span>)}
           </div>
         )}
@@ -590,7 +592,7 @@ function VariableControl({ v, value, unsure, recReason, onChange, onToggleUnsure
       <div style={{ marginBottom: 16, opacity: unsure ? 0.72 : 1 }}>
         <label style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}>
           <input type="checkbox" checked={active} onChange={(e) => onChange(e.target.checked)} />
-          <span style={{ fontSize: 14.5, color: '#1a1d29', flex: 1 }}>{head}</span>
+          <span style={{ fontSize: 14.5, color: 'var(--cx-text)', flex: 1 }}>{head}</span>
           {v.tierSiActivo && active && <span className="cx-chip" style={{ fontSize: 11 }}>→ {v.tierSiActivo}</span>}
         </label>
         {unsure && <p className="cx-caption">✔ {recReason}.</p>}
@@ -610,8 +612,8 @@ function VariableControl({ v, value, unsure, recReason, onChange, onToggleUnsure
                 onClick={() => onChange(o.valorEs)}
                 style={{
                   padding: '10px 16px', borderRadius: 10, cursor: 'pointer', font: 'inherit', fontSize: 13.5,
-                  border: active ? '2px solid #0a84ff' : '1px solid #dde0e8',
-                  background: active ? '#e8f0fe' : '#fff', color: '#1a1d29',
+                  border: active ? '2px solid var(--cx-accent)' : '1px solid var(--cx-border-strong)',
+                  background: active ? 'var(--cx-accent-soft)' : 'var(--cx-card-solid)', color: 'var(--cx-text)',
                   fontWeight: active ? 600 : 400,
                 }}>
                 {o.valorEs}
@@ -637,11 +639,11 @@ function StatBox({ label, value, highlight }: { label: string; value: string; hi
   return (
     <div style={{
       background: highlight ? '#f0f7ff' : '#fafafa',
-      border: highlight ? '1px solid rgba(0,113,227,0.2)' : '1px solid var(--cx-border, rgba(0,0,0,0.06))',
+      border: highlight ? '1px solid var(--cx-accent-border)' : '1px solid var(--cx-border, rgba(0,0,0,0.06))',
       borderRadius: 14, padding: '14px 12px', textAlign: 'center',
     }}>
       <div style={{ fontSize: 11, fontWeight: 500, color: '#86868b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
-      <div style={{ fontSize: highlight ? 18 : 15, fontWeight: 700, color: highlight ? '#0071e3' : '#1d1d1f', marginTop: 4, letterSpacing: '-0.01em' }}>{value}</div>
+      <div style={{ fontSize: highlight ? 18 : 15, fontWeight: 700, color: highlight ? 'var(--cx-accent)' : 'var(--cx-text)', marginTop: 4, letterSpacing: '-0.01em' }}>{value}</div>
     </div>
   );
 }
@@ -652,14 +654,14 @@ function fmt(currency: Currency, v: number): string {
 
 function CurrencyToggle({ currency, onChange }: { currency: Currency; onChange: (c: Currency) => void }) {
   return (
-    <div role="group" aria-label="Moneda" style={{ display: 'inline-flex', border: '1px solid var(--cx-border, rgba(0,0,0,0.08))', borderRadius: 999, overflow: 'hidden', background: '#fff' }}>
+    <div role="group" aria-label="Moneda" style={{ display: 'inline-flex', border: '1px solid var(--cx-border, rgba(0,0,0,0.08))', borderRadius: 999, overflow: 'hidden', background: 'var(--cx-card-solid)' }}>
       {(['USD', 'COP'] as Currency[]).map((c) => (
         <button key={c}
           style={{
             padding: '6px 14px', border: 'none', cursor: 'pointer', font: 'inherit',
             fontWeight: currency === c ? 700 : 400,
-            background: currency === c ? '#0071e3' : 'transparent',
-            color: currency === c ? '#fff' : 'inherit',
+            background: currency === c ? 'var(--cx-accent)' : 'transparent',
+            color: currency === c ? 'var(--cx-on-accent)' : 'inherit',
           }}
           onClick={() => onChange(c)}>
           {c === 'USD' ? '$ USD' : '$ COP'}
@@ -683,7 +685,7 @@ function DronePieces({ pieces }: { pieces: number }) {
       <svg viewBox="0 0 240 160" width="240" height="160">
         {vis.flatMap((g) => g.nodes.map((n, i) => <g key={g.min + i} fill="#5b5bd6" stroke="#5b5bd6" strokeWidth={2}>{n}</g>))}
       </svg>
-      <figcaption style={{ fontSize: 13, opacity: 0.7, color: '#5a5e6e' }}>{pieces} piezas</figcaption>
+      <figcaption style={{ fontSize: 13, opacity: 0.7, color: 'var(--cx-muted)' }}>{pieces} piezas</figcaption>
     </figure>
   );
 }
