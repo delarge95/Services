@@ -48,8 +48,8 @@ const TL = {
   r0: 2.2, r: 1.2,         // corte baja: realista
   m0: 3.2, m: 1.2,         // corte sube: esencial
   s0: 4.4, s: 1.2,         // asentamiento en el hero
-  v0: 4.8, v: 0.6,         // la línea gira 90° y es el divisor
-  w0: 5.4, w: 0.6,         // lo realista entra hasta el divisor
+  v0: 4.8, v: 0.6,         // la línea gira 90° mientras viaja al borde izquierdo del dron
+  w0: 5.3, w: 1.0,         // la línea CRUZA el modelo: a su paso, lo esencial se vuelve realista
   t1: 2.6, t2: 3.8,        // titular, línea 1 y 2
 };
 const FOV0 = 13, FOV1 = 30;
@@ -104,12 +104,18 @@ function merge(parts: ReturnType<typeof worldFloat>[], center: THREE.Vector3) {
   g.setIndex(new THREE.BufferAttribute(I, 1)); return g;
 }
 /** Uniforms compartidos del despiece y la fractura (todo en GPU). */
-type XU = { uExplode: { value: number }; uMess: { value: number }; uSpread: { value: number }; uHover: { value: number }; uR: { value: number }; uPush: { value: number }; uCursor: { value: THREE.Vector3 }; uCenter: { value: THREE.Vector3 } };
+type XU = { uExplode: { value: number }; uMess: { value: number }; uSpread: { value: number }; uHover: { value: number }; uCrumple: { value: number }; uR: { value: number }; uPush: { value: number }; uCursor: { value: THREE.Vector3 }; uCenter: { value: THREE.Vector3 } };
 const XGLSL = `
 attribute vec3 aOff; attribute vec3 aFrag;
-uniform float uExplode, uMess, uSpread, uHover, uR, uPush; uniform vec3 uCursor, uCenter;
+uniform float uExplode, uMess, uSpread, uHover, uCrumple, uR, uPush; uniform vec3 uCursor, uCenter;
 vec3 cxHash(vec3 p) { return fract(sin(vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)))) * 43758.5453) - 0.5; }
-vec3 cxRot(vec3 v, vec3 k, float a) { float c = cos(a), s = sin(a); return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c); }`;
+vec3 cxRot(vec3 v, vec3 k, float a) { float c = cos(a), s = sin(a); return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c); }
+// deformación local (modo realista): abolladura radial + ruido por celdas (grietas) alrededor del cursor
+vec3 cxCrumple(vec3 w) {
+  vec3 d = w - uCursor; float l = length(d);
+  float c = uCrumple * (1.0 - smoothstep(0.0, uR * 0.85, l));
+  return (d / max(l, 1e-3)) * c * uPush * 0.45 + cxHash(floor(w * 30.0)) * c * uPush * 1.0;
+}`;
 /**
  * Despiece en GPU. Cada vértice conoce el centro de su PIEZA (aOff) y de su CÁSCARA (aFrag):
  *  · scroll / clic: la pieza se separa radialmente; con el clic además gira y se dispersa (desorden
@@ -130,11 +136,24 @@ function withExplode<M extends THREE.Material>(mat: M, u: XU): M {
         vec3 cxDisp = aOff * uExplode + cxH * vec3(1.0, 0.55, 1.0) * uMess * uSpread;
         transformed += cxDisp;
         vec3 cxFc = uCenter + aFrag + cxDisp, cxD = cxFc - uCursor; float cxL = length(cxD);
-        float cxF = uHover * (1.0 - smoothstep(0.0, uR, cxL));
+        float cxF = uHover * (1.0 - smoothstep(0.0, uR, cxL));   // cáscaras (solo en modo esencial)
         transformed = cxFc + cxRot(transformed - cxFc, normalize(cxHf + vec3(0.002, 0.001, 0.003)), cxF * cxHf.z * 1.6);
-        transformed += (cxD / max(cxL, 1e-3)) * cxF * uPush + cxHf * cxF * uPush * 0.9;`);
+        transformed += (cxD / max(cxL, 1e-3)) * cxF * uPush + cxHf * cxF * uPush * 0.9;
+        transformed += cxCrumple(transformed);`);
   };
-  mat.customProgramCacheKey = () => 'cx-explode-35';
+  mat.customProgramCacheKey = () => 'cx-explode-36';
+  return mat;
+}
+/** Materiales REALISTAS (mallas originales): misma deformación, en espacio mundo y de vuelta a local. */
+function withCrumple<M extends THREE.Material>(mat: M, u: XU): M {
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uExplode, uMess, uSpread, uHover, uCrumple, uR, uPush; uniform vec3 uCursor, uCenter;\nvec3 cxHash(vec3 p) { return fract(sin(vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)))) * 43758.5453) - 0.5; }\nvec3 cxCrumple(vec3 w) { vec3 d = w - uCursor; float l = length(d); float c = uCrumple * (1.0 - smoothstep(0.0, uR * 0.85, l)); return (d / max(l, 1e-3)) * c * uPush * 0.45 + cxHash(floor(w * 30.0)) * c * uPush * 1.0; }')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        if (uCrumple > 0.0005) { vec4 cxW = modelMatrix * vec4(transformed, 1.0); cxW.xyz += cxCrumple(cxW.xyz); transformed = (inverse(modelMatrix) * cxW).xyz; }`);
+  };
+  mat.customProgramCacheKey = () => 'cx-crumple-36';
   return mat;
 }
 /** Segmentos ordenados (centro → afuera) a geometría de líneas con `aOff`. */
@@ -220,7 +239,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     const planeReal = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1e6);   // empieza oculto
     const planeMin = new THREE.Plane(new THREE.Vector3(0, -1, 0), -1e6);   // empieza oculto
     const planeEdge = new THREE.Plane(new THREE.Vector3(0, 1, 0), 1e6);    // empieza visible entero
-    const U: XU = { uExplode: { value: 0 }, uMess: { value: 0 }, uSpread: { value: 1 }, uHover: { value: 0 }, uR: { value: 1 }, uPush: { value: 0.2 }, uCursor: { value: new THREE.Vector3(0, -99, 0) }, uCenter: { value: new THREE.Vector3() } };
+    const U: XU = { uExplode: { value: 0 }, uMess: { value: 0 }, uSpread: { value: 1 }, uHover: { value: 0 }, uCrumple: { value: 0 }, uR: { value: 1 }, uPush: { value: 0.2 }, uCursor: { value: new THREE.Vector3(0, -99, 0) }, uCenter: { value: new THREE.Vector3() } };
     const minMat = withExplode(new THREE.MeshStandardMaterial({ color: cols.face, roughness: 0.82, metalness: 0.0, transparent: true, clippingPlanes: [planeMin], polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }), U);
     const accMat = withExplode(new THREE.MeshStandardMaterial({ color: cols.acc, roughness: 0.55, metalness: 0.1, emissive: cols.acc, emissiveIntensity: 0.25, transparent: true, clippingPlanes: [planeMin], polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }), U);
     const edgeMat = withExplode(new THREE.LineBasicMaterial({ color: 0xe9e6df, transparent: true, opacity: 0.55, depthWrite: false, clippingPlanes: [planeEdge] }), U);
@@ -271,7 +290,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
         const m = meshes[i];
         const src = m.material as THREE.Material;
         let c = matMap.get(src);
-        if (!c) { c = src.clone(); (c as THREE.MeshStandardMaterial).clippingPlanes = [planeReal]; matMap.set(src, c); disposables.push(c); }
+        if (!c) { c = withCrumple(src.clone(), U); (c as THREE.MeshStandardMaterial).clippingPlanes = [planeReal]; matMap.set(src, c); disposables.push(c); }
         m.material = c;
         const wf = worldFloat(m);
         const isMotor = /DJ-2216/i.test(meshEffectiveName(m));
@@ -347,6 +366,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     // ── interacción ──
     let mx = 0, my = 0, mxS = 0, myS = 0, spin = 0, lastMove = -10, divX = -1, heroT = -1;
     let px = -1, py = -1, overDrone = false, hoverE = 0, messT = 0, messE = 0, lastRect = { x0: 0, x1: 0, y0: 0, y1: 0 };
+    let sweepT0 = -1, sweepFrom = 0; const SWEEP = 1.15;   // cambio de modo: la línea cruza el modelo en 1,15 s
     const interactive = (t: EventTarget | null) => !!(t as HTMLElement | null)?.closest?.('a,button,input,select,textarea,label,summary,[role="button"],.cx-chat-fab,.cx-nav,.cx-option,.cx-show-card');
     const inRect = (x: number, y: number) => { const r = lastRect, mX = (r.x1 - r.x0) * 0.06, mY = (r.y1 - r.y0) * 0.06; return x > r.x0 - mX && x < r.x1 + mX && y > r.y0 - mY && y < r.y1 + mY; };
     const onMove = (e: PointerEvent) => {
@@ -356,7 +376,8 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     };
     const onClick = (e: MouseEvent) => {
       if (!done || scrollE > 0.25 || interactive(e.target) || !inRect(e.clientX, e.clientY)) return;
-      messT = messT > 0.5 ? 0 : 1;   // clic: desarmar / armar
+      if (sweepT0 > 0 && performance.now() / 1000 - sweepT0 < SWEEP) return;   // espera a que termine el barrido
+      messT = messT > 0.5 ? 0 : 1; sweepT0 = performance.now() / 1000; sweepFrom = messE;   // clic: cambia de modo
     };
     window.addEventListener('click', onClick);
     window.addEventListener('pointermove', onMove, { passive: true });
@@ -411,12 +432,14 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       const dt = Math.min(rawDt, 1 / 30);
       // scroll suavizado (el despiece sigue al scroll con inercia corta, sin temblor)
       scrollE += (scrollRaw - scrollE) * (1 - Math.exp(-dt * 10));
-      const ex = done ? easeOut(scrollE) : 0;
+      // despiece al bajar: crece SIEMPRE con el scroll (lineal + acelerando), sin tope dentro del recorrido
+      const ex = done ? scrollE * 1.6 + scrollE * scrollE * 2.4 : 0;
       // al bajar: se separa más, las caras se apagan (queda la SILUETA en líneas), la perspectiva se aplana
       // a 2D y al final desaparece antes de cruzar las opciones
-      const sil = done ? smooth(0.38, 0.7, scrollE) : 0;
-      layer.style.opacity = String(done ? 1 - smooth(0.72, 0.97, scrollE) : 1);
-      if (done && scrollE > 0.97) return;
+      const sil = done ? smooth(0.22, 0.5, scrollE) : 0;
+      const fadeOut = done ? smooth(0.42, 0.9, scrollE) : 0;
+      layer.style.opacity = String(1 - fadeOut);
+      if (done && scrollE > 0.92) return;
       // carga: etapas reales + suavizado crítico
       const parseK = stage2 ? 1 : parseT0 ? 1 - Math.exp(-(performance.now() - parseT0) / 450) : 0;
       const target = ready ? 1 : Math.min(0.995, dl * 0.7 + parseK * 0.1 + prep * 0.2);
@@ -462,38 +485,32 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       const vf = THREE.MathUtils.degToRad(camera.fov), hfT = Math.tan(vf / 2) * (W / H), vfT = Math.tan(vf / 2);
       const halfV = (size.y * Math.sin(phi) + 2 * rH * Math.abs(Math.cos(phi))) / 2;
       const fit = Math.max(rH / (hfT * ((rx1 - rx0) / W)), halfV / (vfT * ((ry1 - ry0) / H))) * 0.92 + rH * 0.15;
-      const r = fit * (1 + ex * 0.15);
+      const r = fit * (1 + Math.min(ex, 2) * 0.08);
       camera.position.set(center.x + r * Math.sin(phi) * Math.sin(theta), center.y + r * Math.cos(phi), center.z + r * Math.sin(phi) * Math.cos(theta));
       camera.lookAt(center);
       // parallax: mientras el contenido sube desde abajo, el dron despiezado sube y se aparta
-      const offX = -((rx0 + rx1) / 2 - W / 2), offY = H / 2 - (ry0 + ry1) / 2 + ex * H * 0.32;
+      const offX = -((rx0 + rx1) / 2 - W / 2), offY = H / 2 - (ry0 + ry1) / 2 + Math.min(ex, 1.6) * H * 0.2;
       if (Math.abs(offX) + Math.abs(offY) > 0.5) camera.setViewOffset(W, H, offX, offY, W, H); else camera.clearViewOffset();
       camera.near = Math.max(0.05, r / 60); camera.far = r * 8;
       camera.updateProjectionMatrix(); camera.updateMatrixWorld();
       // despiece: scroll (radial, amplio) + clic (radial + desorden), muelle exponencial sin rebote
-      messE += (messT - messE) * (1 - Math.exp(-dt * 3.2));
-      U.uExplode.value = ex * 2.3 + messE * 0.75;
+      // el despiece por clic sigue al barrido de la línea (se desarma a medida que la línea pasa)
+      if (sweepT0 > 0) { const sp = ease((now - sweepT0) / SWEEP); messE = lerp(sweepFrom, messT, sp); }
+      U.uExplode.value = ex * 2.6 + messE * 0.75;
       U.uMess.value = messE;
       minMat.opacity = accMat.opacity = 1 - sil; minMat.depthWrite = accMat.depthWrite = sil < 0.02;
       // fractura: las cáscaras cercanas al cursor se desprenden (solo con el hero en reposo)
-      hoverE += ((overDrone ? 1 : 0) - hoverE) * (1 - Math.exp(-dt * 5));
-      U.uHover.value = hoverE * (1 - smooth(0, 0.2, scrollE));
+      // la deformación se va ACUMULANDO mientras el cursor sigue encima (≈1,6 s) y se recupera algo más rápido
+      hoverE += ((overDrone ? 1 : 0) - hoverE) * (1 - Math.exp(-dt * (overDrone ? 1.6 : 3)));
+      const hk = hoverE * (1 - smooth(0, 0.2, scrollE));
+      U.uHover.value = hk * messE;             // modo esencial (desarmado): las cáscaras se desprenden
+      U.uCrumple.value = hk * (1 - messE);     // modo realista: el modelo se DEFORMA (abolladura + grietas), sin mover piezas
       if (hoverE > 0.001 && px >= 0) {
         const ray = new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2((px / W) * 2 - 1, -(py / H) * 2 + 1), camera);
         const n = camera.getWorldDirection(new THREE.Vector3());
         const hit = ray.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(n, center), new THREE.Vector3());
         if (hit) U.uCursor.value.lerp(hit, Math.min(1, dt * 14));
       }
-      // lo realista (mallas originales) se aparta entero por pieza con la misma fórmula, en CPU
-      if (real && realPartsRef.length) {
-        const k = U.uHover.value, R = U.uR.value, push = U.uPush.value, cur = U.uCursor.value;
-        for (const rp of realPartsRef) {
-          if (k < 0.001) { if (!rp.m.position.equals(rp.base)) rp.m.position.copy(rp.base); continue; }
-          const d = rp.c.clone().sub(cur), L = d.length(), f = k * (1 - smooth(0, R, L));
-          rp.m.position.copy(rp.base).add(d.multiplyScalar(f * push / Math.max(L, 1e-3)).applyMatrix3(rp.inv));
-        }
-      }
-
       // aristas: esqueleto y detalle se dibujan del centro hacia afuera, cada uno con su frente de luz
       const draw = (obj: THREE.LineSegments, front: THREE.LineSegments, n: number, p: number) => {
         const head = Math.floor(n * p), band = Math.max(4, Math.floor(n * 0.06));
@@ -526,36 +543,53 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
         edgeMat.color.set(0xe9e6df); skelMat.color.set(0xf4f2ec);
         if (dividerRef.current) dividerRef.current.style.opacity = '0';
       } else {
-        // hero: la línea entra horizontal, gira 90° y es el divisor; lo realista entra hasta ella
+        // hero: la línea entra horizontal, gira 90° viajando al borde izquierdo y CRUZA el modelo:
+        // a su paso queda el modo nuevo (izquierda = nuevo, derecha = anterior). Reposo = realista completo.
         scanMat.opacity = 0; real!.visible = true;
         if (heroT < 0) heroT = now;
-        const rc = rectOf(), cx = (rc.x0 + rc.x1) / 2, cy = (rc.y0 + rc.y1) / 2, w = rc.x1 - rc.x0, h = rc.y1 - rc.y0;
-        if (messE < 0.05 && ex < 0.05) lastRect = rc;   // zona de clic: el dron armado
-        const rot = done ? 1 : easeOutExpo((t - TL.v0) / TL.v);            // 0 = horizontal · 1 = vertical
-        const wipe = done ? 1 : ease((t - TL.w0) / TL.w);
-        const idle = now - lastMove > 2.5 || window.matchMedia('(pointer: coarse)').matches;
-        const target2 = idle ? cx + 0.3 * w * Math.sin((now - heroT) * 0.55) : rc.x0 + ((mx + 1) / 2) * w;
-        if (divX < 0) divX = cx;
-        if (rot >= 1) divX += (target2 - divX) * Math.min(1, dt * (idle ? 1.5 : 6));
-        // frontera real|esencial: barrido desde la izquierda hasta el divisor; al hacer scroll, todo esencial
-        let bx = lerp(rc.x0 - 2, divX, wipe);
-        bx = lerp(bx, rc.x0 - 2, Math.max(smooth(0, 0.12, scrollE), smooth(0, 0.35, messE)));   // desarmado o al bajar: todo esencial
-        planeAtX(bx, planeReal, true); planeAtX(bx, planeMin, false); planeEdge.copy(planeMin);
+        const rc = rectOf(), cy = (rc.y0 + rc.y1) / 2, w = rc.x1 - rc.x0, h = rc.y1 - rc.y0;
+        if (messE < 0.02 && ex < 0.02 && (sweepT0 < 0 || now - sweepT0 > SWEEP)) lastRect = rc;   // zona de clic: el dron armado
+        const lr = lastRect, lw = lr.x1 - lr.x0 || w, lcx = (lr.x0 + lr.x1) / 2 || (rc.x0 + rc.x1) / 2;
+        const xL = lcx - lw * 0.62, xR = lcx + lw * 0.62;   // margen: el despiece ocupa más que el dron armado
+        let lineX = -1, lineA = 0, rotA = 1, lineLen = h * 1.3, newIsEssential = false, prog = 1;
+        if (!done && t < TL.w0 + TL.w + 0.2) {
+          // cierre de la intro: esencial → realista
+          const rot = easeOutExpo((t - TL.v0) / TL.v); rotA = rot;
+          prog = ease((t - TL.w0) / TL.w);
+          const xRot = lerp((rc.x0 + rc.x1) / 2, rc.x0 - w * 0.08, rot);
+          lineX = t < TL.w0 ? xRot : lerp(rc.x0 - w * 0.08, rc.x1 + w * 0.08, prog);
+          lineLen = lerp(w * 0.9, h * 1.15, rot);
+          lineA = smooth(TL.v0 - 0.15, TL.v0 + 0.1, t) * (1 - smooth(0.85, 1, prog));
+          newIsEssential = false;
+        } else if (sweepT0 > 0 && now - sweepT0 < SWEEP + 0.25) {
+          // clic: la línea cruza de izquierda a derecha y deja el modo nuevo a su paso
+          prog = ease((now - sweepT0) / SWEEP);
+          lineX = lerp(xL, xR, prog); lineLen = h * (1.25 + 0.5 * messE);
+          lineA = smooth(0, 0.08, prog) * (1 - smooth(0.9, 1, prog));
+          newIsEssential = messT > 0.5;
+        } else { prog = 1; newIsEssential = messT > 0.5; }
+        // planos: lo que ya cruzó la línea (izquierda) está en el modo nuevo
+        // antes del barrido: modo anterior completo (-∞); al terminar: modo nuevo completo (+∞); durante: la línea
+        const bx = prog >= 1 ? 1e5 : prog <= 0 ? -1e5 : lineX;
+        const essentialAll = scrollE > 0.04;   // al bajar: siempre esencial (silueta)
+        if (essentialAll) { planeReal.set(new THREE.Vector3(0, 1, 0), -1e6); planeMin.set(new THREE.Vector3(0, -1, 0), 1e6); }
+        else if (newIsEssential) { planeAtX(bx, planeMin, true); planeAtX(bx, planeReal, false); }
+        else { planeAtX(bx, planeReal, true); planeAtX(bx, planeMin, false); }
+        planeEdge.copy(planeMin);
         _c.set(0xe9e6df).lerp(cols.edge, k); edgeMat.color.copy(_c); skelMat.color.copy(_c);
-        edgeMat.opacity = cols.edgeOp;
+        edgeMat.opacity = cols.edgeOp * (1 - fadeOut * 0.7);
         const dv = dividerRef.current;
         if (dv) {
-          const len = lerp(w * 0.9, h, rot), x = lerp(cx, divX, rot);
-          dv.style.opacity = String(clamp01(smooth(TL.v0 - 0.15, TL.v0 + 0.1, done ? 99 : t)) * (1 - smooth(0, 0.1, scrollE)) * (1 - smooth(0, 0.3, messE)));
-          dv.style.height = `${Math.max(0, len).toFixed(0)}px`;
-          dv.style.transform = `translate3d(${x.toFixed(1)}px, ${(cy - len / 2).toFixed(1)}px, 0) rotate(${((1 - rot) * 90).toFixed(2)}deg)`;
-          dv.classList.toggle('labels', rot >= 1);
+          dv.style.opacity = String(clamp01(lineA) * (1 - smooth(0, 0.08, scrollE)));
+          dv.style.height = `${Math.max(0, lineLen).toFixed(0)}px`;
+          dv.style.transform = `translate3d(${lineX.toFixed(1)}px, ${(cy - lineLen / 2).toFixed(1)}px, 0) rotate(${((1 - rotA) * 90).toFixed(2)}deg)`;
+          dv.classList.remove('labels');
         }
       }
       minMat.color.lerp(cols.face, 0.1); accMat.color.lerp(cols.acc, 0.1); accMat.emissive.copy(accMat.color);
       // pista discreta bajo el dron
       if (hintRef.current) {
-        const show = done && (overDrone || messE > 0.5) && scrollE < 0.15;
+        const show = done && (overDrone || messE > 0.5) && scrollE < 0.15 && (sweepT0 < 0 || now - sweepT0 > SWEEP);
         hintRef.current.style.opacity = show ? '1' : '0';
         hintRef.current.textContent = messT > 0.5 ? L.hintOn : L.hintOff;
         hintRef.current.style.transform = `translate3d(${((lastRect.x0 + lastRect.x1) / 2).toFixed(0)}px, ${(lastRect.y1 + 14).toFixed(0)}px, 0) translateX(-50%)`;
@@ -582,7 +616,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
         }
         // salvaguarda: si el viaje del titular no termina (pestaña oculta, animaciones pausadas), se completa igual
         if (settleAt > 0 && !flipDone && now - settleAt > 2 * K) { flipDone = true; heroTitleRef.current?.classList.add('in'); if (introTitleRef.current) introTitleRef.current.style.opacity = '0'; }
-        if (settleAt > 0 && flipDone && t >= TL.w0 + TL.w) finish();
+        if (settleAt > 0 && flipDone && t >= TL.w0 + TL.w + 0.2) finish();
       }
       renderer.render(scene, camera);
     };
