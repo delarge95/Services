@@ -10,6 +10,7 @@ import { ROOT_OPTIONS, WEB3D_LEVEL2, WEB3D_BRANCHES, sliderDefault } from '../..
 import type { TreeQuestion, TreeBranch, TreeOption } from '../../data/services/decisionTree';
 import { planFromTreeAnswers } from '../../data/services/treeToQuote';
 import { SERVICE_ROOTS, buildServiceBranch } from '../../data/services/serviceBranches';
+import { ChoicePreview, Diagram, MediaVisual } from './OptionVisuals';
 import type { WizardQuotePlan } from '../../data/services/treeToQuote';
 import { EN, TREE_EN } from '../../data/services/i18n';
 import type { Lang } from '../../data/services/i18n';
@@ -93,6 +94,19 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // ciclo 26: "Abrir en el cotizador" desde el asistente (wizard montado)
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const t = (e as CustomEvent).detail as { kind: string; rootChoice?: string; subChoice?: string; answers?: Answers };
+      if (t?.kind !== 'wizard' || !t.rootChoice) return;
+      setRootChoice(t.rootChoice); setSubChoice(t.subChoice ?? ''); setAnswers(t.answers ?? {});
+      setLevel(t.subChoice ? 3 : 2);
+      if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    window.addEventListener('cx-open-quote', onOpen);
+    return () => window.removeEventListener('cx-open-quote', onOpen);
   }, []);
 
   // #1: home → reset total del wizard (aunque esté montado en nivel 3)
@@ -493,6 +507,7 @@ function tipFor(q: TreeQuestion, en: boolean): string {
 function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }: {
   q: TreeQuestion; answers: Answers; onAnswer: (id: string, val: string | number | boolean) => void; lang: Lang; branchId: string; compact?: boolean;
 }) {
+  const [hoverOpt, setHoverOpt] = useState<string | null>(null); // ciclo 26: preview de la opción señalada
   const current = answers[q.id];
   const en = lang === 'en';
   const qEn = en ? branchEn(branchId)?.questions?.[q.id] : undefined;
@@ -536,6 +551,10 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
       )}
 
       {/* CARDS */}
+      {/* ciclo 26: vista 3D en vivo de la opción señalada/elegida */}
+      {q.type === 'cards' && q.choicePreview && <ChoicePreview kind={q.choicePreview} current={typeof current === 'string' ? current : undefined} hovered={hoverOpt} lang={lang} />}
+      {/* ciclo 26: asset producido de la opción elegida (cuando exista) */}
+      {q.type === 'cards' && (() => { const o = q.options?.find(x => x.id === current && x.visual); return o?.visual ? <MediaVisual v={o.visual} /> : null; })()}
       {q.type === 'cards' && q.options && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
           {q.options.map(o => {
@@ -555,6 +574,7 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
             };
             return (
               <button key={o.id} onClick={toggle} aria-pressed={isOn} className="cx-choice"
+                onMouseEnter={() => setHoverOpt(o.id)} onMouseLeave={() => setHoverOpt(null)} onFocus={() => setHoverOpt(o.id)} onBlur={() => setHoverOpt(null)}
                 style={{
                   padding: '16px 18px', borderRadius: 16, font: 'inherit', cursor: 'pointer', textAlign: 'left', position: 'relative',
                   border: isOn ? '2px solid var(--cx-accent)' : '1px solid var(--cx-border)',
@@ -583,6 +603,10 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
           lang={lang}
         />
       )}
+
+      {/* ciclo 26: diagrama animado que reacciona a la respuesta */}
+      {q.diagram && <Diagram kind={q.diagram.kind} max={q.diagram.max} answers={answers}
+        value={current ?? (q.type === 'slider' ? sliderDefault(q) : q.options?.[0]?.id)} />}
 
       {/* SELECT */}
       {q.type === 'select' && q.options && (

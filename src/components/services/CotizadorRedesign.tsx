@@ -324,6 +324,9 @@ export function CotizadorRedesign() {
   const [quantity, setQuantity] = useState(1);
   const [adjuntos, setAdjuntos] = useState<string[]>([]);
   const [mode, setMode] = useState<'guided' | 'catalog'>('guided');
+  // ciclo 26: refs para leer el estado actual dentro de listeners registrados una sola vez
+  const serviceIdRef = useRef(serviceId); serviceIdRef.current = serviceId;
+  const modeRef = useRef(mode); modeRef.current = mode;
   /** Complementos del plan del wizard (ej: el modelo 3D cuando hay que crearlo). */
   const [extras, setExtras] = useState<WizardPick[]>([]);
   /** Filtro activo del catálogo ('todas' = sin filtrar). */
@@ -408,6 +411,29 @@ export function CotizadorRedesign() {
     setServiceId(st.serviceId);
     setVals(st.vals);
     setExtras([]);
+  }, []);
+
+  // ciclo 26: "Abrir en el cotizador" (asistente). Si el wizard NO está montado (vista de
+  // configuración o catálogo), se deja el destino en history.state y se vuelve al modo
+  // guiado: el wizard se hidrata desde ahí al montarse. Si ya está montado, él lo maneja.
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const t = (e as CustomEvent).detail as { kind: string; rootChoice?: string; subChoice?: string; answers?: Record<string, Val>; serviceId?: string; vals?: Record<string, Val> };
+      if (!t) return;
+      if (t.kind === 'config' && t.serviceId) {
+        setMode('guided'); setServiceId(t.serviceId); setVals(t.vals ?? {}); setExtras([]);
+        window.history.pushState({ cx: 'cotizador', config: t.serviceId }, '');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      if (t.kind === 'wizard' && (serviceIdRef.current || modeRef.current !== 'guided')) {
+        window.history.pushState({ cx: 'cotizador', level: t.subChoice ? 3 : 2, rootChoice: t.rootChoice, subChoice: t.subChoice, answers: t.answers ?? {} }, '');
+        setServiceId(''); setExtras([]); setMode('guided');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    };
+    window.addEventListener('cx-open-quote', onOpen);
+    return () => window.removeEventListener('cx-open-quote', onOpen);
   }, []);
 
   /** #15: home real — resetea también al wizard montado (vía homeKey). */

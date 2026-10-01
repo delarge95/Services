@@ -82,12 +82,21 @@ export function variableDefault(v: ServiceVariable): string | number | boolean {
   return v.opciones?.[0]?.valorEs ?? '';
 }
 
+/** Ciclo 26: variable → diagrama SVG (VISUALES_COTIZADOR.md, parte de código). */
+const DIAGRAM_BY_VAR: Record<string, NonNullable<TreeQuestion['diagram']>> = {
+  duracion: { kind: 'timeline', max: 90 }, numShots: { kind: 'timeline', max: 12 },
+  duracionVfx: { kind: 'timeline', max: 120 }, duracionFx: { kind: 'timeline', max: 120 }, duracionMg: { kind: 'timeline', max: 120 },
+  canales: { kind: 'channels' }, integraciones: { kind: 'integrations' }, numSistemas: { kind: 'integrations' },
+  formatos: { kind: 'aspect' },
+};
+
 const toQuestion = (v: ServiceVariable): TreeQuestion | null => {
   if (v.ocultarEnConfig) return null;
+  const diagram = DIAGRAM_BY_VAR[v.id];
   if (v.type === 'number') {
     const def = variableDefault(v) as number;
     return {
-      id: v.id, question: v.preguntaEs, help: v.ayudaEs, type: 'slider',
+      id: v.id, question: v.preguntaEs, help: v.ayudaEs, type: 'slider', diagram,
       slider: {
         min: v.min ?? 1, max: v.max ?? 10, step: v.step ?? 1, unit: v.unidadEs ?? '',
         defaultValue: def,

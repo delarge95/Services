@@ -16,6 +16,8 @@ export interface TreeOption {
   children?: TreeQuestion[];
   /** Ciclo 25: en preguntas multi, esta opción excluye a las demás (p.ej. "Solo rotarlo"). */
   exclusive?: boolean;
+  /** Ciclo 26: asset producido para la opción (video/imagen/comparador). Ver VISUALES_COTIZADOR.md. */
+  visual?: { kind: 'video' | 'image' | 'compare'; src: string; srcB?: string; poster?: string; alt: string; ai?: 'ia' | '3d+ia'; labels?: [string, string] };
 }
 
 export interface AdvancedOption {
@@ -38,6 +40,10 @@ export interface TreeQuestion {
   type: 'cards' | 'slider' | 'toggle' | 'select';
   /** Ciclo 25: tarjetas de selección MÚLTIPLE (respuesta = ids separados por coma). */
   multi?: boolean;
+  /** Ciclo 26: vista 3D en vivo de la opción con el puntero encima / elegida (OptionVisuals). */
+  choicePreview?: 'interaction' | 'app-type';
+  /** Ciclo 26: diagrama SVG animado que reacciona a la respuesta (OptionVisuals). */
+  diagram?: { kind: 'timeline' | 'channels' | 'integrations' | 'dataflow' | 'aspect'; max?: number };
   /** Opciones si es cards/select. */
   options?: TreeOption[];
   /** Configuración si es slider. */
@@ -248,6 +254,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
         help: 'Puedes elegir varias.',
         type: 'cards',
         multi: true,
+        choicePreview: 'interaction',
         options: [
           { id: 'rotar', label: 'Solo rotarlo y verlo', desc: 'Vista 360° sin más interacción', exclusive: true },
           { id: 'hotspots', label: 'Ver información de partes', desc: 'Click en una pieza → mostrar nombre, specs o descripción' },
@@ -426,6 +433,7 @@ export const WEB3D_BRANCHES: Record<string, TreeBranch> = {
         id: 'tipo-app',
         question: '¿Qué tipo de aplicación necesitas?',
         type: 'cards',
+        choicePreview: 'app-type',
         options: [
           { id: 'configurador', label: 'Configurador de producto', desc: 'El cliente personaliza y ve el resultado en 3D' },
           { id: 'catalogo', label: 'Catálogo 3D interactivo', desc: 'Lista de productos navegables en 3D' },
