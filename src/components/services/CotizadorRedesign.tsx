@@ -4,6 +4,7 @@
  * Dos modos: guiado + catálogo. Mínimo texto, máximo impacto visual.
  */
 
+import { BrandLockup } from './hero/BrandLockup';
 import { NAME_ES_DISPLAY, SERVICE_ROOTS_EN, UNIT_ES_DISPLAY, esDisplay } from '../../data/services/i18nMore';
 import './cotizador-brand.css';
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -346,6 +347,30 @@ export function CotizadorRedesign() {
    *  frame, antes de que la isla hidrate. */
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [navOpen, setNavOpen] = useState(false); // ciclo 32: menú compacto en móvil
+  // ciclo 35: marca AW ↔ «Alex Woodcock». Acrónimo durante la intro, en móvil y al bajar del hero;
+  // nombre en escritorio arriba del todo o al pasar el cursor por la marca.
+  const [brandHover, setBrandHover] = useState(false);
+  const [brandWide, setBrandWide] = useState(false);
+  useEffect(() => {
+    const html = document.documentElement;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const upd = () => {
+      const intro = html.dataset.cxIntro !== undefined;
+      const wide = !intro && window.innerWidth > 768 && window.scrollY < window.innerHeight * 0.5;
+      clearTimeout(t);
+      // tras la intro, el despliegue espera a que la barra termine de aparecer (escalonado)
+      if (wide && !brandWideRef.current) t = setTimeout(() => { brandWideRef.current = true; setBrandWide(true); }, introJustEnded.current ? 650 : 0);
+      else if (!wide) { brandWideRef.current = false; setBrandWide(false); }
+      introJustEnded.current = false;
+    };
+    const mo = new MutationObserver(() => { if (html.dataset.cxIntro === undefined) introJustEnded.current = true; upd(); });
+    mo.observe(html, { attributes: true, attributeFilter: ['data-cx-intro'] });
+    window.addEventListener('scroll', upd, { passive: true }); window.addEventListener('resize', upd);
+    upd();
+    return () => { mo.disconnect(); window.removeEventListener('scroll', upd); window.removeEventListener('resize', upd); clearTimeout(t); };
+  }, []);
+  const brandWideRef = useRef(false);
+  const introJustEnded = useRef(false);
   const themeAdopted = useRef(false);
   /** true si se llegó por el wizard (historial con draft) → muestra 'Editar detalles'. */
   const [canEditDetails, setCanEditDetails] = useState(false);
@@ -791,7 +816,9 @@ export function CotizadorRedesign() {
           <button onClick={goHome} className="cx-brand" aria-label={BRAND.name}
             style={{ color: 'var(--cx-text)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             {/* ciclo 34: sin monograma hasta que se decida la marca (exploración en curso) */}
-            <span className="cx-brand-mark" aria-hidden="true" /><span>{BRAND.name}</span>
+            <span onMouseEnter={() => setBrandHover(true)} onMouseLeave={() => setBrandHover(false)} style={{ display: 'inline-flex' }}>
+              <BrandLockup state={brandWide || (brandHover && window.innerWidth > 768) ? 'name' : 'mark'} height={13} />
+            </span>
           </button>
         </div>
         <button type="button" className="cx-nav-menu" aria-expanded={navOpen} aria-controls="cx-nav-right" onClick={() => setNavOpen((o) => !o)}

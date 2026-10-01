@@ -26,6 +26,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { preloadHolybro, meshEffectiveName } from '../holybro';
+import { BrandLockup } from './BrandLockup';
 import './hero.css';
 
 type Lang = 'es' | 'en';
@@ -33,23 +34,23 @@ let playedThisLoad = false;
 
 const T = {
   es: { kicker: 'Alex Woodcock — 3D · Web · IA', l1: 'De lo complejo', l2a: 'a lo ', l2b: 'esencial', sub: 'Modelos, webs y experiencias 3D que tus clientes entienden a la primera. Cotiza tu proyecto en un minuto.',
-    quote: 'Cotizar mi proyecto', work: 'Ver trabajo real', skip: 'Saltar', real: 'Realista', ess: 'Esencial', scroll: 'Desliza' },
+    quote: 'Cotizar mi proyecto', work: 'Ver trabajo real', skip: 'Saltar', real: 'Realista', ess: 'Esencial', scroll: 'Desliza', hintOff: 'Clic para desarmar', hintOn: 'Clic para armar' },
   en: { kicker: 'Alex Woodcock — 3D · Web · AI', l1: 'From complex', l2a: 'to ', l2b: 'essential', sub: '3D models, websites and experiences your clients understand at first glance. Quote your project in a minute.',
-    quote: 'Quote my project', work: 'See real work', skip: 'Skip', real: 'Realistic', ess: 'Essential', scroll: 'Scroll' },
+    quote: 'Quote my project', work: 'See real work', skip: 'Skip', real: 'Realistic', ess: 'Essential', scroll: 'Scroll', hintOff: 'Click to take apart', hintOn: 'Click to assemble' },
 };
 
 /** Guion (segundos; se escala con K). Inicios sobre un compás de 0,4 s. */
 const TL = {
-  c0: 0, c: 0.55,          // la línea se recoge en un punto de luz
-  sk0: 0.4, sk: 1.0,       // ICONO cenital: brazos desde el centro, cuerpo, círculos de hélice
-  de0: 1.2, de: 1.0,       // detalle real (aristas) mientras el icono se apaga
-  dz0: 1.0, dz: 1.6,       // la cámara baja de cenital a 3/4 con dolly-zoom (13° → 30°)
-  r0: 2.0, r: 1.2,         // corte baja: realista
-  m0: 3.0, m: 1.2,         // corte sube: esencial
-  s0: 4.2, s: 1.2,         // asentamiento en el hero
-  v0: 4.6, v: 0.6,         // la línea gira 90° y es el divisor
-  w0: 5.2, w: 0.6,         // lo realista entra hasta el divisor
-  t1: 2.4, t2: 3.6,        // titular, línea 1 y 2
+  c0: 0, c: 0.6,           // la línea se recoge ACELERANDO hasta el punto (anticipación → impacto)
+  sk0: 0.6, sk: 1.0,       // ICONO cenital: nace en el impacto (brazos, cuerpo, hélices)
+  de0: 1.4, de: 1.0,       // detalle real (aristas) mientras el icono se apaga
+  dz0: 1.2, dz: 1.6,       // la cámara baja de cenital a 3/4 con dolly-zoom (13° → 30°)
+  r0: 2.2, r: 1.2,         // corte baja: realista
+  m0: 3.2, m: 1.2,         // corte sube: esencial
+  s0: 4.4, s: 1.2,         // asentamiento en el hero
+  v0: 4.8, v: 0.6,         // la línea gira 90° y es el divisor
+  w0: 5.4, w: 0.6,         // lo realista entra hasta el divisor
+  t1: 2.6, t2: 3.8,        // titular, línea 1 y 2
 };
 const FOV0 = 13, FOV1 = 30;
 
@@ -72,42 +73,77 @@ function worldFloat(m: THREE.Mesh) {
     if (na) { v.set(na.getX(i), na.getY(i), na.getZ(i)).applyMatrix3(nm).normalize(); N[i * 3] = v.x; N[i * 3 + 1] = v.y; N[i * 3 + 2] = v.z; }
   }
   const idx = m.geometry.index ? (m.geometry.index.array as ArrayLike<number>) : null;
-  return { P, N, idx, count: pa.count, c: bb.getCenter(new THREE.Vector3()) };
+  // cáscaras: componentes conexos por índice (el CAD separa las caras en sus aristas vivas → pedazos naturales)
+  const parent = new Int32Array(pa.count); for (let i = 0; i < pa.count; i++) parent[i] = i;
+  const find = (x: number): number => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+  if (idx) for (let t = 0; t < idx.length; t += 3) { const a = find(idx[t]), b = find(idx[t + 1]), c = find(idx[t + 2]); parent[b] = a; parent[find(c)] = a; }
+  const sum = new Map<number, [number, number, number, number]>();
+  for (let i = 0; i < pa.count; i++) { const r = find(i); const e = sum.get(r) ?? [0, 0, 0, 0]; e[0] += P[i * 3]; e[1] += P[i * 3 + 1]; e[2] += P[i * 3 + 2]; e[3]++; sum.set(r, e); }
+  const Fr = new Float32Array(pa.count * 3);
+  for (let i = 0; i < pa.count; i++) { const e = sum.get(find(i))!; Fr[i * 3] = e[0] / e[3]; Fr[i * 3 + 1] = e[1] / e[3]; Fr[i * 3 + 2] = e[2] / e[3]; }
+  // posición → centro de su cáscara (para que las aristas se muevan con su cara)
+  const key = (x: number, y: number, z: number) => `${Math.round(x * 2000)},${Math.round(y * 2000)},${Math.round(z * 2000)}`;
+  const fragAt = new Map<string, number>(); for (let i = 0; i < pa.count; i++) fragAt.set(key(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]), i);
+  return { P, N, Fr, idx, count: pa.count, c: bb.getCenter(new THREE.Vector3()), fragOf: (x: number, y: number, z: number) => { const i = fragAt.get(key(x, y, z)); return i === undefined ? null : i; } };
 }
 /** Une piezas en una geometría con `aOff` (desplazamiento de su pieza para el despiece). */
 function merge(parts: ReturnType<typeof worldFloat>[], center: THREE.Vector3) {
   const total = parts.reduce((a, p) => a + p.count, 0);
   const nIdx = parts.reduce((a, p) => a + (p.idx ? p.idx.length : p.count), 0);
-  const P = new Float32Array(total * 3), N = new Float32Array(total * 3), O = new Float32Array(total * 3), I = new Uint32Array(nIdx);
+  const P = new Float32Array(total * 3), N = new Float32Array(total * 3), O = new Float32Array(total * 3), Fg = new Float32Array(total * 3), I = new Uint32Array(nIdx);
   let off = 0, io = 0;
   for (const p of parts) {
     P.set(p.P, off * 3); N.set(p.N, off * 3);
     const ox = p.c.x - center.x, oy = p.c.y - center.y, oz = p.c.z - center.z;
-    for (let k = 0; k < p.count; k++) { O[(off + k) * 3] = ox; O[(off + k) * 3 + 1] = oy; O[(off + k) * 3 + 2] = oz; }
+    for (let k = 0; k < p.count; k++) { O[(off + k) * 3] = ox; O[(off + k) * 3 + 1] = oy; O[(off + k) * 3 + 2] = oz; Fg[(off + k) * 3] = p.Fr[k * 3] - center.x; Fg[(off + k) * 3 + 1] = p.Fr[k * 3 + 1] - center.y; Fg[(off + k) * 3 + 2] = p.Fr[k * 3 + 2] - center.z; }
     if (p.idx) for (let k = 0; k < p.idx.length; k++) I[io++] = p.idx[k] + off; else for (let k = 0; k < p.count; k++) I[io++] = k + off;
     off += p.count;
   }
   const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.BufferAttribute(N, 3)); g.setAttribute('aOff', new THREE.BufferAttribute(O, 3));
+  g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.BufferAttribute(N, 3)); g.setAttribute('aOff', new THREE.BufferAttribute(O, 3)); g.setAttribute('aFrag', new THREE.BufferAttribute(Fg, 3));
   g.setIndex(new THREE.BufferAttribute(I, 1)); return g;
 }
-/** Despiece en GPU: desplaza cada vértice según el centro de su pieza (uniform compartido). */
-function withExplode<M extends THREE.Material>(mat: M, u: { value: number }): M {
+/** Uniforms compartidos del despiece y la fractura (todo en GPU). */
+type XU = { uExplode: { value: number }; uMess: { value: number }; uSpread: { value: number }; uHover: { value: number }; uR: { value: number }; uPush: { value: number }; uCursor: { value: THREE.Vector3 }; uCenter: { value: THREE.Vector3 } };
+const XGLSL = `
+attribute vec3 aOff; attribute vec3 aFrag;
+uniform float uExplode, uMess, uSpread, uHover, uR, uPush; uniform vec3 uCursor, uCenter;
+vec3 cxHash(vec3 p) { return fract(sin(vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)))) * 43758.5453) - 0.5; }
+vec3 cxRot(vec3 v, vec3 k, float a) { float c = cos(a), s = sin(a); return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c); }`;
+/**
+ * Despiece en GPU. Cada vértice conoce el centro de su PIEZA (aOff) y de su CÁSCARA (aFrag):
+ *  · scroll / clic: la pieza se separa radialmente; con el clic además gira y se dispersa (desorden
+ *    determinista por pieza: el hash sale de su centro, así siempre se desarma igual);
+ *  · cursor: las cáscaras cercanas se desprenden, voltean y se apartan (fractura), y vuelven al alejarse.
+ */
+function withExplode<M extends THREE.Material>(mat: M, u: XU): M {
   mat.onBeforeCompile = (sh) => {
-    sh.uniforms.uExplode = u;
+    Object.assign(sh.uniforms, u);
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec3 aOff;\nuniform float uExplode;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed += aOff * uExplode;');
+      .replace('#include <common>', '#include <common>' + XGLSL)
+      .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
+        { vec3 h = cxHash(aOff * 7.0 + 0.13); objectNormal = cxRot(objectNormal, normalize(h + vec3(0.001, 0.002, 0.003)), uMess * h.x * 0.8); }`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vec3 cxH = cxHash(aOff * 7.0 + 0.13), cxHf = cxHash(aFrag * 13.0 + 0.71);
+        vec3 cxPc = uCenter + aOff;
+        transformed = cxPc + cxRot(transformed - cxPc, normalize(cxH + vec3(0.001, 0.002, 0.003)), uMess * cxH.x * 0.8);
+        vec3 cxDisp = aOff * uExplode + cxH * vec3(1.0, 0.55, 1.0) * uMess * uSpread;
+        transformed += cxDisp;
+        vec3 cxFc = uCenter + aFrag + cxDisp, cxD = cxFc - uCursor; float cxL = length(cxD);
+        float cxF = uHover * (1.0 - smoothstep(0.0, uR, cxL));
+        transformed = cxFc + cxRot(transformed - cxFc, normalize(cxHf + vec3(0.002, 0.001, 0.003)), cxF * cxHf.z * 1.6);
+        transformed += (cxD / max(cxL, 1e-3)) * cxF * uPush + cxHf * cxF * uPush * 0.9;`);
   };
-  mat.customProgramCacheKey = () => 'cx-explode';
+  mat.customProgramCacheKey = () => 'cx-explode-35';
   return mat;
 }
 /** Segmentos ordenados (centro → afuera) a geometría de líneas con `aOff`. */
-function lineGeo(pos: number[], offs: number[], dist: number[], order?: Uint32Array) {
+function lineGeo(pos: number[], offs: number[], dist: number[], order?: Uint32Array, frags?: number[]) {
   const n = dist.length, o = order ?? (() => { const a = new Uint32Array(n); for (let i = 0; i < n; i++) a[i] = i; return a.sort((x, y) => dist[x] - dist[y]); })();
-  const P = new Float32Array(n * 6), O = new Float32Array(n * 6);
-  for (let i = 0; i < n; i++) { const s = o[i]; for (let k = 0; k < 6; k++) P[i * 6 + k] = pos[s * 6 + k]; for (let k = 0; k < 3; k++) { O[i * 6 + k] = offs[s * 3 + k]; O[i * 6 + 3 + k] = offs[s * 3 + k]; } }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('aOff', new THREE.BufferAttribute(O, 3));
+  const P = new Float32Array(n * 6), O = new Float32Array(n * 6), Fg = new Float32Array(n * 6);
+  const fr = frags ?? offs;
+  for (let i = 0; i < n; i++) { const s = o[i]; for (let k = 0; k < 6; k++) P[i * 6 + k] = pos[s * 6 + k]; for (let k = 0; k < 3; k++) { O[i * 6 + k] = offs[s * 3 + k]; O[i * 6 + 3 + k] = offs[s * 3 + k]; Fg[i * 6 + k] = fr[s * 3 + k]; Fg[i * 6 + 3 + k] = fr[s * 3 + k]; } }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('aOff', new THREE.BufferAttribute(O, 3)); g.setAttribute('aFrag', new THREE.BufferAttribute(Fg, 3));
   return g;
 }
 
@@ -124,9 +160,20 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
   const introTitleRef = useRef<HTMLDivElement>(null);
   const heroTitleRef = useRef<HTMLHeadingElement>(null);
   const dividerRef = useRef<HTMLDivElement>(null);
+  const hintRef = useRef<HTMLDivElement>(null);
+  const [brandPos, setBrandPos] = useState<{ left: number; top: number } | null>(null);
+  const [showBrand, setShowBrand] = useState(true);
   const skipRef = useRef<() => void>(() => {});
 
   useEffect(() => { setMounted(true); }, []);
+  // posición exacta de la marca de la barra superior (para dibujarla encima de la cortina durante la intro)
+  useEffect(() => {
+    if (!mounted) return;
+    const place = () => { const el = document.querySelector('.cx-nav .cx-brand svg'); if (el) { const r = el.getBoundingClientRect(); setBrandPos({ left: r.left, top: r.top }); } };
+    place(); const t = setTimeout(place, 600); window.addEventListener('resize', place);
+    return () => { clearTimeout(t); window.removeEventListener('resize', place); };
+  }, [mounted]);
+  useEffect(() => { if (stage === 'hero') { const t = setTimeout(() => setShowBrand(false), 1400); return () => clearTimeout(t); } }, [stage]);
 
   useEffect(() => {
     if (!mounted) return;
@@ -137,7 +184,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     try { short = sessionStorage.getItem('cx-intro') === '1'; } catch { /* sin almacenamiento */ }
     // depuración de timing: ?introAt=2.4 congela la intro en ese instante del guion (revisión fotograma a fotograma)
     let freezeAt = NaN; try { freezeAt = Number(new URLSearchParams(location.search).get('introAt') ?? 'NaN'); } catch { /* */ }
-    const K = short && !Number.isFinite(freezeAt) ? 0.55 : 1;
+    const K = short && !Number.isFinite(freezeAt) ? 0.6 : 1.12;   // ciclo 35: versión completa un 12 % más lenta
     if (wantIntro) html.dataset.cxIntro = 'on'; else { delete html.dataset.cxIntro; setStage('hero'); }
     MeshoptDecoder.useWorkers?.(2);
 
@@ -173,12 +220,12 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     const planeReal = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1e6);   // empieza oculto
     const planeMin = new THREE.Plane(new THREE.Vector3(0, -1, 0), -1e6);   // empieza oculto
     const planeEdge = new THREE.Plane(new THREE.Vector3(0, 1, 0), 1e6);    // empieza visible entero
-    const uExplode = { value: 0 };
-    const minMat = withExplode(new THREE.MeshStandardMaterial({ color: cols.face, roughness: 0.82, metalness: 0.0, clippingPlanes: [planeMin], polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }), uExplode);
-    const accMat = withExplode(new THREE.MeshStandardMaterial({ color: cols.acc, roughness: 0.55, metalness: 0.1, emissive: cols.acc, emissiveIntensity: 0.25, clippingPlanes: [planeMin], polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }), uExplode);
-    const edgeMat = withExplode(new THREE.LineBasicMaterial({ color: 0xe9e6df, transparent: true, opacity: 0.55, depthWrite: false, clippingPlanes: [planeEdge] }), uExplode);
-    const skelMat = withExplode(new THREE.LineBasicMaterial({ color: 0xf4f2ec, transparent: true, opacity: 0.95, depthWrite: false, clippingPlanes: [planeEdge] }), uExplode);
-    const frontMat = withExplode(new THREE.LineBasicMaterial({ color: 0xff7a3d, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending }), uExplode);
+    const U: XU = { uExplode: { value: 0 }, uMess: { value: 0 }, uSpread: { value: 1 }, uHover: { value: 0 }, uR: { value: 1 }, uPush: { value: 0.2 }, uCursor: { value: new THREE.Vector3(0, -99, 0) }, uCenter: { value: new THREE.Vector3() } };
+    const minMat = withExplode(new THREE.MeshStandardMaterial({ color: cols.face, roughness: 0.82, metalness: 0.0, transparent: true, clippingPlanes: [planeMin], polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }), U);
+    const accMat = withExplode(new THREE.MeshStandardMaterial({ color: cols.acc, roughness: 0.55, metalness: 0.1, emissive: cols.acc, emissiveIntensity: 0.25, transparent: true, clippingPlanes: [planeMin], polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }), U);
+    const edgeMat = withExplode(new THREE.LineBasicMaterial({ color: 0xe9e6df, transparent: true, opacity: 0.55, depthWrite: false, clippingPlanes: [planeEdge] }), U);
+    const skelMat = withExplode(new THREE.LineBasicMaterial({ color: 0xf4f2ec, transparent: true, opacity: 0.95, depthWrite: false, clippingPlanes: [planeEdge] }), U);
+    const frontMat = withExplode(new THREE.LineBasicMaterial({ color: 0xff7a3d, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending }), U);
     const scanMat = new THREE.LineBasicMaterial({ color: 0xff7a3d, transparent: true, opacity: 0, depthWrite: false });
     const disposables: { dispose: () => void }[] = [env, pmrem, minMat, accMat, edgeMat, skelMat, frontMat, scanMat];
 
@@ -192,6 +239,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     let skKeys = new Float32Array(0);   // claves de dibujo del icono, ordenadas
     let real: THREE.Group | null = null, scan: THREE.LineLoop | null = null;
     let dl = 0, stage2 = 0, prep = 0, parseT0 = 0;
+    let realPartsRef: { m: THREE.Mesh; base: THREE.Vector3; c: THREE.Vector3; inv: THREE.Matrix3 }[] = [];
 
     (async () => {
       const root = await preloadHolybro((p) => { dl = p; if (p >= 0.99 && !parseT0) parseT0 = performance.now(); });
@@ -201,19 +249,22 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       pivot.add(drone); pivot.updateMatrixWorld(true);
       box.setFromObject(drone); box.getCenter(center); box.getSize(size);
       rH = Math.hypot(size.x, size.z) / 2; radius = size.length() / 2;
+      U.uCenter.value.copy(center); U.uR.value = rH * 0.5; U.uPush.value = rH * 0.16; U.uSpread.value = rH * 0.36;
       const meshes: THREE.Mesh[] = []; drone.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh); });
       const matMap = new Map<THREE.Material, THREE.Material>();
       const minParts: ReturnType<typeof worldFloat>[] = [], accParts: ReturnType<typeof worldFloat>[] = [];
-      const dA: number[] = [], dO: number[] = [], dD: number[] = [];                  // detalle
+      const dA: number[] = [], dO: number[] = [], dD: number[] = [], dF: number[] = []; // detalle (+ cáscara)
+      const realParts: { m: THREE.Mesh; base: THREE.Vector3; c: THREE.Vector3; inv: THREE.Matrix3 }[] = [];
       const motorMeshes: THREE.Box3[] = [];                                          // para el icono
       let budget = performance.now();
-      const push = (ep: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, c: THREE.Vector3, A: number[], O: number[], D: number[], Lr?: number[]) => {
+      const push = (ep: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, c: THREE.Vector3, A: number[], O: number[], D: number[], Lr?: number[], Fo?: number[], wf?: ReturnType<typeof worldFloat>) => {
         for (let k = 0; k < ep.count; k += 2) {
           const ax = ep.getX(k), ay = ep.getY(k), az = ep.getZ(k), bx = ep.getX(k + 1), by = ep.getY(k + 1), bz = ep.getZ(k + 1);
           if (!Number.isFinite(ax + ay + az + bx + by + bz)) continue;   // aristas degeneradas del CAD
           A.push(ax, ay, az, bx, by, bz); O.push(c.x - center.x, c.y - center.y, c.z - center.z);
           D.push(Math.hypot((ax + bx) / 2 - center.x, (ay + by) / 2 - center.y, (az + bz) / 2 - center.z));
           Lr?.push(Math.hypot(bx - ax, by - ay, bz - az));
+          if (Fo && wf) { const vi = wf.fragOf(ax, ay, az); if (vi === null) Fo.push(c.x - center.x, c.y - center.y, c.z - center.z); else Fo.push(wf.Fr[vi * 3] - center.x, wf.Fr[vi * 3 + 1] - center.y, wf.Fr[vi * 3 + 2] - center.z); }
         }
       };
       for (let i = 0; i < meshes.length; i++) {
@@ -227,7 +278,8 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
         (isMotor ? accParts : minParts).push(wf);
         if (isMotor) motorMeshes.push(new THREE.Box3().setFromBufferAttribute(new THREE.BufferAttribute(wf.P, 3)));
         const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(wf.P, 3)); if (wf.idx) g.setIndex(Array.from(wf.idx));
-        const eg = new THREE.EdgesGeometry(g, 28); push(eg.getAttribute('position'), wf.c, dA, dO, dD);
+        const eg = new THREE.EdgesGeometry(g, 28); push(eg.getAttribute('position'), wf.c, dA, dO, dD, undefined, dF, wf);
+        realParts.push({ m, base: m.position.clone(), c: wf.c.clone(), inv: new THREE.Matrix3().setFromMatrix4(m.parent ? m.parent.matrixWorld.clone().invert() : new THREE.Matrix4()) });
         g.dispose(); eg.dispose();
         prep = (i + 1) / meshes.length * 0.8;
         if (performance.now() - budget > 8) { await nextFrame(); budget = performance.now(); if (disposed) return; }
@@ -260,9 +312,10 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       skKeys = Float32Array.from(skOrder, (i) => SK[i]);
       const skGeo = lineGeo(SA, SO, SK, skOrder); nSk = SK.length;
       await nextFrame(); if (disposed) return;
-      const deGeo = lineGeo(dA, dO, dD); nDet = dD.length;
+      const deGeo = lineGeo(dA, dO, dD, undefined, dF); nDet = dD.length;
+      realPartsRef = realParts;
       await nextFrame(); if (disposed) return;
-      const mkFront = (g: THREE.BufferGeometry) => { const f = new THREE.BufferGeometry(); f.setAttribute('position', g.getAttribute('position')); f.setAttribute('aOff', g.getAttribute('aOff')); disposables.push(f); const o = new THREE.LineSegments(f, frontMat); o.renderOrder = 5; o.frustumCulled = false; return o; };
+      const mkFront = (g: THREE.BufferGeometry) => { const f = new THREE.BufferGeometry(); f.setAttribute('position', g.getAttribute('position')); f.setAttribute('aOff', g.getAttribute('aOff')); f.setAttribute('aFrag', g.getAttribute('aFrag')); disposables.push(f); const o = new THREE.LineSegments(f, frontMat); o.renderOrder = 5; o.frustumCulled = false; return o; };
       edges = new THREE.LineSegments(deGeo, edgeMat); edges.renderOrder = 3; edges.frustumCulled = false;
       skel = new THREE.LineSegments(skGeo, skelMat); skel.renderOrder = 4; skel.frustumCulled = false;
       frontS = mkFront(skGeo); frontD = mkFront(deGeo);
@@ -282,13 +335,30 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       try { await Promise.race([renderer.compileAsync(pivot, camera, scene), new Promise((r) => setTimeout(r, 1500))]); } catch { /* compila al primer dibujo */ }
       compiling = false;
       if (disposed) return;
+      real!.visible = true; [edges, skel, frontS, frontD].forEach((o) => { o!.visible = true; o!.geometry.setDrawRange(0, Infinity); });
+      renderer.setScissorTest(true); renderer.setScissor(0, 0, 2, 2); renderer.setViewport(0, 0, 2, 2);
+      renderer.render(scene, camera);
+      renderer.setScissorTest(false); renderer.setViewport(0, 0, W, H); renderer.clear();
+      real!.visible = false;
       pivot.visible = false;
       prep = 1; ready = true;
     })().catch(() => { failed = true; });
 
     // ── interacción ──
     let mx = 0, my = 0, mxS = 0, myS = 0, spin = 0, lastMove = -10, divX = -1, heroT = -1;
-    const onMove = (e: PointerEvent) => { mx = e.clientX / W * 2 - 1; my = e.clientY / H * 2 - 1; lastMove = performance.now() / 1000; };
+    let px = -1, py = -1, overDrone = false, hoverE = 0, messT = 0, messE = 0, lastRect = { x0: 0, x1: 0, y0: 0, y1: 0 };
+    const interactive = (t: EventTarget | null) => !!(t as HTMLElement | null)?.closest?.('a,button,input,select,textarea,label,summary,[role="button"],.cx-chat-fab,.cx-nav,.cx-option,.cx-show-card');
+    const inRect = (x: number, y: number) => { const r = lastRect, mX = (r.x1 - r.x0) * 0.06, mY = (r.y1 - r.y0) * 0.06; return x > r.x0 - mX && x < r.x1 + mX && y > r.y0 - mY && y < r.y1 + mY; };
+    const onMove = (e: PointerEvent) => {
+      mx = e.clientX / W * 2 - 1; my = e.clientY / H * 2 - 1; lastMove = performance.now() / 1000; px = e.clientX; py = e.clientY;
+      overDrone = done && scrollE < 0.25 && !interactive(e.target) && inRect(px, py);
+      html.style.cursor = overDrone ? 'pointer' : '';
+    };
+    const onClick = (e: MouseEvent) => {
+      if (!done || scrollE > 0.25 || interactive(e.target) || !inRect(e.clientX, e.clientY)) return;
+      messT = messT > 0.5 ? 0 : 1;   // clic: desarmar / armar
+    };
+    window.addEventListener('click', onClick);
     window.addEventListener('pointermove', onMove, { passive: true });
     let scrollRaw = 0, scrollE = 0;
     const onScroll = () => {
@@ -342,9 +412,11 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       // scroll suavizado (el despiece sigue al scroll con inercia corta, sin temblor)
       scrollE += (scrollRaw - scrollE) * (1 - Math.exp(-dt * 10));
       const ex = done ? easeOut(scrollE) : 0;
-      // el despiece deja paso al contenido: se apaga entre el 40 % y el 90 % del recorrido
-      layer.style.opacity = String(done ? 1 - smooth(0.4, 0.9, scrollE) : 1);
-      if (done && scrollE > 0.9) return;
+      // al bajar: se separa más, las caras se apagan (queda la SILUETA en líneas), la perspectiva se aplana
+      // a 2D y al final desaparece antes de cruzar las opciones
+      const sil = done ? smooth(0.38, 0.7, scrollE) : 0;
+      layer.style.opacity = String(done ? 1 - smooth(0.72, 0.97, scrollE) : 1);
+      if (done && scrollE > 0.97) return;
       // carga: etapas reales + suavizado crítico
       const parseK = stage2 ? 1 : parseT0 ? 1 - Math.exp(-(performance.now() - parseT0) / 450) : 0;
       const target = ready ? 1 : Math.min(0.995, dl * 0.7 + parseK * 0.1 + prep * 0.2);
@@ -358,12 +430,17 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       if (Number.isFinite(freezeAt) && typeof fz === 'number') freezeAt = fz;
       if (clock >= 0 && !done) clock = Number.isFinite(freezeAt) ? freezeAt : clock + dt;
       const t = !wantIntro || done ? 99 : clock < 0 ? -1 : clock / K;
-      // línea: crece desde el centro con la carga; al 100 % se recoge en un punto de luz
-      if (lineRef.current && !done) lineRef.current.style.transform = `scaleX(${(clamp01(shown) * (t < 0 ? 1 : 1 - ease((t - TL.c0) / TL.c))).toFixed(4)})`;
+      // línea: crece desde el centro con la carga; al 100 % se recoge ACELERANDO (ease-in) hasta el punto:
+      // máxima velocidad justo en el impacto → golpe de luz + onda; el icono nace de ese impacto
+      const cin = (x: number) => { x = clamp01(x); return x * x * x; };
+      if (lineRef.current && !done) lineRef.current.style.transform = `scaleX(${(clamp01(shown) * (t < 0 ? 1 : 1 - cin((t - TL.c0) / TL.c))).toFixed(4)})`;
       if (dotRef.current && !done) {
-        const a = t < 0 ? 0 : smooth(0.2, TL.c, t) * (1 - smooth(TL.sk0 + 0.2, TL.sk0 + 0.6, t));
+        const pre = smooth(TL.c * 0.4, TL.c, t);
+        const hit = t < TL.c ? 0 : Math.exp(-(t - TL.c) * 7) * Math.sin(Math.min(Math.PI, (t - TL.c) * 9)) ;
+        const a = t < 0 ? 0 : pre * (1 - smooth(TL.sk0 + 0.35, TL.sk0 + 0.9, t));
         dotRef.current.style.opacity = a.toFixed(3);
-        dotRef.current.style.transform = `translate(-50%,-50%) scale(${(0.6 + 0.8 * smooth(0.2, TL.c, t)).toFixed(3)})`;
+        dotRef.current.style.transform = `translate(-50%,-50%) scale(${(0.5 + 0.7 * pre + 1.6 * hit).toFixed(3)})`;
+        if (t >= TL.c && !hudRef.current?.classList.contains('hit')) hudRef.current?.classList.add('hit');
       }
       if (!ready || compiling) { if (!compiling) renderer.render(scene, camera); return; }
       pivot.visible = t >= TL.sk0;
@@ -376,7 +453,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       const rate = done ? 0.05 : t < TL.s0 ? 0.14 * dz : lerp(0.14, 0.05, ease((t - TL.s0) / 1.6));
       if (t >= TL.dz0 && !Number.isFinite(freezeAt)) spin += dt * rate;
       mxS += (mx - mxS) * Math.min(1, dt * 3); myS += (my - myS) * Math.min(1, dt * 3);
-      camera.fov = done ? FOV1 : lerp(FOV0, FOV1, dz);
+      camera.fov = done ? lerp(FOV1, 11, smooth(0.3, 0.9, scrollE)) : lerp(FOV0, FOV1, dz);
       const theta = lerp(0, 0.95, done ? 1 : dz) + spin + mxS * 0.22 * k + ex * 0.9;
       const phi = lerp(0.04, 1.16, done ? 1 : dz) + myS * 0.06 * k - ex * 0.62;
       const mobile = W < 760 || W / H < 0.95;
@@ -393,7 +470,29 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       if (Math.abs(offX) + Math.abs(offY) > 0.5) camera.setViewOffset(W, H, offX, offY, W, H); else camera.clearViewOffset();
       camera.near = Math.max(0.05, r / 60); camera.far = r * 8;
       camera.updateProjectionMatrix(); camera.updateMatrixWorld();
-      uExplode.value = ex * 1.25;
+      // despiece: scroll (radial, amplio) + clic (radial + desorden), muelle exponencial sin rebote
+      messE += (messT - messE) * (1 - Math.exp(-dt * 3.2));
+      U.uExplode.value = ex * 2.3 + messE * 0.75;
+      U.uMess.value = messE;
+      minMat.opacity = accMat.opacity = 1 - sil; minMat.depthWrite = accMat.depthWrite = sil < 0.02;
+      // fractura: las cáscaras cercanas al cursor se desprenden (solo con el hero en reposo)
+      hoverE += ((overDrone ? 1 : 0) - hoverE) * (1 - Math.exp(-dt * 5));
+      U.uHover.value = hoverE * (1 - smooth(0, 0.2, scrollE));
+      if (hoverE > 0.001 && px >= 0) {
+        const ray = new THREE.Raycaster(); ray.setFromCamera(new THREE.Vector2((px / W) * 2 - 1, -(py / H) * 2 + 1), camera);
+        const n = camera.getWorldDirection(new THREE.Vector3());
+        const hit = ray.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(n, center), new THREE.Vector3());
+        if (hit) U.uCursor.value.lerp(hit, Math.min(1, dt * 14));
+      }
+      // lo realista (mallas originales) se aparta entero por pieza con la misma fórmula, en CPU
+      if (real && realPartsRef.length) {
+        const k = U.uHover.value, R = U.uR.value, push = U.uPush.value, cur = U.uCursor.value;
+        for (const rp of realPartsRef) {
+          if (k < 0.001) { if (!rp.m.position.equals(rp.base)) rp.m.position.copy(rp.base); continue; }
+          const d = rp.c.clone().sub(cur), L = d.length(), f = k * (1 - smooth(0, R, L));
+          rp.m.position.copy(rp.base).add(d.multiplyScalar(f * push / Math.max(L, 1e-3)).applyMatrix3(rp.inv));
+        }
+      }
 
       // aristas: esqueleto y detalle se dibujan del centro hacia afuera, cada uno con su frente de luz
       const draw = (obj: THREE.LineSegments, front: THREE.LineSegments, n: number, p: number) => {
@@ -431,6 +530,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
         scanMat.opacity = 0; real!.visible = true;
         if (heroT < 0) heroT = now;
         const rc = rectOf(), cx = (rc.x0 + rc.x1) / 2, cy = (rc.y0 + rc.y1) / 2, w = rc.x1 - rc.x0, h = rc.y1 - rc.y0;
+        if (messE < 0.05 && ex < 0.05) lastRect = rc;   // zona de clic: el dron armado
         const rot = done ? 1 : easeOutExpo((t - TL.v0) / TL.v);            // 0 = horizontal · 1 = vertical
         const wipe = done ? 1 : ease((t - TL.w0) / TL.w);
         const idle = now - lastMove > 2.5 || window.matchMedia('(pointer: coarse)').matches;
@@ -439,20 +539,27 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
         if (rot >= 1) divX += (target2 - divX) * Math.min(1, dt * (idle ? 1.5 : 6));
         // frontera real|esencial: barrido desde la izquierda hasta el divisor; al hacer scroll, todo esencial
         let bx = lerp(rc.x0 - 2, divX, wipe);
-        bx = lerp(bx, rc.x0 - 2, smooth(0, 0.12, scrollE));
+        bx = lerp(bx, rc.x0 - 2, Math.max(smooth(0, 0.12, scrollE), smooth(0, 0.35, messE)));   // desarmado o al bajar: todo esencial
         planeAtX(bx, planeReal, true); planeAtX(bx, planeMin, false); planeEdge.copy(planeMin);
         _c.set(0xe9e6df).lerp(cols.edge, k); edgeMat.color.copy(_c); skelMat.color.copy(_c);
         edgeMat.opacity = cols.edgeOp;
         const dv = dividerRef.current;
         if (dv) {
           const len = lerp(w * 0.9, h, rot), x = lerp(cx, divX, rot);
-          dv.style.opacity = String(clamp01(smooth(TL.v0 - 0.15, TL.v0 + 0.1, done ? 99 : t)) * (1 - smooth(0, 0.1, scrollE)));
+          dv.style.opacity = String(clamp01(smooth(TL.v0 - 0.15, TL.v0 + 0.1, done ? 99 : t)) * (1 - smooth(0, 0.1, scrollE)) * (1 - smooth(0, 0.3, messE)));
           dv.style.height = `${Math.max(0, len).toFixed(0)}px`;
           dv.style.transform = `translate3d(${x.toFixed(1)}px, ${(cy - len / 2).toFixed(1)}px, 0) rotate(${((1 - rot) * 90).toFixed(2)}deg)`;
           dv.classList.toggle('labels', rot >= 1);
         }
       }
       minMat.color.lerp(cols.face, 0.1); accMat.color.lerp(cols.acc, 0.1); accMat.emissive.copy(accMat.color);
+      // pista discreta bajo el dron
+      if (hintRef.current) {
+        const show = done && (overDrone || messE > 0.5) && scrollE < 0.15;
+        hintRef.current.style.opacity = show ? '1' : '0';
+        hintRef.current.textContent = messT > 0.5 ? L.hintOn : L.hintOff;
+        hintRef.current.style.transform = `translate3d(${((lastRect.x0 + lastRect.x1) / 2).toFixed(0)}px, ${(lastRect.y1 + 14).toFixed(0)}px, 0) translateX(-50%)`;
+      }
 
       // titular y cierre
       if (wantIntro && !done) {
@@ -484,7 +591,8 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     return () => {
       disposed = true; cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize); window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('scroll', onScroll); window.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll); window.removeEventListener('keydown', onKey); window.removeEventListener('click', onClick);
+      html.style.cursor = '';
       delete html.dataset.cxHeroTop;
       mo.disconnect(); disposables.forEach((d) => d.dispose()); renderer.dispose(); renderer.domElement.remove();
       if (!done) { playedThisLoad = true; delete html.dataset.cxIntro; }
@@ -512,7 +620,9 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
           <div ref={curtainRef} className="ih-curtain" />
           <div ref={layerRef} className="ih-layer">
             <div ref={dividerRef} className="ih-divider"><span className="l">← {L.real}</span><span className="r">{L.ess} →</span></div>
+            <div ref={hintRef} className="ih-hint" />
           </div>
+          {showBrand && brandPos && <div className="ih-brand" style={{ left: brandPos.left, top: brandPos.top }}><BrandLockup state="mark" height={13} /></div>}
           {!hero && (
             <div ref={hudRef} className="ih-hud ih-v34" role="status" aria-live="polite">
               <div ref={introTitleRef} className="ih-intro-title" aria-hidden="true"><span>{L.l1}</span><span>{L.l2a}<em>{L.l2b}</em>.</span></div>
@@ -522,6 +632,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
               </div>
               <i ref={lineRef} className="ih-bar" />
               <i ref={dotRef} className="ih-dot" />
+              <i className="ih-ring" /><i className="ih-flash" />
             </div>
           )}
         </div>,

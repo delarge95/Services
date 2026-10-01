@@ -4,8 +4,14 @@
 
 /* ── estado global durante la intro ── */
 html[data-cx-intro] { overflow: hidden; }
-html[data-cx-intro='pre'] body::after { content: ''; position: fixed; inset: 0; background: #07080a; z-index: 10000; }
-html[data-cx-intro] .cx-nav, html[data-cx-intro] .cx-chat-fab { opacity: 0 !important; pointer-events: none !important; }
+html[data-cx-intro='pre'] body::after { content: ''; position: fixed; inset: 0; background: #07080a; z-index: 9990; }
+html[data-cx-intro] .cx-chat-fab { opacity: 0 !important; pointer-events: none !important; }
+html[data-cx-intro] .cx-nav { opacity: 0 !important; pointer-events: none !important; }
+/* ciclo 35: durante la intro, la propia intro dibuja la marca AW en la posición EXACTA de la barra superior
+   (la barra vive en otro contexto de apilamiento, por debajo de la cortina); al terminar, relevo en el mismo sitio. */
+.ih-brand { position: absolute; color: #edeee8; opacity: 0; animation: cx-brand-in 1s cubic-bezier(.16, 1, .3, 1) .35s both; pointer-events: none; transition: opacity .5s ease .7s; }
+.ih-done .ih-brand { opacity: 0 !important; animation: none; }
+@keyframes cx-brand-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
 .cx-nav, .cx-chat-fab { transition: opacity .8s ease .15s, background-color .4s ease, border-color .4s ease; }
 /* barra superior transparente sobre el hero; vuelve a ser "cristal" al hacer scroll */
 html[data-cx-hero-top] .cx-nav { background: transparent !important; border-bottom-color: transparent !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
@@ -157,3 +163,19 @@ html, body { overflow-x: clip; }
 .ih-divider.labels span { opacity: 1; }
 /* sin monograma mientras se decide la marca: el titular previo vuelve a llevar su filete */
 .ih-kicker::before { display: block; }
+
+/* ══ ciclo 35 · impacto del punto + pista de interacción ═══════════════════════════
+   La línea llega al punto a máxima velocidad (ease-in): golpe de luz, onda expansiva fina y un
+   destello radial muy breve; el icono nace en ese instante (causa → efecto). */
+.ih-ring { position: absolute; left: 50%; top: 50%; width: 46vmin; height: 46vmin; margin: -23vmin 0 0 -23vmin; border-radius: 50%;
+  border: 1px solid rgba(255, 122, 61, .85); opacity: 0; transform: scale(.02); pointer-events: none; }
+.ih-flash { position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 140, 80, .22), rgba(255, 122, 61, .06) 22%, transparent 48%); }
+.ih-hud.hit .ih-ring { animation: ih-ring 1.05s cubic-bezier(.16, 1, .3, 1) both; }
+.ih-hud.hit .ih-flash { animation: ih-flash .7s cubic-bezier(.16, 1, .3, 1) both; }
+@keyframes ih-ring { 0% { opacity: .95; transform: scale(.02); } 60% { opacity: .35; } 100% { opacity: 0; transform: scale(1); } }
+@keyframes ih-flash { 0% { opacity: 0; } 18% { opacity: 1; } 100% { opacity: 0; } }
+.ih-hint { position: absolute; left: 0; top: 0; font: 500 10.5px/1 var(--cx-mono, ui-monospace, monospace); letter-spacing: .2em; text-transform: uppercase;
+  color: var(--cx-muted, #9aa1ab); white-space: nowrap; opacity: 0; transition: opacity .4s ease; pointer-events: none; }
+@media (pointer: coarse) { .ih-hint { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ih-hud.hit .ih-ring, .ih-hud.hit .ih-flash { animation: none; } }
