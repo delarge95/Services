@@ -44,13 +44,13 @@ export function showcaseCaption(kind: ShowcaseKind, key: string, lang: Lang = 'e
     configurador: 'Configurador: el cliente elige acabados y ve el resultado',
     catalogo: 'Catálogo: varios productos 3D navegables',
     herramienta: 'Herramienta técnica: corte en vivo, aristas y medidas reales',
-    juego: 'Minijuego: mueve el dron, atrapa piezas y esquiva obstáculos',
+    juego: 'Minijuego: mueve el dron, atrapa anillos y esquiva rocas',
   };
   const en: Record<string, string> = {
     rotar: '360° view: drag to rotate the model', hotspots: 'Tap an orange point to see the part name',
     configurar: 'Pick a finish: the model updates live', desarmar: 'Exploded view: every part separates and returns',
     configurador: 'Configurator: the customer picks finishes and sees the result', catalogo: 'Catalog: several browsable 3D products',
-    herramienta: 'Technical tool: live section, edges and real measurements', juego: 'Mini-game: steer the drone, catch parts, dodge obstacles',
+    herramienta: 'Technical tool: live section, edges and real measurements', juego: 'Mini-game: steer the drone, catch rings, dodge rocks',
   };
   const t = lang === 'en' ? en : es;
   return key.split('+').map((k) => t[k]).filter(Boolean).join(' · ');
@@ -101,6 +101,63 @@ function prepareExplode(root: THREE.Group) {
     items.push({ m, home: m.position.clone(), off: a1.sub(a0) });
   });
   return (e: number) => { for (const it of items) it.m.position.copy(it.home).addScaledVector(it.off, e); };
+}
+
+/**
+ * Ciclo 29 — rotores que giran. Las hélices del GLB tienen la geometría "horneada"
+ * (position ≈ 0), así que rotar la malla la haría orbitar el origen. Se agrupan por
+ * cuadrante (una hélice por brazo), se crea un pivote en el centro de cada grupo y se
+ * re-parentan las mallas manteniendo su transformación; el giro es alrededor del eje
+ * vertical del dron expresado en el espacio del padre. Disco translúcido = desenfoque.
+ */
+function makeRotors(drone: THREE.Object3D, disposables: { dispose: () => void }[]) {
+  drone.updateMatrixWorld(true);
+  const groups = new Map<number, THREE.Mesh[]>();
+  const droneInv = new THREE.Matrix4().copy(drone.matrixWorld).invert();
+  drone.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || stepOf(m) !== 1) return;
+    const g = m.geometry; if (!g.boundingBox) g.computeBoundingBox();
+    const c = g.boundingBox!.getCenter(new THREE.Vector3()).applyMatrix4(m.matrixWorld).applyMatrix4(droneInv);
+    const q = (c.x >= 0 ? 1 : 0) + (c.z >= 0 ? 2 : 0);
+    (groups.get(q) ?? groups.set(q, []).get(q)!).push(m);
+  });
+  const rotors: { pivot: THREE.Object3D; axis: THREE.Vector3; dir: number; disc: THREE.Mesh }[] = [];
+  const discGeo = new THREE.CircleGeometry(1, 40);
+  const discMat = new THREE.MeshBasicMaterial({ color: 0xc9ced6, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
+  disposables.push(discGeo, discMat);
+  let i = 0;
+  for (const meshes of groups.values()) {
+    const parent = meshes[0].parent ?? drone;
+    const box = new THREE.Box3();
+    for (const m of meshes) box.union(new THREE.Box3().setFromObject(m));
+    const cW = box.getCenter(new THREE.Vector3());
+    const radius = Math.max(box.getSize(new THREE.Vector3()).x, box.getSize(new THREE.Vector3()).z) / 2;
+    const pivot = new THREE.Group();
+    parent.add(pivot);
+    pivot.position.copy(parent.worldToLocal(cW.clone()));
+    pivot.updateMatrixWorld(true);
+    for (const m of meshes) pivot.attach(m); // conserva la transformación en mundo
+    const upW = new THREE.Vector3(0, 1, 0).transformDirection(drone.matrixWorld);
+    const a0 = parent.worldToLocal(cW.clone()), a1 = parent.worldToLocal(cW.clone().add(upW));
+    const axis = a1.sub(a0).normalize();
+    // disco de desenfoque en mundo: hijo del dron, plano horizontal
+    const disc = new THREE.Mesh(discGeo, discMat);
+    const dLocal = drone.worldToLocal(cW.clone());
+    disc.position.copy(dLocal);
+    disc.rotation.x = -Math.PI / 2;
+    const sc = radius / drone.getWorldScale(new THREE.Vector3()).x;
+    disc.scale.setScalar(sc);
+    drone.add(disc);
+    rotors.push({ pivot, axis, dir: i++ % 2 ? 1 : -1, disc });
+  }
+  return {
+    /** speed en rad/s; blur 0..1 hace visible el disco. */
+    spin(dt: number, speed: number, blur: number) {
+      for (const r of rotors) r.pivot.rotateOnAxis(r.axis, r.dir * speed * dt);
+      discMat.opacity = 0.16 * blur;
+    },
+  };
 }
 
 // ─── interacción (combinable) ───
@@ -157,15 +214,23 @@ async function buildInteraction(ctx: Ctx, flags: Set<string>): Promise<Built> {
   }
 
   // configurar: colorways con muestras
-  const WAYS: { name: string; en: string; frame: number; mount: number }[] = [
-    { name: 'Carbono', en: 'Carbon', frame: 0x17191d, mount: 0x1f7fd1 },
-    { name: 'Rojo racing', en: 'Racing red', frame: 0x9d1c1c, mount: 0x1a1a1a },
-    { name: 'Blanco ártico', en: 'Arctic white', frame: 0xe9eaec, mount: 0xff7a3d },
+  // Ciclo 29 — paletas CURADAS: 2 tonos + material. Marco (carbono/pintura) + metal de
+  // soportes + hélices; contrastes de valor claros y metales cálidos/fríos coherentes.
+  type Way = { name: string; en: string; frame: number; frameRough: number; frameCoat: number; mount: number; mountRough: number; props: number };
+  const WAYS: Way[] = [
+    { name: 'Grafito y cobre', en: 'Graphite & copper', frame: 0x1c1e22, frameRough: 0.36, frameCoat: 1, mount: 0xb87333, mountRough: 0.32, props: 0x2a2c30 },
+    { name: 'Titanio', en: 'Titanium', frame: 0x5c6168, frameRough: 0.5, frameCoat: 0.2, mount: 0xc9ccd1, mountRough: 0.24, props: 0x1f2124 },
+    { name: 'Hueso y ascua', en: 'Bone & ember', frame: 0xe6e1d8, frameRough: 0.55, frameCoat: 0.3, mount: 0xd9581c, mountRough: 0.4, props: 0x3a3c40 },
+    { name: 'Azul noche y latón', en: 'Midnight & brass', frame: 0x1b2533, frameRough: 0.4, frameCoat: 0.8, mount: 0xb89a5a, mountRough: 0.3, props: 0xd9d6cf },
+    { name: 'Bosque y plata', en: 'Forest & silver', frame: 0x23312a, frameRough: 0.6, frameCoat: 0.1, mount: 0xb4b8be, mountRough: 0.28, props: 0x1c1e20 },
   ];
   let way = 0, wayHold = 0;
-  const frameMat = new THREE.MeshPhysicalMaterial({ color: WAYS[0].frame, roughness: 0.32, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.15 });
-  const mountMat = new THREE.MeshStandardMaterial({ color: WAYS[0].mount, roughness: 0.3, metalness: 0.75 });
-  disposables.push(frameMat, mountMat);
+  const frameMat = new THREE.MeshPhysicalMaterial({ color: WAYS[0].frame, roughness: WAYS[0].frameRough, metalness: 0.1, clearcoat: WAYS[0].frameCoat, clearcoatRoughness: 0.12 });
+  const mountMat = new THREE.MeshStandardMaterial({ color: WAYS[0].mount, roughness: WAYS[0].mountRough, metalness: 1 });
+  const propMat = new THREE.MeshStandardMaterial({ color: WAYS[0].props, roughness: 0.5, metalness: 0 });
+  // batería = acento de la paleta en acabado mate (no metálico): las 5 paletas son de 2 tonos + neutros
+  const accentMat = new THREE.MeshStandardMaterial({ color: WAYS[0].mount, roughness: 0.6, metalness: 0 });
+  disposables.push(frameMat, mountMat, propMat, accentMat);
   let swatchBar: HTMLDivElement | null = null;
   if (configure) {
     drone.traverse((o) => {
@@ -173,12 +238,15 @@ async function buildInteraction(ctx: Ctx, flags: Set<string>): Promise<Built> {
       const n = meshEffectiveName(m); const s = stepOf(m);
       if (/HMX5V-DIGAI|DIANJIZUO/i.test(n)) m.material = mountMat;
       else if (s >= 2 && s <= 4) m.material = frameMat;
+      else if (s === 1) m.material = propMat;
+      else if (s === 7) m.material = accentMat;
     });
     swatchBar = el(ctx.overlay, 'sc-swatches');
     WAYS.forEach((w, i) => {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'sc-swatch'; b.title = ctx.lang === 'en' ? w.en : w.name;
-      b.innerHTML = `<i style="background:#${w.frame.toString(16).padStart(6, '0')}"></i><i style="background:#${w.mount.toString(16).padStart(6, '0')}"></i><span>${ctx.lang === 'en' ? w.en : w.name}</span>`;
+      const hx = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
+      b.innerHTML = `<i style="background:${hx(w.frame)}"></i><i style="background:linear-gradient(135deg, ${hx(w.mount)}, #fff8 60%, ${hx(w.mount)})"></i><span>${ctx.lang === 'en' ? w.en : w.name}</span>`;
       b.addEventListener('click', () => { way = i; wayHold = performance.now() + 7000; });
       swatchBar!.appendChild(b);
     });
@@ -197,9 +265,15 @@ async function buildInteraction(ctx: Ctx, flags: Set<string>): Promise<Built> {
         explode(ph < 1.2 ? 0 : ph < 2.4 ? smooth(ph - 1.2) / 1 * 1 : ph < 4.6 ? 1 : 1 - smooth((ph - 4.6) / 1.2));
       }
       if (configure) {
-        if (performance.now() > wayHold && t - lastSwitch > 2.2) { way = (way + 1) % WAYS.length; lastSwitch = t; }
-        frameMat.color.lerp(cTmp.setHex(WAYS[way].frame), 0.08);
-        mountMat.color.lerp(cTmp.setHex(WAYS[way].mount), 0.08);
+        if (performance.now() > wayHold && t - lastSwitch > 2.6) { way = (way + 1) % WAYS.length; lastSwitch = t; }
+        const W = WAYS[way];
+        frameMat.color.lerp(cTmp.setHex(W.frame), 0.08);
+        frameMat.roughness += (W.frameRough - frameMat.roughness) * 0.08;
+        frameMat.clearcoat += (W.frameCoat - frameMat.clearcoat) * 0.08;
+        mountMat.color.lerp(cTmp.setHex(W.mount), 0.08);
+        mountMat.roughness += (W.mountRough - mountMat.roughness) * 0.08;
+        propMat.color.lerp(cTmp.setHex(W.props), 0.08);
+        accentMat.color.lerp(cTmp.setHex(W.mount), 0.08);
         if (way !== lastWay && swatchBar) { [...swatchBar.children].forEach((c, i) => c.classList.toggle('on', i === way)); lastWay = way; }
       }
       if (spots.length) {
@@ -356,6 +430,8 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   const drone = await droneFor('variado');
   const holder = new THREE.Group(); holder.add(drone); drone.scale.multiplyScalar(0.8);
   group.add(holder);
+  const fxDisposables: { dispose: () => void }[] = [];
+  const rotors = makeRotors(drone, fxDisposables);
   const { w, h } = ctx.size();
   const viewH = 7, aspect = w / h, viewW = viewH * aspect;
   const cam = new THREE.OrthographicCamera(-viewW / 2, viewW / 2, viewH / 2, -viewH / 2, 0.1, 50);
@@ -368,6 +444,55 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   const grid = new THREE.GridHelper(40, 40, 0x2b3038, 0x1c2026); (grid.material as THREE.Material).transparent = true; (grid.material as THREE.Material).opacity = 0.6;
   grid.position.y = -1.2; group.add(grid); disposables.push(grid.geometry, grid.material as THREE.Material);
 
+  // ── FX (ciclo 29) ──
+  type Particle = { m: THREE.Mesh; v: THREE.Vector3; life: number; max: number; spin: number };
+  type RingFx = { m: THREE.Mesh; life: number; max: number };
+  const particles: Particle[] = [];
+  const rings: RingFx[] = [];
+  const sparkGeo = new THREE.OctahedronGeometry(0.07, 0);
+  const shardGeo = new THREE.TetrahedronGeometry(0.13, 0);
+  const ringGeo = new THREE.RingGeometry(0.42, 0.5, 40);
+  fxDisposables.push(sparkGeo, shardGeo, ringGeo);
+  const sparkMat = () => new THREE.MeshBasicMaterial({ color: 0xffb066, transparent: true });
+  const shardMat = () => new THREE.MeshStandardMaterial({ color: 0x8b95a3, roughness: 0.7, flatShading: true, transparent: true });
+  let shake = 0, flash = 0;
+  const floatText = (pos: THREE.Vector3, text: string, cls: string) => {
+    const { w: W, h: H } = ctx.size();
+    const p = pos.clone().project(cam);
+    const d = el(ctx.overlay, `sc-float ${cls}`, text);
+    d.style.left = `${(p.x * 0.5 + 0.5) * W}px`; d.style.top = `${(-p.y * 0.5 + 0.5) * H}px`;
+    setTimeout(() => d.remove(), 900);
+  };
+  const burstCoin = (pos: THREE.Vector3) => {
+    for (let k = 0; k < 18; k++) {
+      const a = (k / 18) * Math.PI * 2 + Math.random() * 0.3, sp = 2.5 + Math.random() * 2.5;
+      const m = new THREE.Mesh(sparkGeo, sparkMat());
+      m.position.copy(pos).setY(0.4);
+      group.add(m);
+      particles.push({ m, v: new THREE.Vector3(Math.cos(a) * sp, 0, Math.sin(a) * sp), life: 0, max: 0.45 + Math.random() * 0.25, spin: 8 });
+    }
+    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xff7a3d, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.copy(pos).setY(0.3);
+    group.add(ring); rings.push({ m: ring, life: 0, max: 0.45 });
+    floatText(pos, '+10', 'good');
+  };
+  const burstRock = (pos: THREE.Vector3) => {
+    for (let k = 0; k < 14; k++) {
+      const a = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 3;
+      const m = new THREE.Mesh(shardGeo, shardMat());
+      m.position.copy(pos).setY(0.3);
+      group.add(m);
+      particles.push({ m, v: new THREE.Vector3(Math.cos(a) * sp, 0, Math.sin(a) * sp), life: 0, max: 0.6 + Math.random() * 0.3, spin: 6 + Math.random() * 6 });
+    }
+    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.copy(pos).setY(0.3);
+    group.add(ring); rings.push({ m: ring, life: 0, max: 0.35 });
+    shake = 0.35; flash = 1;
+    floatText(pos, '−1 ♥', 'bad');
+  };
+  const flashEl = el(ctx.overlay, 'sc-hit-flash');
+  const camHome = cam.position.clone();
+
   type Obj = { m: THREE.Mesh; coin: boolean; v: number };
   const objs: Obj[] = [];
   let score = 0, lives = 3, playing = false, over = false, spawnT = 0, speed = 2.6, best = 0;
@@ -375,8 +500,8 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   const hud = el(ctx.overlay, 'sc-hud');
   const screen = el(ctx.overlay, 'sc-game-screen');
   const L = ctx.lang === 'en'
-    ? { start: 'Click to play', how: 'Move the drone with your mouse or finger. Catch the orange parts (+10), dodge the rocks (−1 life).', over: 'Game over', again: 'Click to play again', pts: 'pts', best: 'best' }
-    : { start: 'Clic para jugar', how: 'Mueve el dron con el ratón o el dedo. Atrapa las piezas naranjas (+10) y esquiva las rocas (−1 vida).', over: 'Fin del juego', again: 'Clic para jugar otra vez', pts: 'pts', best: 'récord' };
+    ? { start: 'Click to play', how: 'Move the drone with your mouse or finger. Catch the orange rings (+10), dodge the rocks (−1 life).', over: 'Game over', again: 'Click to play again', pts: 'pts', best: 'best' }
+    : { start: 'Clic para jugar', how: 'Mueve el dron con el ratón o el dedo. Atrapa los anillos naranjas (+10) y esquiva las rocas (−1 vida).', over: 'Fin del juego', again: 'Clic para jugar otra vez', pts: 'pts', best: 'récord' };
   const showScreen = (title: string, sub: string) => { screen.innerHTML = `<strong>${title}</strong><span>${sub}</span>`; screen.style.display = 'flex'; };
   const renderHud = () => { hud.innerHTML = `<b>${score}</b> ${L.pts} · ${'♥'.repeat(lives)}<em>${'♥'.repeat(3 - lives)}</em>${best ? ` · ${L.best} ${best}` : ''}`; };
   showScreen(L.start, L.how); renderHud();
@@ -399,6 +524,9 @@ async function buildGame(ctx: Ctx): Promise<Built> {
     group, camera: cam, interactive: false,
     dispose: () => {
       disposables.forEach((d) => d.dispose());
+      fxDisposables.forEach((d) => d.dispose());
+      particles.forEach((p) => (p.m.material as THREE.Material).dispose());
+      rings.forEach((r) => (r.m.material as THREE.Material).dispose());
       ctx.canvas.removeEventListener('pointermove', onMove); ctx.canvas.removeEventListener('pointerdown', onMove);
       ctx.canvas.style.cursor = ''; ctx.canvas.style.touchAction = '';
     },
@@ -407,6 +535,30 @@ async function buildGame(ctx: Ctx): Promise<Built> {
       holder.position.lerp(playing ? target : new THREE.Vector3(Math.sin(t) * 1.5, 0, 1.5), Math.min(1, dt * 8));
       const vx = (holder.position.x - lastX) / Math.max(dt, 1e-3); lastX = holder.position.x;
       holder.rotation.z = THREE.MathUtils.clamp(-vx * 0.04, -0.4, 0.4);
+      // vuelo: rotores girando (desenfoque) + leve flotación/escala de "altura"
+      rotors.spin(dt, playing ? 34 : 22, playing ? 1 : 0.7);
+      holder.scale.setScalar(1 + Math.sin(t * 3.2) * 0.025);
+      // FX: partículas, anillos, sacudida y destello
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i]; p.life += dt;
+        const k = p.life / p.max;
+        p.m.position.addScaledVector(p.v, dt); p.v.multiplyScalar(1 - dt * 3);
+        p.m.rotation.x += dt * p.spin; p.m.rotation.y += dt * p.spin;
+        (p.m.material as THREE.MeshBasicMaterial).opacity = 1 - k;
+        p.m.scale.setScalar(1 - 0.5 * k);
+        if (k >= 1) { group.remove(p.m); (p.m.material as THREE.Material).dispose(); particles.splice(i, 1); }
+      }
+      for (let i = rings.length - 1; i >= 0; i--) {
+        const r = rings[i]; r.life += dt;
+        const k = r.life / r.max;
+        r.m.scale.setScalar(1 + k * 2.4);
+        (r.m.material as THREE.MeshBasicMaterial).opacity = 1 - k;
+        if (k >= 1) { group.remove(r.m); (r.m.material as THREE.Material).dispose(); rings.splice(i, 1); }
+      }
+      if (shake > 0) { shake = Math.max(0, shake - dt); const a = shake * 0.5; cam.position.set(camHome.x + (Math.random() - 0.5) * a, camHome.y, camHome.z + (Math.random() - 0.5) * a); }
+      else cam.position.copy(camHome);
+      if (flash > 0) { flash = Math.max(0, flash - dt * 3); flashEl.style.opacity = String(flash * 0.55); }
+      drone.visible = !(flash > 0.2 && Math.floor(t * 20) % 2 === 0); // parpadeo al chocar
       if (!playing) return;
       spawnT -= dt;
       if (spawnT <= 0) {
@@ -424,7 +576,11 @@ async function buildGame(ctx: Ctx): Promise<Built> {
         const hit = Math.hypot(o.m.position.x - holder.position.x, o.m.position.z - holder.position.z) < (o.coin ? 0.75 : 0.7);
         if (hit || o.m.position.z > viewH / 2 + 1) {
           group.remove(o.m); objs.splice(i, 1);
-          if (hit) { if (o.coin) score += 10; else lives -= 1; renderHud(); }
+          if (hit) {
+            if (o.coin) { score += 10; burstCoin(o.m.position); } else { lives -= 1; burstRock(o.m.position); }
+            renderHud();
+            hud.classList.remove('pulse-good', 'pulse-bad'); void hud.offsetWidth; hud.classList.add(o.coin ? 'pulse-good' : 'pulse-bad');
+          }
         }
       }
       if (lives <= 0 && !over) {
@@ -575,11 +731,13 @@ export function ShowcaseScene({ kind, selected, hovered, lang = 'es', height = 3
           background: var(--cx-card-solid); color: var(--cx-text); border: 1px solid var(--cx-accent-border); opacity: 0; transform: translateX(-4px); transition: opacity .25s, transform .25s; }
         .sc-spot.on span, .sc-spot:hover span { opacity: 1; transform: none; }
         @keyframes sc-pulse { 0%, 100% { box-shadow: 0 0 0 4px var(--cx-accent-soft); } 50% { box-shadow: 0 0 0 10px transparent; } }
-        .sc-swatches { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: flex; gap: 6px; }
-        .sc-swatch { display: inline-flex; align-items: center; gap: 4px; font: 600 11px var(--cx-sans, system-ui); padding: 5px 9px; border-radius: 999px; cursor: pointer;
+        .sc-swatches { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); display: flex; gap: 6px; max-width: calc(100% - 16px); overflow-x: auto; scrollbar-width: none; }
+        .sc-swatches::-webkit-scrollbar { display: none; }
+        .sc-swatch { flex: 0 0 auto; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; font: 600 11px var(--cx-sans, system-ui); padding: 5px 9px; border-radius: 999px; cursor: pointer;
           background: var(--cx-card-solid); color: var(--cx-muted); border: 1px solid var(--cx-border-strong); transition: border-color .2s, color .2s; }
         .sc-swatch i { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(127,127,127,.4); }
         .sc-swatch.on { border-color: var(--cx-accent); color: var(--cx-text); }
+        @media (max-width: 560px) { .sc-swatch span { display: none; } .sc-swatch { padding: 6px; } .sc-swatch i { width: 14px; height: 14px; } }
         .sc-catalog { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; }
         .sc-cat-name { font: 700 14px var(--cx-display, system-ui); color: var(--cx-text); min-width: 120px; text-align: center; }
         .sc-cat-btn { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font: 600 18px/1 system-ui; color: var(--cx-text); background: var(--cx-card-solid); border: 1px solid var(--cx-border-strong); }
@@ -592,6 +750,13 @@ export function ShowcaseScene({ kind, selected, hovered, lang = 'es', height = 3
         .sc-hud b { color: var(--cx-accent); } .sc-hud em { font-style: normal; opacity: .25; }
         .sc-game-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer; text-align: center; padding: 0 24px;
           background: color-mix(in srgb, var(--cx-bg) 55%, transparent); backdrop-filter: blur(2px); }
+        .sc-float { position: absolute; transform: translate(-50%, -50%); font: 800 16px var(--cx-display, system-ui); pointer-events: none; animation: sc-float .9s cubic-bezier(.2,.8,.2,1) forwards; text-shadow: 0 2px 10px rgba(0,0,0,.5); }
+        .sc-float.good { color: #ffb066; } .sc-float.bad { color: #ff5a4f; }
+        @keyframes sc-float { 0% { opacity: 0; transform: translate(-50%, -30%) scale(.7); } 20% { opacity: 1; transform: translate(-50%, -60%) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -180%) scale(1); } }
+        .sc-hit-flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 40%, rgba(255,59,48,.55)); }
+        .sc-hud.pulse-good { animation: sc-pg .4s; } .sc-hud.pulse-bad { animation: sc-pb .4s; }
+        @keyframes sc-pg { 50% { transform: scale(1.12); box-shadow: 0 0 0 3px rgba(255,122,61,.5); } }
+        @keyframes sc-pb { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
         .sc-game-screen strong { font: 700 20px var(--cx-display, system-ui); color: var(--cx-accent); }
         .sc-game-screen span { font-size: 12.5px; color: var(--cx-muted); max-width: 360px; }
       `}</style>
