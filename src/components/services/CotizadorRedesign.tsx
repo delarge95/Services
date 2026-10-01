@@ -345,6 +345,7 @@ export function CotizadorRedesign() {
    *  (html[data-cx-theme] vars a nivel documento) pinta dark desde el primer
    *  frame, antes de que la isla hidrate. */
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [navOpen, setNavOpen] = useState(false); // ciclo 32: menú compacto en móvil
   const themeAdopted = useRef(false);
   /** true si se llegó por el wizard (historial con draft) → muestra 'Editar detalles'. */
   const [canEditDetails, setCanEditDetails] = useState(false);
@@ -441,7 +442,7 @@ export function CotizadorRedesign() {
 
   // ciclo 30: título de la pestaña y atributo lang del documento en el idioma activo
   useEffect(() => {
-    document.title = lang === 'en' ? '3D project estimator — Alexander Woodcock' : 'Cotizador de proyectos 3D — Alexander Woodcock';
+    document.title = lang === 'en' ? '3D project estimator — Alex Woodcock' : 'Cotizador de proyectos 3D — Alex Woodcock';
     document.documentElement.lang = lang;
   }, [lang]);
 
@@ -791,7 +792,11 @@ export function CotizadorRedesign() {
             <span className="cx-brand-mark" aria-hidden="true" />{BRAND.name}
           </button>
         </div>
-        <div className="cx-nav-right" style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+        <button type="button" className="cx-nav-menu" aria-expanded={navOpen} aria-controls="cx-nav-right" onClick={() => setNavOpen((o) => !o)}
+          aria-label={lang === 'es' ? (navOpen ? 'Cerrar menú' : 'Abrir menú') : (navOpen ? 'Close menu' : 'Open menu')}>
+          <span>{lang === 'es' ? 'Menú' : 'Menu'}</span><i aria-hidden="true" />
+        </button>
+        <div id="cx-nav-right" className={`cx-nav-right${navOpen ? ' open' : ''}`} onClick={(e) => { if ((e.target as HTMLElement).closest('button')) setNavOpen(false); }} style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
           <button onClick={() => { setMode('guided'); setServiceId(''); }}
             style={{ font: '600 14px inherit', color: mode === 'guided' ? 'var(--cx-accent)' : 'var(--cx-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
             {lang === 'es' ? 'Cotizar' : EN.navQuote}
@@ -840,8 +845,12 @@ export function CotizadorRedesign() {
         {mode === 'guided' && !svc && <GuidedWizard onComplete={applyPlan} onProgress={setLivePlan} lang={lang} homeSignal={homeKey} />}
 
         {/* ═══ CICLO 17 — VISOR DEL PRECIO (sticky, solo modo guiado) ═══ */}
-        {mode === 'guided' && !svc && liveQuote && (
-          <PriceBar min={liveQuote.min} max={liveQuote.max} currency={currency} lang={lang} />
+        {/* ciclo 32 (decisión del usuario): la barra fija de "Inversión estimada" ya NO se muestra al
+            abrir un servicio — tapaba el contenido (casos, presentación, minijuego) y adelantaba el precio
+            antes de que el cliente viera el trabajo. El precio aparece en "Ver precio estimado".
+            PriceBar se conserva por si se reutiliza. */}
+        {false && mode === 'guided' && !svc && liveQuote && (
+          <PriceBar min={liveQuote!.min} max={liveQuote!.max} currency={currency} lang={lang} />
         )}
 
         {/* ═══ CONFIGURACIÓN (modo guiado, con servicio) ═══ */}

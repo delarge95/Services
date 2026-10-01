@@ -12,7 +12,9 @@
 }
 .tw-deck:focus-visible { box-shadow: 0 0 0 2px var(--tw-acc); }
 
-/* ── Preshow (pantalla de carga con la coreografía del dron) ── */
+/* ── Preshow (pantalla de carga con la coreografía del dron) ──
+   ciclo 32: los tokens también en .ps-root, para usarlo fuera del deck (demo de RTA-03). */
+.ps-root { --tw-ink: #edeee8; --tw-mute: #9ba0a6; --tw-faint: #767c85; --tw-acc: #ff7a3d; --tw-ease: cubic-bezier(.2, .8, .2, 1); container-type: inline-size; }
 .ps-root { position: relative; overflow: hidden; background: #07080a; color: var(--tw-ink); }
 .ps-canvas { position: absolute; inset: 0; } .ps-canvas canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; opacity: 0; transition: opacity 2.4s ease; }
 .ps-root.ready .ps-canvas canvas { opacity: 1; }
@@ -185,3 +187,28 @@
   .ps-grain { animation: none; }
   .tw-deck [data-reveal], .tw-deck [data-reveal="media"], .tw-h .ln, .tw-bar i { transition: none; }
 }
+
+/* ── ciclo 32: LIENZO DE ALTURA FIJA ──
+   Antes cada diapositiva medía lo que midiera su texto: algunas obligaban a hacer scroll para
+   llegar a "Siguiente". Ahora la intro y las 8 diapositivas comparten la misma altura; la
+   navegación siempre está a la vista y, si un texto no cabe, se desplaza DENTRO de su columna. */
+.tw-deck { --tw-h: clamp(560px, 76vh, 680px); height: var(--tw-h); display: flex; flex-direction: column; }
+.tw-deck > .ps-root { height: 100% !important; flex: 1; }
+.tw-top, .tw-progress, .tw-nav { flex: none; }
+.tw-body { flex: 1; min-height: 0 !important; height: auto; }
+.tw-text { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--tw-line2) transparent; justify-content: safe center; }
+.tw-text::-webkit-scrollbar { width: 4px; } .tw-text::-webkit-scrollbar-thumb { background: var(--tw-line2); border-radius: 2px; }
+.tw-visual { min-height: 0 !important; height: 100%; }
+.tw-visual > .pb-host, .tw-visual > .tw-bars, .tw-visual > .tw-gauge { height: 100% !important; min-height: 0 !important; }
+.tw-onecard { min-height: 92px; }
+@container (max-width: 760px) {
+  .tw-body { display: flex !important; flex-direction: column; }
+  .tw-visual { flex: 0 0 42%; height: auto; min-height: 0 !important; }
+  .tw-visual > .pb-host { min-height: 0 !important; }
+  .tw-text { flex: 1; justify-content: flex-start; }
+  .tw-h .ln { font-size: clamp(19px, 5.2cqw, 26px); }
+  .tw-metric .v { font-size: clamp(20px, 6cqw, 30px); }
+  .tw-substeps button { padding: 4px 7px; font-size: 10px; }
+}
+@media (max-width: 640px) { .tw-deck { --tw-h: min(86svh, 720px); } }
+@keyframes tw-card-in { from { opacity: 0; transform: translateY(10px); filter: blur(6px); } to { opacity: 1; transform: none; filter: none; } }

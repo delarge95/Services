@@ -120,7 +120,7 @@ export function TwinsightDeck({ lang = 'es', liveUrl }: { lang?: Lang; liveUrl?:
   if (phase === 'pre') {
     return (
       <div className="tw-deck" ref={rootRef} role="region" aria-label={en ? 'Interactive presentation: TwinSight X500' : 'Presentación interactiva: TwinSight X500'}>
-        <Preshow lang={lang} height={460} onStart={() => { setPhase('deck'); requestAnimationFrame(() => rootRef.current?.focus({ preventScroll: true })); }} />
+        <Preshow lang={lang} height="100%" onStart={() => { setPhase('deck'); requestAnimationFrame(() => rootRef.current?.focus({ preventScroll: true })); }} />
       </div>
     );
   }
@@ -192,8 +192,14 @@ export function TwinsightDeck({ lang = 'es', liveUrl }: { lang?: Lang; liveUrl?:
         <div className="tw-metrics" {...rv(0.4)}>
           {met.map(([v, l, k]) => <div key={v} className={`tw-metric${sub >= k ? ' on acc' : ' off'}`}><div className="v"><Count to={v} on={armed && sub >= k} en={en} /></div><span>{L(l)}</span></div>)}
         </div>
-        <div className="tw-cards cols3" {...rv(0.55)}>
-          {trio.map(([tag, h, p, on]) => <div key={tag[0]} className={`tw-card${on.includes(sub) ? ' on' : sub < on[0] ? ' dim' : ''}`}><span className="tag">{L(tag)}</span><h5>{L(h)}</h5><p>{L(p)}</p></div>)}
+        {/* ciclo 32: una sola tarjeta, la del paso actual (antes 3 a la vez: alargaban la diapositiva) */}
+        <div className="tw-onecard" {...rv(0.55)}>
+          {(() => {
+            const cur = trio.find(([, , , on]) => on.includes(sub));
+            if (!cur) return <p className="tw-p" style={{ margin: 0 }}>{en ? 'Every part has a name, a group and a place: that is how the app knows what you touched. Go through the steps to see it.' : 'Cada pieza tiene nombre, grupo y lugar: así la app sabe qué tocaste. Recorre los pasos para verlo.'}</p>;
+            const [tag, h, p] = cur;
+            return <div key={tag[0]} className="tw-card on" style={{ animation: 'tw-card-in .5s cubic-bezier(.2,.8,.2,1) both' }}><span className="tag">{L(tag)}</span><h5>{L(h)}</h5><p>{L(p)}</p></div>;
+          })()}
         </div>
         <div className="tw-substeps" role="group" aria-label={en ? 'Taxonomy steps' : 'Pasos de la taxonomía'} {...rv(0.7)}>
           {TAX_STEPS.map((t, k) => <button key={k} type="button" aria-current={k === sub} onClick={() => setSub(k)}>{k + 1} · {L(t)}</button>)}

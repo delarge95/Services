@@ -171,3 +171,30 @@
 
 /* ciclo 31 (auditoría): la 5.ª opción de la portada ya no queda huérfana en la retícula de 2 columnas */
 @media (min-width: 640px) { .cx-root-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; } }
+
+/* ciclo 32 — FORMATO MIXTO: la columna angosta (680 px) se queda para LEER y RESPONDER
+   (preguntas, formularios); lo VISUAL (casos, presentación, demos 3D, trabajos) sale de la
+   columna y usa hasta 1120 px en escritorio. En móvil todo ocupa el ancho disponible. */
+@media (min-width: 900px) {
+  .cx-wide {
+    --cx-wide-w: min(1120px, calc(100vw - 80px));
+    width: var(--cx-wide-w); max-width: none;
+    position: relative; left: 50%; margin-left: calc(var(--cx-wide-w) / -2);
+  }
+}
+
+/* ciclo 32 — barra superior compacta en móvil: una sola fila (marca + "Menú"); los ajustes
+   (cotizar/catálogo, tema, idioma, moneda) se despliegan debajo. Antes: 3 filas, ~170 px. */
+.cx-nav-menu { display: none; }
+@media (max-width: 768px) {
+  .cx-nav { flex-wrap: nowrap !important; position: sticky !important; top: 0; z-index: 50 !important; padding: 10px 14px !important; }
+  .cx-nav-menu { display: inline-flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 14px; border-radius: 999px; cursor: pointer;
+    font: 600 13px var(--cx-sans, system-ui); color: var(--cx-text); background: var(--cx-tile); border: 1px solid var(--cx-border); }
+  .cx-nav-menu i { position: relative; width: 14px; height: 8px; border-top: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transition: transform .3s; }
+  .cx-nav-menu[aria-expanded='true'] i { transform: rotate(90deg); }
+  .cx-nav-right { display: none !important; }
+  .cx-nav-right.open { display: flex !important; position: absolute; top: 100%; left: 0; right: 0; flex-wrap: wrap; justify-content: flex-start !important;
+    gap: 10px !important; padding: 12px 14px 16px; background: color-mix(in srgb, var(--cx-bg) 94%, transparent); backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--cx-border); animation: cx-menu-in .28s cubic-bezier(.2,.8,.2,1); }
+  @keyframes cx-menu-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+}

@@ -7,7 +7,7 @@
 
 export const BRAND = {
   /** Nombre profesional público. */
-  name: 'Alexander Woodcock',
+  name: 'Alex Woodcock',
   role: 'Real-Time 3D Developer · Unity WebGL · IA aplicada',
   /** Una línea para un visitante B2B que no sabe qué es render ni pipeline. */
   valueProp:

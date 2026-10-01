@@ -294,7 +294,10 @@ async function buildInteraction(ctx: Ctx, flags: Set<string>): Promise<Built> {
 
 // ─── catálogo (carrusel de 3 productos reales del cotizador) ───
 async function buildCatalog(ctx: Ctx): Promise<Built> {
+  // ciclo 32: catálogo INTERACTIVO — arrastrar gira el producto, tocar uno lateral lo trae al frente,
+  // flechas/teclado y variantes reales por producto (acabados, nivel de detalle, despiece).
   const group = new THREE.Group();
+  const en = ctx.lang === 'en';
   const fit = (o: THREE.Object3D, size = 2.1) => {
     const holder = new THREE.Group(); holder.add(o);
     o.updateMatrixWorld(true);
@@ -308,45 +311,113 @@ async function buildCatalog(ctx: Ctx): Promise<Built> {
   const drone = await droneFor('variado');
   const anvil = await loadAnvilInstance(); applySurfaceMorph(anvil, 5);
   const turb = createMorphTurbine(); turb.applyDetail(1); turb.root.rotation.y = Math.PI / 2;
-  const items = [
-    { o: fit(drone), es: 'Dron X500', en: 'X500 drone' },
-    { o: fit(anvil, 1.9), es: 'Yunque de forja', en: 'Forge anvil' },
-    { o: fit(turb.root, 2.0), es: 'Turbina', en: 'Turbine' },
+  let explode = 0, explodeTo = 0;
+  type Variant = { es: string; en: string; apply: () => void };
+  type Item = { o: THREE.Group; tag: [string, string]; es: string; en: string; desc: [string, string]; variants: Variant[]; vi: number; yaw: number };
+  const items: Item[] = [
+    { o: fit(drone), tag: ['Ensamblaje técnico', 'Technical assembly'], es: 'Dron Holybro X500', en: 'Holybro X500 drone',
+      desc: ['Cada pieza con su material: carbono, aluminio, goma.', 'Every part with its own material: carbon, aluminum, rubber.'],
+      variants: [
+        { es: 'Variado', en: 'Mixed', apply: () => applyFinish(drone, 'variado') },
+        { es: 'Simple', en: 'Simple', apply: () => applyFinish(drone, 'simple') },
+        { es: 'Detallado', en: 'Detailed', apply: () => applyFinish(drone, 'detallado') },
+      ], vi: 0, yaw: 0 },
+    { o: fit(anvil, 1.9), tag: ['Pieza única', 'Single piece'], es: 'Yunque de forja', en: 'Forge anvil',
+      desc: ['Tres niveles de detalle de la misma malla, sin cambiar de archivo.', 'Three detail levels of the same mesh, without swapping files.'],
+      variants: [
+        { es: 'Completo', en: 'Full', apply: () => applySurfaceMorph(anvil, 5) },
+        { es: 'Medio', en: 'Medium', apply: () => applySurfaceMorph(anvil, 3) },
+        { es: 'Básico', en: 'Basic', apply: () => applySurfaceMorph(anvil, 1) },
+      ], vi: 0, yaw: 0 },
+    { o: fit(turb.root, 2.0), tag: ['Mecanismo', 'Mechanism'], es: 'Turbina', en: 'Turbine',
+      desc: ['Despiece axial animado para ver cómo encaja cada etapa.', 'Animated axial exploded view to see how each stage fits.'],
+      variants: [
+        { es: 'Ensamblada', en: 'Assembled', apply: () => { explodeTo = 0; } },
+        { es: 'Despiece', en: 'Exploded', apply: () => { explodeTo = 1; } },
+      ], vi: 0, yaw: 0 },
   ];
   const R = 2.6;
   items.forEach((it) => group.add(it.o));
-  let idx = 0, hold = 0, last = 0, pos = 0;
+  let idx = 0, pos = 0, touched = false, lastAuto = 0;
+  // ── interfaz ──
+  const card = el(ctx.overlay, 'sc-cat-card');
+  const vbar = el(ctx.overlay, 'sc-cat-variants');
   const bar = el(ctx.overlay, 'sc-catalog');
   const name = el(bar, 'sc-cat-name');
-  const prev = document.createElement('button'); prev.type = 'button'; prev.className = 'sc-cat-btn'; prev.textContent = '‹'; prev.setAttribute('aria-label', 'Anterior');
-  const next = document.createElement('button'); next.type = 'button'; next.className = 'sc-cat-btn'; next.textContent = '›'; next.setAttribute('aria-label', 'Siguiente');
+  const mk = (txt: string, label: string) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'sc-cat-btn'; b.textContent = txt; b.setAttribute('aria-label', label); return b; };
+  const prev = mk('‹', en ? 'Previous product' : 'Producto anterior'), next = mk('›', en ? 'Next product' : 'Producto siguiente');
   bar.prepend(prev); bar.appendChild(next);
-  const dots = el(ctx.overlay, 'sc-cat-dots', items.map(() => '<i></i>').join(''));
-  const go = (d: number) => { idx = (idx + d + items.length) % items.length; hold = performance.now() + 7000; };
-  prev.addEventListener('click', () => go(-1)); next.addEventListener('click', () => go(1));
-  let lastIdx = -1;
+  const dots = el(ctx.overlay, 'sc-cat-dots', items.map((_, i) => `<button type="button" aria-label="${i + 1}"></button>`).join(''));
+  const hint = el(ctx.overlay, 'sc-cat-hint', en ? 'Drag to rotate · tap a product' : 'Arrastra para girar · toca un producto');
+  const render = () => {
+    const it = items[idx];
+    name.textContent = en ? it.en : it.es;
+    card.innerHTML = `<small>${en ? it.tag[1] : it.tag[0]}</small><b>${en ? it.en : it.es}</b><span>${en ? it.desc[1] : it.desc[0]}</span>`;
+    vbar.innerHTML = it.variants.map((v, k) => `<button type="button" data-v="${k}" aria-pressed="${k === it.vi}">${en ? v.en : v.es}</button>`).join('');
+    [...dots.children].forEach((c, i) => { c.classList.toggle('on', i === idx); c.setAttribute('aria-current', String(i === idx)); });
+  };
+  const select = (k: number) => { idx = (k + items.length) % items.length; touched = true; hint.classList.add('off'); render(); };
+  prev.addEventListener('click', () => select(idx - 1));
+  next.addEventListener('click', () => select(idx + 1));
+  [...dots.children].forEach((c, i) => c.addEventListener('click', () => select(i)));
+  vbar.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest('button[data-v]') as HTMLButtonElement | null; if (!b) return;
+    const it = items[idx]; it.vi = Number(b.dataset.v); it.variants[it.vi].apply(); touched = true; hint.classList.add('off'); render();
+  });
+  // arrastre (gira el producto del frente) y toque (selecciona el producto tocado)
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  let down = false, moved = 0, lastX = 0, vel = 0;
+  const toNdc = (e: PointerEvent) => { const r = ctx.canvas.getBoundingClientRect(); ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, ctx.camera); };
+  const onDown = (e: PointerEvent) => { down = true; moved = 0; lastX = e.clientX; vel = 0; };
+  const onMove = (e: PointerEvent) => {
+    if (down) {
+      const dx = e.clientX - lastX; lastX = e.clientX; moved += Math.abs(dx); vel = dx * 0.012; items[idx].yaw += vel;
+      if (moved > 4) { touched = true; hint.classList.add('off'); }
+      return;
+    }
+    if (e.target !== ctx.canvas) return;
+    toNdc(e); ctx.canvas.style.cursor = ray.intersectObject(group, true).length ? 'grab' : 'default';
+  };
+  const onUp = (e: PointerEvent) => {
+    if (!down) return; down = false;
+    if (moved > 5 || e.target !== ctx.canvas) return;
+    toNdc(e);
+    const hit = ray.intersectObject(group, true)[0];
+    if (!hit) return;
+    const k = items.findIndex((it) => { let o: THREE.Object3D | null = hit.object; while (o) { if (o === it.o) return true; o = o.parent; } return false; });
+    if (k >= 0 && k !== idx) select(k);
+  };
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'ArrowRight') { e.preventDefault(); select(idx + 1); } if (e.key === 'ArrowLeft') { e.preventDefault(); select(idx - 1); } };
+  ctx.canvas.tabIndex = 0;
+  ctx.canvas.setAttribute('aria-label', en ? '3D catalog: use the arrows to change product' : 'Catálogo 3D: usa las flechas para cambiar de producto');
+  ctx.canvas.addEventListener('pointerdown', onDown); window.addEventListener('pointermove', onMove); window.addEventListener('pointerup', onUp);
+  ctx.canvas.addEventListener('keydown', onKey);
+  ctx.canvas.style.touchAction = 'pan-y';
+  render();
   return {
     group, interactive: false,
-    dispose: () => { /* geometrías del GLB compartidas; la turbina se libera con la escena */ },
+    dispose: () => {
+      ctx.canvas.removeEventListener('pointerdown', onDown); window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp);
+      ctx.canvas.removeEventListener('keydown', onKey); ctx.canvas.style.cursor = ''; ctx.canvas.style.touchAction = ''; ctx.canvas.removeAttribute('tabindex');
+    },
     update: (dt, t) => {
-      if (performance.now() > hold && t - last > 3.2) { idx = (idx + 1) % items.length; last = t; }
-      // índice continuo que persigue al elegido por el camino corto (con vuelta)
+      // avanza solo mientras nadie ha tocado el catálogo
+      if (!touched && t - lastAuto > 4.5) { if (lastAuto > 0) { idx = (idx + 1) % items.length; render(); } lastAuto = t; }
       const n = items.length;
       let d = idx - pos; d = ((d % n) + n + n / 2) % n - n / 2;
       pos += d * Math.min(1, dt * 4);
+      explode += (explodeTo - explode) * Math.min(1, dt * 3); turb.applyExplode(explode);
+      if (!down) vel *= 0.92;
       items.forEach((it, i) => {
         let k = i - pos; k = ((k % n) + n + n / 2) % n - n / 2;   // −n/2..n/2, 0 = al frente
         const a = (k / n) * Math.PI * 2;
         it.o.position.set(Math.sin(a) * R, 0, Math.cos(a) * R - R);
         const front = Math.max(0, 1 - Math.abs(k));
         it.o.scale.setScalar(0.5 + 0.5 * front);
-        it.o.children[0].rotation.y += dt * (0.15 + 0.5 * front);
+        if (i === idx) { if (!down) it.yaw += vel + dt * (touched ? 0.12 : 0.35); }
+        else it.yaw += dt * 0.15;
+        it.o.children[0].rotation.y = it.yaw;
       });
-      if (idx !== lastIdx) {
-        name.textContent = ctx.lang === 'en' ? items[idx].en : items[idx].es;
-        [...dots.children].forEach((c, i) => c.classList.toggle('on', i === idx));
-        lastIdx = idx;
-      }
     },
   };
 }
@@ -505,21 +576,21 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   const en = ctx.lang === 'en';
   const L = en
     ? { play: '▶ Play', how: 'Move the drone with your mouse or finger. Catch the orange rings (+10), dodge the rocks (−1 life).', over: 'Game over', again: '↻ Play again', pts: 'pts', best: 'best',
-        rank: 'Leaderboard', local: 'on this device', global: 'all players', empty: 'No scores yet: be the first.', name: 'Your name', company: 'Company / brand (optional)',
-        save: 'Save to the leaderboard', saved: 'Saved', place: 'Position', blocked: 'That name is not allowed.', slow: 'Wait a few seconds and try again.', invalid: 'This score could not be saved.',
-        cta: 'Want your brand in the top 10? Play and leave your company name: every visitor sees it.' }
+        rank: 'Leaderboard', local: 'on this device', global: 'all players', empty: 'No scores yet: be the first.', name: 'Your name', company: 'Team or brand (optional)',
+        save: 'Save to the leaderboard', saved: 'Saved', savedLocal: 'Saved on this device', place: 'Position', blocked: 'That name is not allowed.', slow: 'Wait a few seconds and try again.', invalid: 'This score could not be saved.',
+        cta: '' }
     : { play: '▶ Jugar', how: 'Mueve el dron con el ratón o el dedo. Atrapa los anillos naranjas (+10) y esquiva las rocas (−1 vida).', over: 'Fin del juego', again: '↻ Jugar otra vez', pts: 'pts', best: 'récord',
-        rank: 'Ranking', local: 'en este dispositivo', global: 'todos los jugadores', empty: 'Aún no hay puntajes: sé el primero.', name: 'Tu nombre', company: 'Empresa / marca (opcional)',
-        save: 'Guardar en el ranking', saved: 'Guardado', place: 'Puesto', blocked: 'Ese nombre no está permitido.', slow: 'Espera unos segundos e inténtalo otra vez.', invalid: 'No se pudo guardar este puntaje.',
-        cta: '¿Tu marca en el top 10? Juega y deja el nombre de tu empresa: lo ve cada visitante.' };
+        rank: 'Ranking', local: 'en este dispositivo', global: 'todos los jugadores', empty: 'Aún no hay puntajes: sé el primero.', name: 'Tu nombre', company: 'Equipo o marca (opcional)',
+        save: 'Guardar en el ranking', saved: 'Guardado', savedLocal: 'Guardado en este dispositivo', place: 'Puesto', blocked: 'Ese nombre no está permitido.', slow: 'Espera unos segundos e inténtalo otra vez.', invalid: 'No se pudo guardar este puntaje.',
+        cta: '' };
   const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
   let lbState: LbState | null = null, lastId: string | undefined, startAt = 0;
   const lbHtml = (n: number, hiRank?: number) => {
     const st = lbState;
-    const head = `<div class="sc-lb-h"><b>${L.rank}</b><small>${st ? (st.mode === 'global' ? L.global : L.local) : '…'}</small></div>`;
+    const head = `<div class="sc-lb-h"><b>${L.rank}</b><small>Top 10</small></div>`;
     if (!st) return `<div class="sc-lb">${head}</div>`;
     const rows = st.scores.slice(0, n).map((e, k) => `<li class="${hiRank === k + 1 ? 'me' : ''}"><i>${k + 1}</i><span>${esc(e.name)}${e.company ? `<em>${esc(e.company)}</em>` : ''}</span><b>${e.score}</b></li>`).join('');
-    return `<div class="sc-lb">${head}${rows ? `<ol>${rows}</ol>` : `<p>${L.empty}</p>`}<p class="sc-lb-cta">${L.cta}</p></div>`;
+    return `<div class="sc-lb">${head}${rows ? `<ol>${rows}</ol>` : `<p>${L.empty}</p>`}</div>`;
   };
   const showStart = () => {
     screen.innerHTML = `<div class="sc-gs-main"><button type="button" class="sc-gs-play" data-act="play">${L.play}</button><span>${L.how}</span></div>${lbHtml(5)}`;
@@ -543,7 +614,7 @@ async function buildGame(ctx: Ctx): Promise<Built> {
       const btn = form.querySelector('button') as HTMLButtonElement; btn.disabled = true;
       const res = await submitScore({ name, company: company || undefined, score: finalScore, durationMs });
       lbState = res;
-      const msg = res.error === 'blocked' ? L.blocked : res.error === 'slow down' ? L.slow : res.error ? L.invalid : `${L.saved} · ${L.place} #${res.rank}`;
+      const msg = res.error === 'blocked' ? L.blocked : res.error === 'slow down' ? L.slow : res.error ? L.invalid : `${res.mode === 'global' ? L.saved : L.savedLocal} · ${L.place} #${res.rank}`;
       const lb = screen.querySelector('.sc-lb'); if (lb) lb.outerHTML = lbHtml(10, res.error ? undefined : res.rank);
       const m = screen.querySelector('.sc-lb-msg'); if (m) m.textContent = msg;
       if (!res.error) form.querySelectorAll('input,button').forEach((x) => ((x as HTMLInputElement).disabled = true)); else btn.disabled = false;
@@ -787,6 +858,18 @@ export function ShowcaseScene({ kind, selected, hovered, lang = 'es', height = 3
         .sc-swatch i { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(127,127,127,.4); }
         .sc-swatch.on { border-color: var(--cx-accent); color: var(--cx-text); }
         @media (max-width: 560px) { .sc-swatch span { display: none; } .sc-swatch { padding: 6px; } .sc-swatch i { width: 14px; height: 14px; } }
+        .sc-cat-card { position: absolute; left: 14px; top: 12px; max-width: 46%; display: grid; gap: 2px; pointer-events: none; }
+        .sc-cat-card small { font: 600 9.5px var(--cx-mono, monospace); letter-spacing: .14em; text-transform: uppercase; color: var(--cx-accent); }
+        .sc-cat-card b { font: 700 15px/1.2 var(--cx-display, system-ui); color: var(--cx-text); }
+        .sc-cat-card span { font-size: 12px; line-height: 1.4; color: var(--cx-muted); }
+        .sc-cat-variants { position: absolute; right: 12px; top: 12px; display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; max-width: 50%; }
+        .sc-cat-variants button { font: 600 11.5px var(--cx-sans, system-ui); padding: 5px 10px; border-radius: 999px; cursor: pointer; border: 1px solid var(--cx-border-strong); background: var(--cx-card-solid); color: var(--cx-muted); transition: all .2s; }
+        .sc-cat-variants button[aria-pressed='true'] { background: var(--cx-accent); border-color: var(--cx-accent); color: var(--cx-on-accent); }
+        .sc-cat-hint { position: absolute; left: 50%; bottom: 62px; transform: translateX(-50%); font: 500 11px var(--cx-mono, monospace); letter-spacing: .06em; color: var(--cx-muted); background: var(--cx-card-solid); padding: 4px 10px; border-radius: 999px; pointer-events: none; transition: opacity .5s; white-space: nowrap; }
+        .sc-cat-hint.off { opacity: 0; }
+        .sc-cat-dots button { width: 6px; height: 6px; padding: 0; border: none; border-radius: 50%; cursor: pointer; background: var(--cx-border-strong); transition: background .2s, width .2s; }
+        .sc-cat-dots button.on { background: var(--cx-accent); width: 16px; border-radius: 3px; }
+        @media (max-width: 560px) { .sc-cat-card span { display: none; } .sc-cat-card { max-width: 48%; } }
         .sc-catalog { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; }
         .sc-cat-name { font: 700 14px var(--cx-display, system-ui); color: var(--cx-text); min-width: 120px; text-align: center; }
         .sc-cat-btn { width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font: 600 18px/1 system-ui; color: var(--cx-text); background: var(--cx-card-solid); border: 1px solid var(--cx-border-strong); }

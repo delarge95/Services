@@ -13,7 +13,9 @@ import { SERVICE_ROOTS, buildServiceBranch } from '../../data/services/serviceBr
 import { Diagram, MediaVisual } from './OptionVisuals';
 import { ShowcaseScene } from './ShowcaseScene';
 import { ShowcaseStrip } from './ShowcaseStrip';
+import { IntroHero } from './hero/IntroHero';
 import { CaseStudyView } from './CaseStudyView';
+import { LiveDemoView, LIVE_DEMOS } from './LiveDemoView';
 import { CASE_STUDIES } from '../../data/services/caseStudies';
 import type { WizardQuotePlan } from '../../data/services/treeToQuote';
 import { EN, TREE_EN, VARS_EN, CATALOG_EN } from '../../data/services/i18n';
@@ -201,13 +203,16 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
     <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 20px 80px' }}>
       {/* ═══ NIVEL 1: ¿Qué quieres lograr? ═══ */}
       {level === 1 && (
-        <div style={{ paddingTop: 60, textAlign: 'center' }}>
+        <div style={{ paddingTop: 0, textAlign: 'center' }}>
+          {/* ciclo 32: pantalla de inicio que se convierte en el hero ("de lo complejo a lo esencial") */}
+          {rootChoice !== 'no-se' && <IntroHero lang={en ? 'en' : 'es'} />}
+          <div id="cx-goals" style={{ scrollMarginTop: 90, paddingTop: 72 }} />
           <span className="cx-eyebrow">{en ? '3D · Web · AI — quote in 1 minute' : '3D · Web · IA — cotiza en 1 minuto'}</span>
-          <h1 style={{
+          <h2 style={{
             fontSize: 'clamp(2.2rem, 5vw, 3.5rem)', fontWeight: 700,
             letterSpacing: '-0.03em', color: 'var(--cx-text)', textAlign: 'center',
             margin: '0 0 12px', lineHeight: 1.1,
-          }}>{en ? <>What do you want to <span className="cx-ember">achieve</span>?</> : <>¿Qué quieres <span className="cx-ember">lograr</span>?</>}</h1>
+          }}>{en ? <>What do you want to <span className="cx-ember">achieve</span>?</> : <>¿Qué quieres <span className="cx-ember">lograr</span>?</>}</h2>
           <p style={{ fontSize: 17, color: 'var(--cx-muted)', textAlign: 'center', margin: '0 0 10px' }}>
             {en ? W.l1Sub : 'Elige una opción y te guiamos paso a paso.'}
           </p>
@@ -315,6 +320,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
                 </span>
                 <strong style={{ fontSize: 17, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.01em' }}>{en ? SERVICE_ROOTS_EN[rootChoice]?.options[o.id]?.label ?? o.label : o.label}</strong>
                 {CASE_STUDIES[o.id] && <span className="cx-case-badge">{en ? 'Real case inside' : 'Con caso real'}</span>}
+                {!CASE_STUDIES[o.id] && LIVE_DEMOS[o.id] && <span className="cx-case-badge">{en ? 'Live demo inside' : 'Con demo en vivo'}</span>}
                 <span style={{ fontSize: 13, color: 'var(--cx-muted)', lineHeight: 1.45 }}>{en ? SERVICE_ROOTS_EN[rootChoice]?.options[o.id]?.desc ?? o.desc : o.desc}</span>
               </button>
             ))}
@@ -393,6 +399,8 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
 
           {/* ciclo 27: caso real interactivo (TwinSight X500) para los servicios que lo tienen */}
           {branch.id.startsWith('svc:') && CASE_STUDIES[subChoice] && <CaseStudyView cs={CASE_STUDIES[subChoice]} lang={lang} />}
+          {/* ciclo 32: demo en vivo donde ningún caso real encaja (modelo animado, catálogo 3D) */}
+          {branch.id.startsWith('svc:') && !CASE_STUDIES[subChoice] && LIVE_DEMOS[subChoice] && <LiveDemoView id={subChoice} lang={en ? 'en' : 'es'} />}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
             {branch.questions.filter(q => (!q.advanced || showAdvanced) && (!q.showWhen || q.showWhen(answers))).map((q) => (
               <QuestionCard key={q.id} q={q} answers={answers} onAnswer={set} lang={lang} branchId={branch.id} />

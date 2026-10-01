@@ -14,16 +14,16 @@ import { CotizadorRedesign } from '../components/services/CotizadorRedesign';
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
-    <title>Cotizador de proyectos 3D — Alexander Woodcock</title>
+    <title>Cotizador de proyectos 3D — Alex Woodcock</title>
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Cotizador de proyectos 3D — Alexander Woodcock" />
+    <meta property="og:title" content="Cotizador de proyectos 3D — Alex Woodcock" />
     <meta property="og:description" content="Rango orientativo de costo y tiempo para tus proyectos 3D interactivos, en segundos." />
     <meta property="og:url" content="https://services.alexwoodcock.me/cotizador/" />
     <meta property="og:image" content="https://services.alexwoodcock.me/cotizador/og.jpg" />
     <meta property="og:locale" content="es_CO" />
     <meta property="og:locale:alternate" content="en_US" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Cotizador de proyectos 3D — Alexander Woodcock" />
+    <meta name="twitter:title" content="Cotizador de proyectos 3D — Alex Woodcock" />
     <meta name="twitter:description" content="Rango orientativo de costo y tiempo para tus proyectos 3D interactivos." />
     <meta name="twitter:image" content="https://services.alexwoodcock.me/cotizador/og.jpg" />
     <script is:inline type="application/ld+json">
@@ -31,7 +31,7 @@ import { CotizadorRedesign } from '../components/services/CotizadorRedesign';
       "@context": "https://schema.org",
       "@type": "Service",
       "name": "Desarrollo 3D web en tiempo real",
-      "provider": { "@type": "Person", "name": "Alexander Woodcock", "url": "https://alexwoodcock.me/" },
+      "provider": { "@type": "Person", "name": "Alex Woodcock", "url": "https://alexwoodcock.me/" },
       "areaServed": "Worldwide",
       "serviceType": "Real-time 3D web development",
       "offers": {
@@ -44,6 +44,17 @@ import { CotizadorRedesign } from '../components/services/CotizadorRedesign';
     }
     </script>
     <meta name="description" content="Rango orientativo de costo y tiempo para tus proyectos 3D." />
+    <script is:inline>
+      /* Ciclo 32 — pantalla de inicio: se decide ANTES del primer pintado (sin destello de la página).
+         Sin intro si el usuario pidió menos movimiento o vuelve con el historial a un paso del wizard. */
+      try {
+        var hs = history.state;
+        var back = hs && hs.cx === 'cotizador' && (hs.level > 1 || hs.config);
+        if (!back && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) document.documentElement.dataset.cxIntro = 'pre';
+      } catch (e) { /* sin intro */ }
+      /* red de seguridad: si la isla no llega a montar, nunca dejar la página a oscuras */
+      setTimeout(function () { var d = document.documentElement.dataset; if (d.cxIntro === 'pre') delete d.cxIntro; }, 4000);
+    </script>
     <script is:inline>
       /* Tema ANTES del primer pintado (evita flash blanco en modo oscuro). */
       try {

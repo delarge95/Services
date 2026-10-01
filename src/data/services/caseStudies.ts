@@ -93,19 +93,8 @@ export const CASE_STUDIES: Record<string, CaseStudy> = {
       source: SRC_EN,
     },
   },
-  'RTA-03': {
-    title: 'Animaciones del gemelo digital X500',
-    subtitle: 'Despiece animado, transiciones de cámara y cambios de presentación en tiempo real.',
-    videos: [v('despiece', 'Despiece animado'), v('presets', 'Presets de estudio'), v('shaders', 'Cambio de shaders')],
-    liveUrl: LIVE,
-    source: SRC,
-    en: {
-      title: 'Animations of the X500 digital twin',
-      subtitle: 'Animated exploded view, camera transitions and real-time presentation changes.',
-      videos: ['Animated exploded view', 'Studio presets', 'Shader switching'],
-      source: SRC_EN,
-    },
-  },
+  // ciclo 32: se retira el caso de RTA-03 (Modelo animado). Eran grabaciones de la app de inspección,
+  // que muestran CAD a la web, no un modelo animado. Ahora RTA-03 tiene demo en vivo (LiveDemoView).
   'CON-01': {
     title: 'Consultoría técnica aplicada: TwinSight X500',
     subtitle: 'Investigación y decisiones técnicas para llevar un ensamblaje CAD a WebGL en varios dispositivos.',

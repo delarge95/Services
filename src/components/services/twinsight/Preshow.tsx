@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { DRONE_URL, loadScene, studioEnv, canvasTex, placeDrone, smooth, lerp } from './assets';
+import './twinsight.css';
 
 type Lang = 'es' | 'en';
 const LORE: Record<Lang, [string, string][]> = {
@@ -49,7 +50,7 @@ const STATES: Record<string, [string, string]> = {
   landing: ['Aterrizaje', 'Landing'], disarmed: ['Desarmado', 'Disarmed'],
 };
 
-export function Preshow({ lang = 'es', onStart, height = 460 }: { lang?: Lang; onStart: () => void; height?: number }) {
+export function Preshow({ lang = 'es', onStart, height = 460 }: { lang?: Lang; onStart: () => void; height?: number | string }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const shotRef = useRef<HTMLSpanElement>(null);
   const stateRef = useRef<HTMLSpanElement>(null);
@@ -95,7 +96,7 @@ export function Preshow({ lang = 'es', onStart, height = 460 }: { lang?: Lang; o
     disposables.push(radial, shadowPlane.geometry, halo.geometry, ring.geometry);
 
     const resize = () => {
-      const w = mount.clientWidth || 800, h = height;
+      const w = mount.clientWidth || 800, h = mount.clientHeight || (typeof height === 'number' ? height : 460);
       renderer.setSize(w, h);
       camera.aspect = w / h; camera.fov = w / h < 1 ? 46 : 30;
       if (w / h > 1.2) camera.setViewOffset(w, h, -w * 0.13, 0, w, h); else camera.clearViewOffset();

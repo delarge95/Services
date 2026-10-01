@@ -53,7 +53,7 @@ function CardView({ c, lang, i }: { c: Card; lang: Lang; i: number }) {
 export function ShowcaseStrip({ lang = 'es' }: { lang?: Lang }) {
   const en = lang === 'en';
   return (
-    <section className="cx-show" aria-labelledby="cx-show-h">
+    <section className="cx-show cx-wide" aria-labelledby="cx-show-h">
       <style>{`
         .cx-show { margin: 56px 0 0; text-align: left; }
         .cx-show-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
@@ -86,7 +86,7 @@ export function ShowcaseStrip({ lang = 'es' }: { lang?: Lang }) {
       </div>
       <div className="cx-show-grid">{CARDS.map((c, i) => <CardView key={c.id} c={c} lang={lang} i={i} />)}</div>
       <button type="button" className="cx-show-game" onClick={() => open('web-3d', 'web-app', { 'tipo-app': 'juego' })}>
-        <span><b>{en ? '🏆 Minigame with a leaderboard' : '🏆 Minijuego con ranking'}</b><small>{en ? 'Fly the drone, beat the top 10 and put your company’s name on it.' : 'Pilota el dron, entra al top 10 y deja el nombre de tu empresa.'}</small></span>
+        <span><b>{en ? 'Minigame with a leaderboard' : 'Minijuego con ranking'}</b><small>{en ? 'Fly the drone between rings and rocks. Can you make the top 3?' : 'Pilota el dron entre anillos y rocas. ¿Llegas al top 3?'}</small></span>
         <span>{en ? 'Play →' : 'Jugar →'}</span>
       </button>
     </section>

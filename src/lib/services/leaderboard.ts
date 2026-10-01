@@ -5,6 +5,7 @@
  * lo dice. Nunca bloquea el juego.
  */
 import { CHAT_ENDPOINT } from '../../data/services/chatConfig';
+import { withSeeds } from './leaderboardSeeds';
 
 export interface LbEntry { id?: string; name: string; company?: string; score: number; at?: string }
 export interface LbState { mode: 'global' | 'local'; scores: LbEntry[]; total: number }
@@ -26,7 +27,7 @@ export async function fetchTop(): Promise<LbState> {
       if (r.ok) { const d = await r.json() as { scores: LbEntry[]; total: number }; return { mode: 'global', scores: d.scores, total: d.total }; }
     } catch { /* cae a local */ }
   }
-  const l = readLocal();
+  const l = withSeeds(readLocal());
   return { mode: 'local', scores: l.slice(0, 10), total: l.length };
 }
 
@@ -43,5 +44,6 @@ export async function submitScore(e: { name: string; company?: string; score: nu
   const at = new Date().toISOString();
   const list = [...readLocal(), { name, company, score: e.score, at }].sort((a, b) => b.score - a.score);
   writeLocal(list);
-  return { mode: 'local', scores: list.slice(0, 10), total: list.length, rank: list.findIndex((x) => x.at === at) + 1 };
+  const shown = withSeeds(list);
+  return { mode: 'local', scores: shown.slice(0, 10), total: shown.length, rank: shown.findIndex((x) => x.at === at) + 1 };
 }

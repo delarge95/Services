@@ -71,6 +71,52 @@ export function loadHolybro(): Promise<THREE.Group> {
 }
 
 /**
+ * Ciclo 32 — carga con PROGRESO real (bytes recibidos) para la pantalla de inicio.
+ * Comparte la misma caché que loadHolybro(): lo que precarga la intro ya no se vuelve a
+ * descargar en ninguna otra escena. Si la caché ya existe, informa 1 y la devuelve.
+ */
+export function preloadHolybro(onProgress?: (p: number) => void): Promise<THREE.Group> {
+  if (cache) { onProgress?.(1); return cache; }
+  cache = (async () => {
+    const r = await fetch(HOLYBRO_URL);
+    if (!r.ok) throw new Error(`GLB ${r.status}`);
+    const total = Number(r.headers.get('content-length')) || 0;
+    let buf: ArrayBuffer;
+    if (r.body && total > 0 && onProgress) {
+      const reader = r.body.getReader(); const chunks: Uint8Array[] = []; let got = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value); got += value.length; onProgress(Math.min(0.99, got / total));
+      }
+      const all = new Uint8Array(got); let o = 0;
+      for (const c of chunks) { all.set(c, o); o += c.length; }
+      buf = all.buffer;
+    } else buf = await r.arrayBuffer();
+    const root = await new Promise<THREE.Group>((resolve, reject) => {
+      const loader = new GLTFLoader();
+      loader.setMeshoptDecoder(MeshoptDecoder);
+      loader.parse(buf, '', (gltf) => {
+        // MISMA normalización que loadHolybro()
+        const root = gltf.scene;
+        const box = new THREE.Box3().setFromObject(root);
+        const size = box.getSize(new THREE.Vector3());
+        root.scale.setScalar(2.6 / Math.max(size.x, size.y, size.z));
+        root.updateMatrixWorld(true);
+        root.position.sub(new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3()));
+        root.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.frustumCulled = false; m.userData.glbShared = true; } });
+        tagAssemblySteps(root);
+        resolve(root);
+      }, reject);
+    });
+    onProgress?.(1);
+    return root;
+  })();
+  cache.catch(() => { cache = null; });
+  return cache;
+}
+
+/**
  * Copia INDEPENDIENTE por instancia de preview: misma geometría/texturas (una
  * sola subida a GPU) pero árbol de objetos propio, de modo que la visibilidad
  * y los materiales que aplica un canvas no afectan a los demás.

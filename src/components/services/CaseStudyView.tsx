@@ -53,7 +53,7 @@ export function CaseStudyView({ cs: csEs, lang = 'es' }: { cs: CaseStudy; lang?:
     : { kicker: 'Caso real', steps: 'Proceso', videos: 'En acción', facts: 'Datos', live: 'Abrir el visor en vivo', of: 'de' };
   const cur = cs.steps?.[step];
   return (
-    <section className="cs-card" aria-label={`${L.kicker}: ${cs.title}`}>
+    <section className="cs-card cx-wide" aria-label={`${L.kicker}: ${cs.title}`}>
       <style>{`
         .cs-card { border: 1px solid var(--cx-accent-border); border-radius: 18px; background: var(--cx-card); padding: 18px; margin: 0 0 18px; }
         .cs-kicker { display: inline-flex; align-items: center; gap: 6px; font: 600 10.5px var(--cx-mono, monospace); letter-spacing: .16em; text-transform: uppercase; color: var(--cx-accent); }
