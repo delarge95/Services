@@ -16,7 +16,7 @@ export const BRAND = {
   contactEmail: '3d@alexwoodcock.me',
   whatsappNumber: '573054396581',
   /** Prototipo en vivo (demo real de trabajo, ciclo 11). */
-  prototypeUrl: 'http://alexwoodcock.me/Twinsight-X500/',
+  prototypeUrl: 'https://alexwoodcock.me/Twinsight-X500/',
   /** URL pública base de las cotizaciones compartidas con estado (ciclo 11):
    *  los enlaces copiados/impresos apuntan aquí — nunca al dominio del dev. */
   quoteUrl: 'https://services.alexwoodcock.me/cotizador/',

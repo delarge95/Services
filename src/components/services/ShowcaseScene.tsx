@@ -23,6 +23,8 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { loadHolybroInstance, applyFinish, HOLYBRO_STEPS, meshEffectiveName } from './holybro';
 import { loadAnvilInstance, applySurfaceMorph } from './anvil';
 import { createMorphTurbine } from './turbineMorph';
+import { fetchTop, submitScore } from '../../lib/services/leaderboard';
+import type { LbState } from '../../lib/services/leaderboard';
 
 export type ShowcaseKind = 'interaction' | 'app-type';
 type Lang = 'es' | 'en';
@@ -429,6 +431,7 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   const group = new THREE.Group();
   const drone = await droneFor('variado');
   const holder = new THREE.Group(); holder.add(drone); drone.scale.multiplyScalar(0.8);
+  drone.rotation.y -= Math.PI / 2; // ciclo 31: el morro apunta hacia arriba de la pantalla (antes girado 90°)
   group.add(holder);
   const fxDisposables: { dispose: () => void }[] = [];
   const rotors = makeRotors(drone, fxDisposables);
@@ -499,18 +502,64 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   const target = new THREE.Vector3();
   const hud = el(ctx.overlay, 'sc-hud');
   const screen = el(ctx.overlay, 'sc-game-screen');
-  const L = ctx.lang === 'en'
-    ? { start: 'Click to play', how: 'Move the drone with your mouse or finger. Catch the orange rings (+10), dodge the rocks (−1 life).', over: 'Game over', again: 'Click to play again', pts: 'pts', best: 'best' }
-    : { start: 'Clic para jugar', how: 'Mueve el dron con el ratón o el dedo. Atrapa los anillos naranjas (+10) y esquiva las rocas (−1 vida).', over: 'Fin del juego', again: 'Clic para jugar otra vez', pts: 'pts', best: 'récord' };
-  const showScreen = (title: string, sub: string) => { screen.innerHTML = `<strong>${title}</strong><span>${sub}</span>`; screen.style.display = 'flex'; };
+  const en = ctx.lang === 'en';
+  const L = en
+    ? { play: '▶ Play', how: 'Move the drone with your mouse or finger. Catch the orange rings (+10), dodge the rocks (−1 life).', over: 'Game over', again: '↻ Play again', pts: 'pts', best: 'best',
+        rank: 'Leaderboard', local: 'on this device', global: 'all players', empty: 'No scores yet: be the first.', name: 'Your name', company: 'Company / brand (optional)',
+        save: 'Save to the leaderboard', saved: 'Saved', place: 'Position', blocked: 'That name is not allowed.', slow: 'Wait a few seconds and try again.', invalid: 'This score could not be saved.',
+        cta: 'Want your brand in the top 10? Play and leave your company name: every visitor sees it.' }
+    : { play: '▶ Jugar', how: 'Mueve el dron con el ratón o el dedo. Atrapa los anillos naranjas (+10) y esquiva las rocas (−1 vida).', over: 'Fin del juego', again: '↻ Jugar otra vez', pts: 'pts', best: 'récord',
+        rank: 'Ranking', local: 'en este dispositivo', global: 'todos los jugadores', empty: 'Aún no hay puntajes: sé el primero.', name: 'Tu nombre', company: 'Empresa / marca (opcional)',
+        save: 'Guardar en el ranking', saved: 'Guardado', place: 'Puesto', blocked: 'Ese nombre no está permitido.', slow: 'Espera unos segundos e inténtalo otra vez.', invalid: 'No se pudo guardar este puntaje.',
+        cta: '¿Tu marca en el top 10? Juega y deja el nombre de tu empresa: lo ve cada visitante.' };
+  const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+  let lbState: LbState | null = null, lastId: string | undefined, startAt = 0;
+  const lbHtml = (n: number, hiRank?: number) => {
+    const st = lbState;
+    const head = `<div class="sc-lb-h"><b>${L.rank}</b><small>${st ? (st.mode === 'global' ? L.global : L.local) : '…'}</small></div>`;
+    if (!st) return `<div class="sc-lb">${head}</div>`;
+    const rows = st.scores.slice(0, n).map((e, k) => `<li class="${hiRank === k + 1 ? 'me' : ''}"><i>${k + 1}</i><span>${esc(e.name)}${e.company ? `<em>${esc(e.company)}</em>` : ''}</span><b>${e.score}</b></li>`).join('');
+    return `<div class="sc-lb">${head}${rows ? `<ol>${rows}</ol>` : `<p>${L.empty}</p>`}<p class="sc-lb-cta">${L.cta}</p></div>`;
+  };
+  const showStart = () => {
+    screen.innerHTML = `<div class="sc-gs-main"><button type="button" class="sc-gs-play" data-act="play">${L.play}</button><span>${L.how}</span></div>${lbHtml(5)}`;
+    screen.style.display = 'flex';
+  };
+  const showOver = (finalScore: number, durationMs: number) => {
+    const remembered = (() => { try { return JSON.parse(localStorage.getItem('cx-lb-me') ?? '{}') as { name?: string; company?: string }; } catch { return {}; } })();
+    const canSave = finalScore >= 10;
+    screen.innerHTML = `<div class="sc-gs-main"><strong>${L.over}: ${finalScore} ${L.pts}</strong>
+      ${canSave ? `<form class="sc-lb-form"><input name="name" maxlength="24" required minlength="2" placeholder="${L.name}" value="${esc(remembered.name ?? '')}" aria-label="${L.name}">
+      <input name="company" maxlength="32" placeholder="${L.company}" value="${esc(remembered.company ?? '')}" aria-label="${L.company}">
+      <button type="submit">${L.save}</button><small class="sc-lb-msg" aria-live="polite"></small></form>` : ''}
+      <button type="button" class="sc-gs-play" data-act="play">${L.again}</button></div>${lbHtml(10)}`;
+    screen.style.display = 'flex';
+    const form = screen.querySelector('form') as HTMLFormElement | null;
+    form?.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const fd = new FormData(form);
+      const name = String(fd.get('name') ?? '').trim(), company = String(fd.get('company') ?? '').trim();
+      try { localStorage.setItem('cx-lb-me', JSON.stringify({ name, company })); } catch { /* sin almacenamiento */ }
+      const btn = form.querySelector('button') as HTMLButtonElement; btn.disabled = true;
+      const res = await submitScore({ name, company: company || undefined, score: finalScore, durationMs });
+      lbState = res;
+      const msg = res.error === 'blocked' ? L.blocked : res.error === 'slow down' ? L.slow : res.error ? L.invalid : `${L.saved} · ${L.place} #${res.rank}`;
+      const lb = screen.querySelector('.sc-lb'); if (lb) lb.outerHTML = lbHtml(10, res.error ? undefined : res.rank);
+      const m = screen.querySelector('.sc-lb-msg'); if (m) m.textContent = msg;
+      if (!res.error) form.querySelectorAll('input,button').forEach((x) => ((x as HTMLInputElement).disabled = true)); else btn.disabled = false;
+    });
+  };
+  void lastId;
   const renderHud = () => { hud.innerHTML = `<b>${score}</b> ${L.pts} · ${'♥'.repeat(lives)}<em>${'♥'.repeat(3 - lives)}</em>${best ? ` · ${L.best} ${best}` : ''}`; };
-  showScreen(L.start, L.how); renderHud();
+  showStart(); renderHud();
+  fetchTop().then((st) => { lbState = st; if (!playing && !over) showStart(); });
   const start = () => {
     for (const o of objs) group.remove(o.m); objs.length = 0;
     score = 0; lives = 3; speed = 2.6; over = false; playing = true; screen.style.display = 'none'; renderHud();
+    startAt = performance.now();
     ctx.canvas.style.cursor = 'none'; ctx.canvas.style.touchAction = 'none';
   };
-  screen.addEventListener('click', start);
+  screen.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('[data-act="play"]')) start(); });
   const onMove = (e: PointerEvent) => {
     const r = ctx.canvas.getBoundingClientRect();
     target.set(((e.clientX - r.left) / r.width - 0.5) * viewW, 0, ((e.clientY - r.top) / r.height - 0.5) * viewH);
@@ -586,7 +635,7 @@ async function buildGame(ctx: Ctx): Promise<Built> {
       if (lives <= 0 && !over) {
         over = true; playing = false; best = Math.max(best, score);
         ctx.canvas.style.cursor = ''; ctx.canvas.style.touchAction = '';
-        showScreen(`${L.over}: ${score} ${L.pts}`, L.again); renderHud();
+        showOver(score, performance.now() - startAt); renderHud();
       }
     },
   };
@@ -750,6 +799,22 @@ export function ShowcaseScene({ kind, selected, hovered, lang = 'es', height = 3
         .sc-hud b { color: var(--cx-accent); } .sc-hud em { font-style: normal; opacity: .25; }
         .sc-game-screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; cursor: pointer; text-align: center; padding: 0 24px;
           background: color-mix(in srgb, var(--cx-bg) 55%, transparent); backdrop-filter: blur(2px); }
+        .sc-game-screen { flex-direction: row !important; flex-wrap: wrap; gap: 14px !important; padding: 12px 16px !important; overflow-y: auto; cursor: default !important; }
+        .sc-gs-main { display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 300px; }
+        .sc-gs-play { font: 700 15px var(--cx-display, system-ui); padding: 9px 18px; border-radius: 999px; border: none; cursor: pointer; background: var(--cx-accent); color: var(--cx-on-accent); box-shadow: 0 8px 24px -10px var(--cx-accent); }
+        .sc-lb { min-width: 220px; max-width: 280px; text-align: left; background: var(--cx-card-solid); border: 1px solid var(--cx-border-strong); border-radius: 12px; padding: 10px 12px; }
+        .sc-lb-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; } .sc-lb-h b { font: 700 13px var(--cx-display, system-ui); color: var(--cx-text); } .sc-lb-h small { font: 500 10px var(--cx-mono, monospace); color: var(--cx-faint); letter-spacing: .08em; text-transform: uppercase; }
+        .sc-lb ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+        .sc-lb li { display: grid; grid-template-columns: 18px 1fr auto; gap: 6px; align-items: center; font-size: 12px; color: var(--cx-text); padding: 2px 4px; border-radius: 6px; }
+        .sc-lb li i { font: 600 10.5px var(--cx-mono, monospace); color: var(--cx-faint); font-style: normal; }
+        .sc-lb li:nth-child(-n+3) i { color: var(--cx-accent); }
+        .sc-lb li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .sc-lb li em { font-style: normal; margin-left: 6px; font: 600 10px var(--cx-mono, monospace); color: var(--cx-accent); }
+        .sc-lb li b { font: 700 12px var(--cx-mono, monospace); } .sc-lb li.me { background: var(--cx-accent-soft); }
+        .sc-lb p { margin: 4px 0 0; font-size: 11.5px; color: var(--cx-muted); } .sc-lb .sc-lb-cta { margin-top: 8px; font-size: 11px; color: var(--cx-accent); }
+        .sc-lb-form { display: grid; gap: 5px; width: 100%; }
+        .sc-lb-form input { font: inherit; font-size: 12.5px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--cx-border-strong); background: var(--cx-tile); color: var(--cx-text); }
+        .sc-lb-form button { font: 600 12.5px var(--cx-sans, system-ui); padding: 7px 10px; border-radius: 8px; border: 1px solid var(--cx-accent-border); background: var(--cx-accent-soft); color: var(--cx-accent); cursor: pointer; }
+        .sc-lb-msg { font-size: 11.5px; color: var(--cx-muted); min-height: 14px; }
         .sc-float { position: absolute; transform: translate(-50%, -50%); font: 800 16px var(--cx-display, system-ui); pointer-events: none; animation: sc-float .9s cubic-bezier(.2,.8,.2,1) forwards; text-shadow: 0 2px 10px rgba(0,0,0,.5); }
         .sc-float.good { color: #ffb066; } .sc-float.bad { color: #ff5a4f; }
         @keyframes sc-float { 0% { opacity: 0; transform: translate(-50%, -30%) scale(.7); } 20% { opacity: 1; transform: translate(-50%, -60%) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -180%) scale(1); } }

@@ -31,18 +31,18 @@ export const EN = {
   rondas: '2 adjustment rounds included · extra round ≈ +10%',
   rangeValidity: 'Indicative range · valid 15 days',
   // ciclo 11: enlace destacado al prototipo en vivo (demo real de trabajo)
-  prototypeAside: 'Doubts about the work? See the prototype: Twinsight X500',
+  prototypeAside: 'Questions about the work? See the prototype: TwinSight X500',
   urgency: { normal: 'Standard', soon: 'Rush +30%', critical: 'Critical +50%' },
   launchDiscount: 'Launch discount −25%',
   tierWord: 'tier',
   tierNames: { XS: 'essential', S: 'standard', M: 'professional', L: 'premium', XL: 'maximum' } as Record<string, string>,
   catalogTitle: 'All services',
-  catalogSubtitle: 'Web 3D, viewers, configurators, tools.',
+  catalogSubtitle: '3D, web, AI and VFX: starting prices in COP or USD. Tap a service to configure it.',
   all: 'All',
   from: 'from',
   families: {
     'web-3d': 'Web 3D',
-    'asset-rt': 'Realtime Assets',
+    'asset-rt': 'Real-time 3D',
     'render': '3D Render',
     'ia': 'AI',
     'vfx': 'VFX',
@@ -80,7 +80,7 @@ export const EN = {
     // ciclo 10: nota del asset temporal en los previews de nivel de detalle
     demoAsset: 'Preview uses a work-in-progress demo asset — the final version shows your product with its own models.',
     // ciclo 11: enlace al prototipo en vivo bajo el subtítulo del nivel 1
-    prototypeLink: 'See a live prototype: Twinsight X500',
+    prototypeLink: 'See a live prototype: TwinSight X500',
   },
   cta: {
     whatsapp: 'Send via WhatsApp',

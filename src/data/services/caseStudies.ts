@@ -27,7 +27,7 @@ export interface CaseStudy {
 
 const B = `${import.meta.env.BASE_URL}cotizador/cases/twinsight/`;
 const v = (n: string, label: string): CaseVideo => ({ src: `${B}${n}.webm`, poster: `${B}${n}.webp`, label });
-const LIVE = 'http://alexwoodcock.me/Twinsight-X500/';
+const LIVE = 'https://alexwoodcock.me/Twinsight-X500/';
 const SRC = 'Proyecto TwinSight X500 (gemelo digital del dron Holybro X500 V2), capturas propias.';
 const SRC_EN = 'TwinSight X500 project (digital twin of the Holybro X500 V2 drone), own captures.';
 
@@ -133,14 +133,14 @@ export const CASE_STUDIES: Record<string, CaseStudy> = {
   // ciclo 30: presentación interactiva = versión simplificada de la sustentación de la tesis
   'WEB-08': {
     title: 'Sustentación de TwinSight X500, en versión interactiva',
-    subtitle: 'Siete diapositivas de la defensa de grado con 3D real y gráficos animados. Navega con las flechas, los puntos o deslizando.',
+    subtitle: 'La defensa de grado convertida en experiencia web: intro cinematográfica con el dron en vuelo, taxonomía 3D por pasos (hasta armar un tornillo pieza a pieza), simulación térmica en vivo y datos animados. Navega con las flechas, los puntos o deslizando.',
     deck: true,
     liveUrl: LIVE,
-    source: 'Presentación de sustentación de TwinSight X500 (UNAD), simplificada de 36 a 7 diapositivas.',
+    source: 'Presentación de sustentación de TwinSight X500 (UNAD): 8 de sus diapositivas más fuertes, con sus modelos y efectos originales.',
     en: {
       title: 'TwinSight X500 thesis defense, as an interactive deck',
-      subtitle: 'Seven slides from the degree defense with real 3D and animated charts. Navigate with the arrows, the dots or by swiping.',
-      source: 'TwinSight X500 defense presentation (UNAD), simplified from 36 to 7 slides.',
+      subtitle: 'The degree defense turned into a web experience: a cinematic intro with the drone in flight, a step-by-step 3D taxonomy (down to assembling a screw piece by piece), a live thermal simulation and animated data. Navigate with the arrows, the dots or by swiping.',
+      source: 'TwinSight X500 defense presentation (UNAD): 8 of its strongest slides, with their original models and effects.',
     },
   },
 };

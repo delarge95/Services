@@ -12,6 +12,7 @@ import { planFromTreeAnswers } from '../../data/services/treeToQuote';
 import { SERVICE_ROOTS, buildServiceBranch } from '../../data/services/serviceBranches';
 import { Diagram, MediaVisual } from './OptionVisuals';
 import { ShowcaseScene } from './ShowcaseScene';
+import { ShowcaseStrip } from './ShowcaseStrip';
 import { CaseStudyView } from './CaseStudyView';
 import { CASE_STUDIES } from '../../data/services/caseStudies';
 import type { WizardQuotePlan } from '../../data/services/treeToQuote';
@@ -214,11 +215,11 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
           <div style={{ textAlign: 'center', margin: '0 0 44px' }}>
             <a href={BRAND.prototypeUrl} target="_blank" rel="noopener noreferrer" className="cx-prototype-link cx-protolink"
               style={{ fontSize: 14.5, fontWeight: 500, color: 'var(--cx-accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              {en ? W.prototypeLink : 'Mira un prototipo en vivo: Twinsight X500'}
+              {en ? W.prototypeLink : 'Mira un prototipo en vivo: TwinSight X500'}
               <ExternalIcon size={13} />
             </a>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+          <div className="cx-root-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
             {ROOT_OPTIONS.filter(o => o.id !== 'no-se').map((o, i) => {
               const t = optText('__root', o);
               return (
@@ -252,6 +253,8 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
               {en ? W.notSure : 'No estoy seguro — ayúdame a decidir →'}
             </button>
           </div>
+          {/* ciclo 31 (auditoría de marketing): trabajo real visible desde la portada */}
+          {rootChoice !== 'no-se' && <ShowcaseStrip lang={en ? 'en' : 'es'} />}
         </div>
       )}
 

@@ -4,7 +4,7 @@
  * Dos modos: guiado + catálogo. Mínimo texto, máximo impacto visual.
  */
 
-import { NAME_ES_DISPLAY, SERVICE_ROOTS_EN } from '../../data/services/i18nMore';
+import { NAME_ES_DISPLAY, SERVICE_ROOTS_EN, UNIT_ES_DISPLAY, esDisplay } from '../../data/services/i18nMore';
 import './cotizador-brand.css';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import * as THREE from 'three';
@@ -62,7 +62,7 @@ const WEB3D = SERVICES.filter(s => WEB3D_IDS.includes(s.id));
 /** Familias del catálogo con etiqueta humana (para los filtros). */
 const FAMILY_LABELS: Record<string, string> = {
   'web-3d': 'Web 3D',
-  'asset-rt': 'Assets Realtime',
+  'asset-rt': '3D en tiempo real',
   'render': 'Render 3D',
   'ia': 'IA',
   'vfx': 'VFX',
@@ -178,10 +178,10 @@ function ServiceCard({ svc, currency, onPick, index, lang }: {
         opacity: 0, transition: 'opacity 0.3s',
       }} className="card-glare" />
       <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--cx-accent)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-        {lang === 'en' ? EN.families[svc.family] ?? svc.family : svc.family === 'web-3d' ? 'Web 3D' : svc.family}
+        {lang === 'en' ? EN.families[svc.family] ?? svc.family : FAMILY_LABELS[svc.family] ?? svc.family}
       </span>
       <strong style={{ fontSize: 17, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.01em', lineHeight: 1.3 }}>{lang === 'en' ? (CATALOG_EN[svc.id]?.name ?? svc.nameEs) : NAME_ES_DISPLAY[svc.id] ?? svc.nameEs}</strong>
-      <span style={{ fontSize: 13, color: 'var(--cx-muted)', lineHeight: 1.4 }}>{lang === 'en' ? (CATALOG_EN[svc.id]?.unit ?? svc.unitEs) : svc.unitEs}</span>
+      <span style={{ fontSize: 13, color: 'var(--cx-muted)', lineHeight: 1.4 }}>{lang === 'en' ? (CATALOG_EN[svc.id]?.unit ?? svc.unitEs) : UNIT_ES_DISPLAY[svc.unitEs] ?? svc.unitEs}</span>
       {desde != null && (
         <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--cx-text)', marginTop: 6 }}>
           {lang === 'es' ? 'desde' : EN.from} <strong style={{ fontSize: 18, color: 'var(--cx-accent)', letterSpacing: '-0.02em' }}>{fmt(currency, desde)}</strong>
@@ -270,7 +270,7 @@ function VariableControl({ v, value, onValue, lang, serviceId }: {
                   padding: '10px 18px', borderRadius: 999, font: `500 14px inherit`, cursor: 'pointer',
                   border: val === o.valorEs ? '2px solid var(--cx-accent)' : '1px solid var(--cx-border-strong)',
                   background: val === o.valorEs ? 'var(--cx-accent-soft)' : 'var(--cx-card-solid)', color: 'var(--cx-text)',
-                }}>{(lang === 'en' ? VARS_EN[serviceId]?.[v.id]?.opciones?.[o.valorEs] : undefined) ?? o.valorEs}</button>
+                }}>{(lang === 'en' ? VARS_EN[serviceId]?.[v.id]?.opciones?.[o.valorEs] : undefined) ?? esDisplay(o.valorEs)}</button>
             ))}
           </div>
         </div>
@@ -979,7 +979,7 @@ export function CotizadorRedesign() {
                       <div style={{ marginTop: 24, padding: 14, borderRadius: 14, background: 'var(--cx-tile)' }}>
                         <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--cx-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{lang === 'es' ? 'Entrega' : EN.delivery}</div>
                         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--cx-text)', marginTop: 2 }}>
-                          {dias ? `${dias[0]}–${dias[1]}d` : '—'}
+                          {dias ? `${dias[0]}–${dias[1]} ${lang === 'en' ? 'days' : 'días'}` : '—'}
                         </div>
                       </div>
                     );
@@ -1013,7 +1013,7 @@ export function CotizadorRedesign() {
                       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cx-muted)', marginBottom: 8 }}>{lang === 'es' ? 'Incluye' : EN.includes}</div>
                       {(lang === 'en' ? (CATALOG_EN[svc.id]?.entregables ?? quote.entregables) : quote.entregables).slice(0, 4).map((e: string) => (
                         <div key={e} style={{ fontSize: 14, color: 'var(--cx-text)', padding: '4px 0', display: 'flex', gap: 6 }}>
-                          <span style={{ color: '#30d158' }}>✓</span> {e}
+                          <span style={{ color: 'var(--cx-signal)' }}>✓</span> {lang === 'en' ? e : esDisplay(e)}
                         </div>
                       ))}
                     </div>
@@ -1035,7 +1035,7 @@ export function CotizadorRedesign() {
                   <p data-noprint style={{ fontSize: 12, textAlign: 'center', margin: '8px 0 0' }}>
                     <a href={BRAND.prototypeUrl} target="_blank" rel="noopener noreferrer" className="cx-prototype-link cx-protolink"
                       style={{ color: 'var(--cx-accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
-                      {lang === 'es' ? '¿Dudas del trabajo? Ve el prototipo: Twinsight X500' : EN.prototypeAside}
+                      {lang === 'es' ? '¿Dudas del trabajo? Ve el prototipo: TwinSight X500' : EN.prototypeAside}
                       <ExternalIcon size={12} />
                     </a>
                   </p>
@@ -1053,7 +1053,7 @@ export function CotizadorRedesign() {
             <h2 style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 8px' }}>
               {lang === 'es' ? 'Todos los servicios' : EN.catalogTitle}
             </h2>
-            <p style={{ fontSize: 16, color: 'var(--cx-muted)', margin: '0 0 28px' }}>{lang === 'es' ? 'Web 3D, visores, configuradores, herramientas.' : EN.catalogSubtitle}</p>
+            <p style={{ fontSize: 16, color: 'var(--cx-muted)', margin: '0 0 28px' }}>{lang === 'es' ? '3D, web, IA y VFX: precios desde, en COP o USD. Toca un servicio para configurarlo.' : EN.catalogSubtitle}</p>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 32 }}>
               {['todas', ...CATALOG_FAMILIES].map(f => (
                 <button key={f} onClick={() => setFamilyFilter(f)} className="cx-chip"

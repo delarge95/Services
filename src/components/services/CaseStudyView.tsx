@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import type { CaseStudy } from '../../data/services/caseStudies';
-import { MiniDeck } from './MiniDeck';
+import { TwinsightDeck } from './twinsight/TwinsightDeck';
 
 type Tab = 'steps' | 'videos' | 'facts';
 
@@ -95,7 +95,7 @@ export function CaseStudyView({ cs: csEs, lang = 'es' }: { cs: CaseStudy; lang?:
           {tabs.map((t) => <button key={t} type="button" role="tab" aria-selected={tab === t} className="cs-tab" onClick={() => setTab(t)}>{L[t]}</button>)}
         </div>
       )}
-      {cs.deck && <MiniDeck lang={lang} liveUrl={cs.liveUrl} />}
+      {cs.deck && <TwinsightDeck lang={lang} liveUrl={cs.liveUrl} />}
       {tab === 'steps' && cur && (
         <div role="tabpanel">
           <div className="cs-stage"><img key={cur.img} src={cur.img} alt={cur.title} loading="lazy" /></div>

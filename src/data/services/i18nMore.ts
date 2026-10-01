@@ -260,3 +260,88 @@ export const TREE_SHARED_EN: Record<string, QEn> = {
   'modelo-existente': { advanced: SOURCE_ADV },
   'modelo-para-scroll': { advanced: SOURCE_ADV },
 };
+
+/** Ciclo 31 (auditoría): unidad visible en el catálogo ES — tildes y sin jerga interna.
+ *  Aditivo: el dato base (`unitEs`) no cambia; se usa solo para mostrar. */
+export const UNIT_ES_DISPLAY: Record<string, string> = {
+  'clip (XS=loop 2-3s)': 'clip animado',
+  'asset + interactividad': 'asset con interactividad',
+  'aplicacion web': 'aplicación web',
+  'sesion o informe': 'sesión o informe',
+  'bloque horas/mes': 'bloque de horas al mes',
+  'asset animado (GLB)': 'asset animado (GLB)',
+  'mecanica': 'mecánica',
+  'embed': 'visor embebido',
+  'build': 'build web',
+  'pagina/experiencia': 'página o experiencia',
+  'catalogo/proyecto': 'catálogo por proyecto',
+  'presentacion': 'presentación',
+  'feature/paquete': 'función o paquete',
+  'paquete workflow': 'paquete de flujo de trabajo',
+  'auditoria/paquete': 'auditoría o paquete',
+  'shot': 'plano',
+  'pieza/paquete': 'pieza o paquete',
+  'set/asset': 'set por asset',
+  'shader / set': 'shader o set',
+};
+
+/** Ciclo 31 (auditoría de contenido): texto ES visible sin jerga en inglés ni tildes faltantes.
+ *  SOLO presentación: los valores base (`valorEs`, `entregablesEs`…) siguen intactos porque el motor,
+ *  los enlaces profundos y las pruebas dependen de ellos. Primero frases completas, luego palabras. */
+const PHRASE_ES: Record<string, string> = {
+  'Fijos (hardcode)': 'Fijos (no cambian)',
+  'Desktop': 'Escritorio',
+  'Desktop + móvil': 'Escritorio + móvil',
+  'Responsive mobile-first': 'Diseño adaptable, primero para móvil',
+  'Analytics events': 'Eventos de analítica',
+  'Pipeline de carga optimizado': 'Carga optimizada',
+  'Export/share de resultados': 'Exportar y compartir resultados',
+  'Deploy documentado': 'Despliegue documentado',
+  'Chat widget embebido': 'Chat integrado en tu web',
+  'Guardrails/disclaimers': 'Límites y avisos de seguridad',
+  'Highlight/seleccion': 'Resaltado y selección',
+  'QA visor + reporte perf': 'Pruebas del visor e informe de rendimiento',
+  'Reporte de performance': 'Informe de rendimiento',
+  'Integracion + tuning performance': 'Integración y ajuste de rendimiento',
+  'Fallback movil': 'Versión alternativa para móvil',
+  'Template de loading': 'Pantalla de carga',
+  'Embed responsive': 'Inserción adaptable',
+  'Embed responsive configurado': 'Inserción adaptable configurada',
+  'Mini-GDD documentado': 'Documento de diseño del juego',
+  'Hook de analitica opcional': 'Conexión opcional con analítica',
+  'Gestion datos por JSON/CMS-lite': 'Datos editables (JSON o CMS ligero)',
+  'Prompts versionados': 'Instrucciones de la IA versionadas',
+  'Capacitacion handoff': 'Capacitación y entrega',
+  'Quick-wins ejecutables': 'Mejoras rápidas ejecutables',
+  'Primer quick-win (paquete Roadmap+Piloto)': 'Primera mejora rápida (paquete hoja de ruta + piloto)',
+  'Passes clave a solicitud': 'Pases de render clave a solicitud',
+  'Bake high->low standalone': 'Horneado de alto a bajo detalle',
+  'README tecnico': 'Documentación técnica',
+  'Sesion de handoff': 'Sesión de entrega',
+  'Informe oportunidades priorizadas': 'Informe de oportunidades priorizadas',
+  'SOW borrador con estimacion': 'Borrador de alcance con estimación',
+  'Mapa del proceso + especificacion': 'Mapa del proceso y especificación',
+  'Horas rollean 50%': 'El 50 % de las horas no usadas pasa al mes siguiente',
+  'Disponibilidad recurrente': 'Disponibilidad cada mes',
+  'Fallback estatico para moviles gama baja': 'Versión estática para móviles de gama baja',
+  'Desktop web': 'Web de escritorio',
+  'SLA de respuesta': 'Tiempo de respuesta garantizado',
+  'Iteracion de look incluida en rondas de revision': 'Ajustes de estilo incluidos en las rondas de revisión',
+};
+const WORD_ES: [RegExp, string][] = ([
+  ['Imagenes', 'Imágenes'], ['resolucion', 'resolución'], ['revision', 'revisión'], ['Animacion', 'Animación'], ['animacion', 'animación'],
+  ['seleccion', 'selección'], ['compresion', 'compresión'], ['tecnicos', 'técnicos'], ['tecnico', 'técnico'], ['Aplicacion', 'Aplicación'],
+  ['Presentacion', 'Presentación'], ['estimacion', 'estimación'], ['Configuracion', 'Configuración'], ['Integracion', 'Integración'],
+  ['Modulo', 'Módulo'], ['moviles', 'móviles'], ['movil', 'móvil'], ['Pagina', 'Página'], ['seccion', 'sección'], ['tactiles', 'táctiles'],
+  ['analitica', 'analítica'], ['Catalogo', 'Catálogo'], ['Gestion', 'Gestión'], ['navegacion', 'navegación'], ['Evolucion', 'Evolución'],
+  ['Capacitacion', 'Capacitación'], ['Simulacion', 'Simulación'], ['graficas', 'gráficas'], ['Sesion', 'Sesión'], ['Guia', 'Guía'],
+  ['Mecanicas', 'Mecánicas'], ['Mecanica', 'Mecánica'], ['mecanica', 'mecánica'], ['geometrica', 'geométrica'], ['numero', 'número'], ['camara', 'cámara'],
+  ['Simulacion', 'Simulación'], ['segun', 'según'], ['maquina', 'máquina'], ['supervision', 'supervisión'],
+] as [string, string][]).map(([a, b]) => [new RegExp(String.raw`\b${a}\b`, 'g'), b]);
+export function esDisplay(text: string): string {
+  const p = PHRASE_ES[text];
+  if (p) return p;
+  let out = text;
+  for (const [re, b] of WORD_ES) out = out.replace(re, b);
+  return out;
+}

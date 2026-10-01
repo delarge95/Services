@@ -168,3 +168,6 @@
 /* Ciclo 27 — insignia de caso real en las tarjetas de servicio */
 .cx-case-badge { align-self: flex-start; margin-top: 4px; font: 600 10px var(--cx-mono, monospace); letter-spacing: .12em; text-transform: uppercase;
   padding: 3px 8px; border-radius: 6px; color: var(--cx-accent); background: var(--cx-accent-soft); border: 1px solid var(--cx-accent-border); }
+
+/* ciclo 31 (auditoría): la 5.ª opción de la portada ya no queda huérfana en la retícula de 2 columnas */
+@media (min-width: 640px) { .cx-root-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; } }

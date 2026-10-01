@@ -18,6 +18,7 @@ import { RATE_CLASSES, RATE_POSITION } from '../../../data/services/rateCard';
 import type { Currency, RateClass } from '../../../data/services/types';
 import { normalize } from './chatIntents';
 import { VARS_EN } from '../../../data/services/i18n';
+import { esDisplay } from '../../../data/services/i18nMore';
 
 type Val = number | string | boolean;
 
@@ -182,8 +183,8 @@ export function answerWithQuote(input: string, ctx: AssistantContext): string | 
 
   if (asks(q, WHY_KW) && !asks(q, INCLUDE_KW)) return whyAnswer(svc.id, vals, ctx);
   if (asks(q, INCLUDE_KW)) {
-    const inc = svc.entregablesEs.slice(0, 5).map((e) => `• ${e}`).join('\n');
-    const no = svc.noIncluyeEs?.length ? `\nNo incluye: ${svc.noIncluyeEs.slice(0, 3).join('; ')}.` : '';
+    const inc = svc.entregablesEs.slice(0, 5).map((e) => `• ${esDisplay(e)}`).join('\n');
+    const no = svc.noIncluyeEs?.length ? `\nNo incluye: ${svc.noIncluyeEs.slice(0, 3).map(esDisplay).join('; ')}.` : '';
     return `${displayName(svc)} incluye:\n${inc}${no}`;
   }
   if (asks(q, TIME_KW) && !asks(q, PRICE_KW)) {
