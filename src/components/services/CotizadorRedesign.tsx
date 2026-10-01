@@ -4,7 +4,6 @@
  * Dos modos: guiado + catálogo. Mínimo texto, máximo impacto visual.
  */
 
-import { BrandMark } from './hero/BrandMark';
 import { NAME_ES_DISPLAY, SERVICE_ROOTS_EN, UNIT_ES_DISPLAY, esDisplay } from '../../data/services/i18nMore';
 import './cotizador-brand.css';
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -791,7 +790,8 @@ export function CotizadorRedesign() {
           {/* ciclo 33: monograma AW (W con la barra de la A) + logotipo; la intro aterriza aquí */}
           <button onClick={goHome} className="cx-brand" aria-label={BRAND.name}
             style={{ color: 'var(--cx-text)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <BrandMark /><span>{BRAND.name}</span>
+            {/* ciclo 34: sin monograma hasta que se decida la marca (exploración en curso) */}
+            <span className="cx-brand-mark" aria-hidden="true" /><span>{BRAND.name}</span>
           </button>
         </div>
         <button type="button" className="cx-nav-menu" aria-expanded={navOpen} aria-controls="cx-nav-right" onClick={() => setNavOpen((o) => !o)}

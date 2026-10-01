@@ -103,7 +103,7 @@ html, body { overflow-x: clip; }
    superior multiplicadas por --s, así el viaje final es solo traslación + escala. */
 .cx-brand { font: 700 16px/1.2 var(--cx-display, 'Space Grotesk', system-ui) !important; letter-spacing: -.02em; }
 /* el símbolo se apoya en la LÍNEA BASE del logotipo (no se centra en la caja de línea) */
-.cx-brand { align-items: baseline !important; }
+.cx-brand { align-items: center !important; }
 .cx-brand .aw-mark { flex: none; }
 .aw-mark { display: inline-block; vertical-align: middle; overflow: visible; }
 .ih-kicker { align-items: baseline !important; }
@@ -137,3 +137,23 @@ html, body { overflow-x: clip; }
 .ih-hud.ih-brand.loaded .ih-bar { opacity: 1; }
 @media (max-width: 560px) { .ih-lock { --s: 2.1; } }
 @media (prefers-reduced-motion: reduce) { .ih-lock * { transition: none !important; } }
+
+/* ══ ciclo 34 · intro del dron (guion aprobado) ═════════════════════════════════
+   Línea NEUTRA que crece desde el centro; al 100 % se recoge en un punto de luz naranja
+   del que nace el dibujo. Contador visible solo durante la carga; "Saltar" a los 1,5 s. */
+.ih-v34 .ih-bar { left: 8vw; right: 8vw; height: 1px; margin-top: 0; transform-origin: 50% 50%;
+  background: linear-gradient(90deg, rgba(237, 238, 232, 0), rgba(237, 238, 232, .7) 18%, rgba(237, 238, 232, .7) 82%, rgba(237, 238, 232, 0)); transition: none; }
+.ih-v34.loaded .ih-bar { opacity: 1; }
+.ih-dot { position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; border-radius: 50%; background: #ff7a3d; opacity: 0;
+  box-shadow: 0 0 10px 2px rgba(255, 122, 61, .8), 0 0 34px 6px rgba(255, 122, 61, .35); transform: translate(-50%, -50%); pointer-events: none; }
+.ih-v34 .ih-count { transition: opacity .5s ease; }
+.ih-v34 .ih-count b { color: #8b9099; font-weight: 500; margin: 0; }
+.ih-v34.loaded .ih-count { opacity: 0; }
+.ih-v34 .ih-skip { opacity: 0; pointer-events: none; transition: opacity .6s ease, border-color .25s, color .25s; }
+.ih-v34.skip-on .ih-skip { opacity: 1; pointer-events: auto; }
+/* el divisor: entra horizontal y gira 90° alrededor de su centro; las etiquetas, solo en vertical */
+.ih-divider { transform-origin: 50% 50%; }
+.ih-divider span { opacity: 0; transition: opacity .4s ease; }
+.ih-divider.labels span { opacity: 1; }
+/* sin monograma mientras se decide la marca: el titular previo vuelve a llevar su filete */
+.ih-kicker::before { display: block; }

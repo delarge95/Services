@@ -50,6 +50,8 @@ import { CotizadorRedesign } from '../components/services/CotizadorRedesign';
       try {
         var hs = history.state;
         var back = hs && hs.cx === 'cotizador' && (hs.level > 1 || hs.config);
+        /* ?intro=0 abre directo en el hero (QA y enlaces directos) */
+        if (/[?&]intro=0(&|$)/.test(location.search)) back = true;
         if (!back && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) document.documentElement.dataset.cxIntro = 'pre';
       } catch (e) { /* sin intro */ }
       /* red de seguridad: si la isla no llega a montar, nunca dejar la página a oscuras */
