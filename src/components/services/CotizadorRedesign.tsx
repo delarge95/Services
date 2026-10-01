@@ -439,6 +439,12 @@ export function CotizadorRedesign() {
     return () => window.removeEventListener('cx-open-quote', onOpen);
   }, []);
 
+  // ciclo 30: título de la pestaña y atributo lang del documento en el idioma activo
+  useEffect(() => {
+    document.title = lang === 'en' ? '3D project estimator — Alexander Woodcock' : 'Cotizador de proyectos 3D — Alexander Woodcock';
+    document.documentElement.lang = lang;
+  }, [lang]);
+
   // ciclo 27: nivel del wizard (lo emite GuidedWizard) para el botón Atrás global
   const [wizardLevel, setWizardLevel] = useState(1);
   useEffect(() => {
