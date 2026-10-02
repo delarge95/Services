@@ -240,3 +240,18 @@
   .cx-config > div:first-child > div[style*="gap: 22px"] { gap: 8px !important; }
   .cx-config > div:first-child button[style*="padding"]:not(.cx-back) { padding-top: 7px !important; padding-bottom: 7px !important; }
 }
+
+/* ── ciclo 42 · inicio: cada sección ocupa la pantalla completa (el hero ya lo hacía) ── */
+.cx-goals-sec { min-height: 100svh; display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; padding: 28px 0 32px; }
+.cx-show.cx-show { min-height: 100svh; display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; margin-top: 0; padding: 40px 0; }
+
+/* ── ciclo 42 · nivel 2: el hover ya no borra y redibuja el icono — lo REPASA encima con otro color y,
+   al salir, el repaso se retira en sentido inverso ── */
+.cx-plategrid .cx-option-icon { position: relative; }
+.cx-plategrid > button:hover .cx-option-icon > svg :is(path, circle, rect, line, polyline, polygon, ellipse) { animation: none; stroke-dashoffset: 0; }
+.cx-plategrid:not(.cx-drawn) > button:hover .cx-option-icon > svg :is(path, circle, rect, line, polyline, polygon, ellipse) { animation: cx-icon-draw 1.5s .25s cubic-bezier(.65, 0, .35, 1) forwards; stroke-dashoffset: 160; }
+.cx-ico-over { position: absolute; left: 0; top: 0; display: flex; color: var(--cx-signal, #5ac8fa); pointer-events: none; }
+.cx-plategrid .cx-option-icon .cx-ico-over svg :is(path, circle, rect, line, polyline, polygon, ellipse) { animation: none !important; stroke-dasharray: 160; stroke-dashoffset: 160;
+  stroke-width: 1.35; transition: stroke-dashoffset .95s cubic-bezier(.65, 0, .35, 1); }
+.cx-plategrid > button:is(:hover, :focus-visible) .cx-option-icon .cx-ico-over svg :is(path, circle, rect, line, polyline, polygon, ellipse) { stroke-dashoffset: 0; }
+@media (prefers-reduced-motion: reduce) { .cx-ico-over svg * { transition: none !important; } }

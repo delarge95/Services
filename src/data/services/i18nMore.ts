@@ -128,6 +128,12 @@ export const VARS_EN_MORE: Record<string, Record<string, VarEn>> = {
       opciones: { 'Tiempo real (Unreal Niagara / EmberGen)': 'Real-time (Unreal Niagara / EmberGen)', 'Houdini prerenderizado': 'Prerendered Houdini' },
     },
   },
+  'VFX-04': {
+    numEfectos: { question: 'How many different effects?', unit: 'effects' },
+    interaccionFx: { question: 'How does the effect react?', help: 'Generated live in the browser: no per-shot render, which is why it costs far less than a video simulation.',
+      opciones: { 'Solo animación en bucle': 'Looping animation only', 'Reacciona al cursor': 'Reacts to the cursor', 'Cursor + scroll + parámetros editables': 'Cursor + scroll + editable parameters' } },
+    protagonismoFx: { question: 'What role does it play on the site?', opciones: { 'Fondo o acento ligero': 'Background or light accent', 'Efecto protagonista a pantalla completa': 'Full-screen hero effect' } },
+  },
   'VFX-03': {
     tipoSim: { question: 'What kind of simulation?', opciones: { 'Partículas simples': 'Simple particles', 'Volumétricos (humo/niebla)': 'Volumetrics (smoke/fog)', 'Fluidos/destrucción RBD': 'Fluids/RBD destruction' } },
     reutilizable: { question: 'Do you need a reusable parametric setup?' },
@@ -167,6 +173,7 @@ export const CATALOG_EN_MORE: Record<string, { name: string; unit: string; desc:
   'AI-04': { name: 'AI consulting and audit', unit: 'audit/package', desc: 'Assessment of where AI adds real value, with a plan prioritized by impact/effort and risks.', entregables: ['Prioritized opportunities report', 'Actionable quick wins', 'Risk and cost matrix', 'First quick win (Roadmap + Pilot package)'] },
   'VFX-01': { name: '3D model composited into real footage', unit: 'shot', desc: 'A 3D model placed into real footage: tracking, lighting match and final compositing.', entregables: ['Final video/photo per shot', 'Key passes on request'] },
   'VFX-02': { name: 'Pure FX (video simulations)', unit: 'shot', desc: 'Simulated effects for video: particles, smoke, liquids, destruction, cloth.', entregables: ['FX simulation per shot', 'Look iteration within revision rounds'] },
+  'VFX-04': { name: 'Real-time procedural FX (WebGL)', unit: 'effect', desc: 'Particles, smoke, fluids or energy generated live in the browser with shaders: no per-shot render, lightweight and reactive to cursor or scroll.', entregables: ['WebGL effect integrated into your site (shader/particle system)', 'Adjustable parameters (color, intensity, speed)', 'Lightweight mobile version', '2 revision rounds'] },
   'VFX-03': { name: '3D motion graphics', unit: 'piece/package', desc: 'Animated graphics with a 3D component: logo reveals, lower thirds, transitions, templates.', entregables: ['Animated 3D graphic pieces', 'Reusable template (full branding)'] },
   'TEX-01': { name: 'Texture and map generation', unit: 'set/asset', desc: 'PBR map sets (albedo/normal/roughness/metal/AO), tileable, procedural or asset texturing.', entregables: ['Complete PBR map sets', 'Asset texturing', 'Standalone high→low bake'] },
   'PIPE-01': { name: 'Pipeline automation / scripts / tools', unit: 'tool', desc: 'Tools that remove repetitive work: Blender scripts (Python), Unity editor tools (C#), batch conversion, automated QA.', entregables: ['Tool (script/tool/pipeline)', 'Technical README', 'Explicit error handling', 'Handoff session'] },
@@ -181,6 +188,7 @@ export const SERVICE_ROOTS_EN: Record<string, { title: string; subtitle: string;
       'VFX-01': { label: 'My product in real footage', desc: 'Place a 3D model into your photos or videos' },
       'VFX-02': { label: 'Visual effects (VFX)', desc: 'Simulations, particles, smoke or destruction over video' },
       'VFX-03': { label: '3D motion graphics', desc: 'Animated pieces for social media, intros or ads' },
+      'VFX-04': { label: 'Procedural effects on your site (WebGL)', desc: 'Particles, smoke or fluids generated live in the browser: simpler and cheaper' },
     },
   },
   imagenes: {
@@ -223,7 +231,7 @@ export const NAME_ES_DISPLAY: Record<string, string> = {
   'RTA-06': 'Mecánicas sobre asset en tiempo real', 'WEB-02': 'Visor embebido (Spline / Sketchfab / model-viewer)', 'WEB-03': 'Unity WebGL: build y embebido',
   'WEB-05': 'Scrollytelling con 3D', 'WEB-06': 'Minijuego web', 'WEB-07': 'Catálogo 3D interactivo', 'WEB-08': 'Presentación web interactiva',
   'AI-02': 'IA integrada en producto web', 'AI-03': 'Automatización interna con LLM', 'AI-04': 'Consultoría y auditoría de IA',
-  'VFX-01': 'Modelo 3D integrado en foto/video real', 'VFX-02': 'FX puro (simulaciones en video)', 'VFX-03': 'Motion graphics 3D',
+  'VFX-01': 'Modelo 3D integrado en foto/video real', 'VFX-02': 'FX puro (simulaciones en video)', 'VFX-03': 'Motion graphics 3D', 'VFX-04': 'FX procedural en tiempo real (WebGL)',
   'TEX-01': 'Generación de texturas y mapas', 'PIPE-01': 'Automatización de pipeline / scripts / herramientas',
 };
 

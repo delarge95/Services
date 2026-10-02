@@ -226,6 +226,17 @@ export const SERVICES: ServiceDef[] = [
     [st('v3-reveal','Logo reveal (<=5s, 1 estilo)','RC-ART',noXs([4,8],[0,0],[0,0],[0,0])),
      st('v3-set','Set editorial (lowers/transitions/bumpers)','RC-ART',noXs([0,0],[8,16],[0,0],[0,0])),
      st('v3-branding','Branding animado completo + plantilla','RC-ART',noXs([0,0],[0,0],[18,40],[22,48]))]),
+  // ciclo 42 · VFX-04: el mismo tipo de efecto generado en vivo en el navegador (sin simulación ni render por shot).
+  // Horas = CATALOGO_SERVICIOS.md §F2 «FX genérico (realtime VFX graph)» S 2–5 · M 5–14 · L 14–30 · XL 30–60 h por efecto,
+  // repartidas por subtarea (cada nivel suma exactamente la banda de F2); clase ART como F2. Detalle: docs/servicios/05 §VFX-04.
+  svc('VFX-04','C5','vfx','FX procedural en tiempo real (WebGL)','efecto','Particulas, humo, fluidos o energia generados en vivo en el navegador con shaders: sin render por shot, ligeros y reactivos al cursor o al scroll.',
+    ['Efecto WebGL integrado en tu web (shader/sistema de particulas)','Parametros ajustables (color, intensidad, velocidad)','Version ligera para movil','2 rondas de revision'],
+    ['Simulaciones fisicas de video (VFX-02)','Contenido de la web donde se integra'],['n efectos','interactividad','protagonismo'],'inferred',[2,25],
+    [st('v4-concepto','Concepto y referencia del efecto','RC-ART',noXs([0.5,1],[1,2],[1.5,3],[2,4])),
+     st('v4-shader','Shader / sistema de particulas procedural','RC-ART',noXs([1,2.5],[2.5,7],[8,16],[17,32])),
+     st('v4-interaccion','Interaccion (cursor, scroll, parametros)','RC-ART',noXs([0,0.5],[0.5,2],[2,5],[5,12])),
+     st('v4-integracion','Integracion en la web + rendimiento movil','RC-ART',noXs([0.25,0.5],[0.5,2],[1.5,4],[3.5,8])),
+     st('v4-qa','QA multi-navegador','RC-ART',noXs([0.25,0.5],[0.5,1],[1,2],[2.5,4]))]),
 
   // ── C6: TEX-01, PIPE-01 ──
   svc('TEX-01','C6','texturas','Generacion de texturas y mapas','set/asset','Sets de mapas PBR (albedo/normal/roughness/metal/AO), tileables, procedurales o texturizado de assets.',

@@ -213,7 +213,8 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
         <div style={{ paddingTop: 0, textAlign: 'center' }}>
           {/* ciclo 32: pantalla de inicio que se convierte en el hero ("de lo complejo a lo esencial") */}
           {rootChoice !== 'no-se' && <IntroHero lang={en ? 'en' : 'es'} />}
-          <div id="cx-goals" data-snap style={{ scrollMarginTop: 70, paddingTop: 40 }} />
+          {/* ciclo 42: la sección ocupa la pantalla completa (como el hero y el trabajo real) y es un punto de ajuste */}
+          <section id="cx-goals" data-snap className="cx-goals-sec">
           <i className="cx-thread" aria-hidden="true" />
           <span className="cx-eyebrow" data-fly>{en ? '3D · Web · AI — quote in 1 minute' : '3D · Web · IA — cotiza en 1 minuto'}</span>
           {/* ciclo 38: el título sale de la explosión del dron en LINEART y se rellena al asentarse (o con el cursor) */}
@@ -242,6 +243,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
               {en ? W.notSure : 'No estoy seguro — ayúdame a decidir →'}
             </button>
           </div>
+          </section>
           {/* ciclo 31 (auditoría de marketing): trabajo real visible desde la portada */}
           {rootChoice !== 'no-se' && <ShowcaseStrip lang={en ? 'en' : 'es'} />}
         </div>
@@ -278,7 +280,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
       {/* RAMAS PRÓXIMAMENTE (video / imágenes / IA): contacto directo, sin dead-end */}
       {/* ═══ NIVEL 2 (ciclo 24): ramas generadas del catálogo — video, imágenes, IA, otros ═══ */}
       {level === 2 && SERVICE_ROOTS[rootChoice] && (
-        <div style={{ paddingTop: 40 }}>
+        <div data-snap data-snap-offset="9999" style={{ paddingTop: 40 }}>
           <button onClick={goBack} className="cx-back"
             style={{ font: '500 14px inherit', color: 'var(--cx-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 20 }}>
             {en ? W.back : '← Atrás'}
@@ -300,7 +302,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
                 }}>
                 <span className="cx-option-idx" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
                 <span className="cx-option-icon" style={{ color: 'var(--cx-accent)', display: 'flex', marginBottom: 8 }}>
-                  <TreeIcon name={o.icon ?? ''} size={22} />
+                  <TreeIcon name={o.icon ?? ''} size={22} /><span className="cx-ico-over" aria-hidden="true"><TreeIcon name={o.icon ?? ''} size={22} /></span>
                 </span>
                 <strong style={{ fontSize: 17, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.01em' }}>{en ? SERVICE_ROOTS_EN[rootChoice]?.options[o.id]?.label ?? o.label : o.label}</strong>
                 {CASE_STUDIES[o.id] && <span className="cx-case-badge">{en ? 'Real case inside' : 'Con caso real'}</span>}
@@ -358,7 +360,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
                   }}>
                   <span className="cx-option-idx" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
                   <span className="cx-option-icon" style={{ color: 'var(--cx-accent)', display: 'flex', marginBottom: 8 }}>
-                    <TreeIcon name={o.icon ?? ''} size={22} />
+                    <TreeIcon name={o.icon ?? ''} size={22} /><span className="cx-ico-over" aria-hidden="true"><TreeIcon name={o.icon ?? ''} size={22} /></span>
                   </span>
                   <strong style={{ fontSize: 17, fontWeight: 700, color: 'var(--cx-text)', letterSpacing: '-0.01em' }}>{t.label}</strong>
                   <span style={{ fontSize: 13, color: 'var(--cx-muted)', lineHeight: 1.45 }}>{t.desc}</span>

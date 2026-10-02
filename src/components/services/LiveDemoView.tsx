@@ -7,11 +7,12 @@
  */
 import { lazy, Suspense } from 'react';
 import { ShowcaseScene } from './ShowcaseScene';
+import { ProceduralFxDemo } from './ProceduralFxDemo';
 
 const Preshow = lazy(() => import('./twinsight/Preshow').then((m) => ({ default: m.Preshow })));
 
 type Lang = 'es' | 'en';
-type Demo = { title: [string, string]; sub: [string, string]; kind: 'loop' | 'catalog' };
+type Demo = { title: [string, string]; sub: [string, string]; kind: 'loop' | 'catalog' | 'procedural' };
 
 export const LIVE_DEMOS: Record<string, Demo> = {
   'RTA-03': {
@@ -25,6 +26,12 @@ export const LIVE_DEMOS: Record<string, Demo> = {
     sub: ['Arrastra para girar el producto, toca uno de los laterales para traerlo al frente y cambia sus variantes: acabados, nivel de detalle o despiece.',
       'Drag to rotate the product, tap one on the sides to bring it forward and switch its variants: finishes, detail level or exploded view.'],
     kind: 'catalog',
+  },
+  'VFX-04': { // ciclo 42
+    title: ['Efectos generados en vivo, en tu web', 'Effects generated live, on your website'],
+    sub: ['Humo, partículas y energía hechos con un shader en el navegador: sin video ni render por shot. Mueve el cursor encima, cambia el efecto, la intensidad y el color — así se ajusta el que se entrega.',
+      'Smoke, particles and energy made with a shader in the browser: no video, no per-shot render. Move the cursor over it, switch the effect, intensity and color — that is how the delivered one is tuned.'],
+    kind: 'procedural',
   },
 };
 
@@ -51,6 +58,7 @@ export function LiveDemoView({ id, lang = 'es' }: { id: string; lang?: Lang }) {
       <div className={`ld-stage${d.kind === 'loop' ? ' ld-loop' : ''}`}>
         {d.kind === 'loop'
           ? <Suspense fallback={<div style={{ height: 420, background: '#07080a' }} />}><Preshow lang={lang} height={420} onStart={() => {}} /></Suspense>
+          : d.kind === 'procedural' ? <ProceduralFxDemo lang={lang} height={400} />
           : <ShowcaseScene kind="app-type" selected="catalogo" lang={lang} height={400} />}
       </div>
     </section>

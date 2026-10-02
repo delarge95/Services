@@ -187,7 +187,19 @@ export function LayersIcon({ size = 24, color }: IconProps) {
   );
 }
 
+/** Ciclo 42 — campo procedural (ondas de ruido) para VFX-04. */
+export function WaveIcon({ size = 24, color }: IconProps) {
+  return (
+    <svg {...base(size)} color={color}>
+      <path d="M3 8c2.2-2.4 4.4-2.4 6.6 0s4.4 2.4 6.6 0 3.3-1.8 4.8-.6" />
+      <path d="M3 13c2.2-2.4 4.4-2.4 6.6 0s4.4 2.4 6.6 0 3.3-1.8 4.8-.6" />
+      <path d="M3 18c2.2-2.4 4.4-2.4 6.6 0s4.4 2.4 6.6 0 3.3-1.8 4.8-.6" />
+    </svg>
+  );
+}
+
 const ICONS: Record<string, (p: IconProps) => ReactElement> = {
+  wave: WaveIcon,
   cube: CubeIcon,
   layers: LayersIcon,
   info: InfoIcon,

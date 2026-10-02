@@ -595,6 +595,25 @@ export const SERVICE_VARIABLES: Record<string, ServiceConfig> = {
     ],
   },
 
+  'VFX-04': { // ciclo 42 · FX procedural en WebGL (horas de CATALOGO §F2)
+    serviceId: 'VFX-04',
+    variables: [
+      {
+        id: 'numEfectos', preguntaEs: '¿Cuántos efectos distintos?',
+        type: 'number', min: 1, max: 8, step: 1, unidadEs: 'efectos',
+        tierMap: [{ maxVal: 1, tier: 'S' }, { maxVal: 3, tier: 'M' }, { maxVal: 5, tier: 'L' }, { maxVal: 8, tier: 'XL' }],
+      },
+      {
+        id: 'interaccionFx', preguntaEs: '¿Cómo reacciona el efecto?', ayudaEs: 'Generado en vivo en el navegador: sin render por shot, por eso es mucho más económico que una simulación en video.',
+        type: 'select', opciones: [{ valorEs: 'Solo animación en bucle', tierHint: 'S' }, { valorEs: 'Reacciona al cursor', tierHint: 'M' }, { valorEs: 'Cursor + scroll + parámetros editables', tierHint: 'L' }],
+      },
+      {
+        id: 'protagonismoFx', preguntaEs: '¿Qué papel tiene en la web?',
+        type: 'select', opciones: [{ valorEs: 'Fondo o acento ligero', tierHint: 'S' }, { valorEs: 'Efecto protagonista a pantalla completa', tierHint: 'M' }],
+      },
+    ],
+  },
+
   'VFX-03': {
     serviceId: 'VFX-03',
     variables: [

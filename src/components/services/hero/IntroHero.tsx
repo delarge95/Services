@@ -118,6 +118,9 @@ const XGLSL = `
 attribute vec3 aOff; attribute vec3 aFrag; attribute vec3 aExt;
 uniform float uExplode, uExS, uExR, uScat, uFwd, uMess, uSpread, uHover, uR, uPush, uFlat; uniform vec3 uCursor, uCenter, uView;
 vec3 cxHash(vec3 p) { return fract(sin(vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)))) * 43758.5453) - 0.5; }
+// ciclo 42: dispersión del scroll con un hash SIN seno (mismo resultado en GPU y en JS: el modelo realista, que se mueve
+// en CPU, coincide pieza a pieza con el esencial en la línea del barrido)
+vec3 cxHq(vec3 p) { p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.xxy + p.yxx) * p.zyx) - 0.5; }
 vec3 cxRot(vec3 v, vec3 k, float a) { float c = cos(a), s = sin(a); return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c); }
 // ciclo 38: vista 2D de cada pieza — gira sobre su centro hasta mirar a la cámara por su eje más delgado
 // (planta de una placa, perfil de un tornillo o de un tubo): una sola cara, sin profundidad
@@ -138,6 +141,13 @@ vec3 cxFlatV(vec3 v, vec3 h) {
  *    se mide PERPENDICULAR a la vista (como en pantalla) y descuenta el radio de la cáscara, así
  *    reaccionan todas las piezas, también las que quedan delante o detrás del plano del cursor.
  */
+/** Gemelo en JS de cxHq (ciclo 42). */
+function hq(x: number, y: number, z: number, out: THREE.Vector3) {
+  const fr = (v: number) => v - Math.floor(v);
+  let a = fr(x * 0.1031), b = fr(y * 0.1030), c = fr(z * 0.0973);
+  const d = a * (b + 33.33) + b * (a + 33.33) + c * (c + 33.33); a += d; b += d; c += d;
+  return out.set(fr((a + b) * c) - 0.5, fr((a + a) * b) - 0.5, fr((b + a) * a) - 0.5);
+}
 function withExplode<M extends THREE.Material>(mat: M, u: XU): M {
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, u);
@@ -151,7 +161,7 @@ function withExplode<M extends THREE.Material>(mat: M, u: XU): M {
         transformed = cxPc + cxFlatV(cxRot(transformed - cxPc, normalize(cxH + vec3(0.001, 0.002, 0.003)), uMess * cxH.x * 0.8), cxH);
         // scroll (ciclo 39): las piezas se separan EN EL PLANO DE LA PANTALLA (no en profundidad, donde se tapan entre sí)
         // y todas se alejan al menos uExR del centro, también las que estaban en medio
-        vec3 cxS = aOff * uExS + normalize(aOff + vec3(1e-4, 2e-4, 3e-4)) * uExR + cxH * uScat;
+        vec3 cxS = aOff * uExS + normalize(aOff + vec3(1e-4, 2e-4, 3e-4)) * uExR + cxHq(aOff * 7.0 + 0.13) * uScat;
         cxS -= uView * dot(cxS, uView);
         vec3 cxDisp = aOff * uExplode + cxH * vec3(1.0, 0.55, 1.0) * uMess * uSpread + cxS + uView * uFwd * aExt.x;
         transformed += cxDisp;
@@ -161,7 +171,7 @@ function withExplode<M extends THREE.Material>(mat: M, u: XU): M {
         transformed = cxFc + cxRot(transformed - cxFc, normalize(cxHf + vec3(0.002, 0.001, 0.003)), cxF * cxHf.z * 1.6);
         transformed += (cxDp / max(cxL, 1e-3)) * cxF * uPush + cxHf * cxF * uPush * 0.9;`);
   };
-  mat.customProgramCacheKey = () => 'cx-explode-39';
+  mat.customProgramCacheKey = () => 'cx-explode-42';
   return mat;
 }
 /** Segmentos ordenados (centro → afuera) a geometría de líneas con `aOff`, `aFrag` y `aExt`. */
@@ -188,6 +198,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
   const countRef = useRef<HTMLSpanElement>(null);
   const lineRef = useRef<HTMLElement>(null);
   const dotRef = useRef<HTMLElement>(null);
+  const seedRef = useRef<HTMLElement>(null);   // ciclo 42: punto blanco inicial (dimensión 0) del que nace la línea
   const introTitleRef = useRef<HTMLDivElement>(null);
   const heroTitleRef = useRef<HTMLHeadingElement>(null);
   const dividerRef = useRef<HTMLDivElement>(null);
@@ -273,7 +284,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     let skKeys = new Float32Array(0);   // claves de dibujo del icono, ordenadas
     let real: THREE.Group | null = null, scan: THREE.LineLoop | null = null;
     let dl = 0, stage2 = 0, prep = 0, parseT0 = 0;
-    let realPartsRef: { m: THREE.Mesh; base: THREE.Vector3; c: THREE.Vector3; inv: THREE.Matrix3 }[] = [];
+    let realPartsRef: { m: THREE.Mesh; base: THREE.Vector3; c: THREE.Vector3; inv: THREE.Matrix3; imp?: number }[] = [];
 
     (async () => {
       const root = await preloadHolybro((p) => { dl = p; if (p >= 0.99 && !parseT0) parseT0 = performance.now(); });
@@ -288,7 +299,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       const matMap = new Map<THREE.Material, THREE.Material>();
       const minParts: ReturnType<typeof worldFloat>[] = [], accParts: ReturnType<typeof worldFloat>[] = [];
       const dA: number[] = [], dO: number[] = [], dD: number[] = [], dF: number[] = [], dE: number[] = []; // detalle (+ cáscara, importancia)
-      const realParts: { m: THREE.Mesh; base: THREE.Vector3; c: THREE.Vector3; inv: THREE.Matrix3 }[] = [];
+      const realParts: { m: THREE.Mesh; base: THREE.Vector3; c: THREE.Vector3; inv: THREE.Matrix3; imp?: number }[] = [];
       const motorMeshes: THREE.Box3[] = [];                                          // para el icono
       let budget = performance.now();
       const push = (ep: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, c: THREE.Vector3, A: number[], O: number[], D: number[], Lr?: number[], Fo?: number[], wf?: ReturnType<typeof worldFloat>, Ex?: number[]) => {
@@ -314,7 +325,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
         if (isMotor) motorMeshes.push(new THREE.Box3().setFromBufferAttribute(new THREE.BufferAttribute(wf.P, 3)));
         const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(wf.P, 3)); if (wf.idx) g.setIndex(Array.from(wf.idx));
         const eg = new THREE.EdgesGeometry(g, 28); push(eg.getAttribute('position'), wf.c, dA, dO, dD, undefined, dF, wf, dE);
-        realParts.push({ m, base: m.position.clone(), c: wf.c.clone(), inv: new THREE.Matrix3().setFromMatrix4(m.parent ? m.parent.matrixWorld.clone().invert() : new THREE.Matrix4()) });
+        realParts.push({ m, base: m.position.clone(), c: wf.c.clone(), inv: new THREE.Matrix3().setFromMatrix4(m.parent ? m.parent.matrixWorld.clone().invert() : new THREE.Matrix4()), imp: wf.imp });
         g.dispose(); eg.dispose();
         prep = (i + 1) / meshes.length * 0.8;
         if (performance.now() - budget > 8) { await nextFrame(); budget = performance.now(); if (disposed) return; }
@@ -432,6 +443,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     window.addEventListener('keydown', onKey);
 
     const _v = new THREE.Vector3(), _r = new THREE.Vector3(), _c = new THREE.Color();
+    const _o = new THREE.Vector3(), _h = new THREE.Vector3(), _d = new THREE.Vector3(), _n = new THREE.Vector3(); let realMoved = false;
     const rectOf = () => {
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
       for (let i = 0; i < 8; i++) {
@@ -460,9 +472,10 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       // ciclo 37: al empezar a bajar el dron QUEDA QUIETO (posición, giro, cursor): solo el scroll mueve las piezas
       const fz = done ? smooth(0, 0.05, scrollE) : 0;
       // despiece al bajar: crece SIEMPRE con el scroll (lineal + acelerando), sin tope dentro del recorrido
-      const ex = done ? scrollE * 1.8 + scrollE * scrollE * 3.0 : 0;
+      // ciclo 42: responde YA al primer paso de rueda (tramo inicial rápido) y sigue creciendo como antes
+      const ex = done ? (1 - Math.exp(-scrollE * 14)) * 0.35 + scrollE * 1.4 + scrollE * scrollE * 3.0 : 0;
       // las caras se apagan (queda la SILUETA en líneas) y al final se desvanece antes de cruzar las opciones
-      const sil = done ? smooth(0.14, 0.42, scrollE) : 0;
+      const sil = done ? smooth(0.3, 0.48, scrollE) : 0;   // ciclo 42: después del barrido a esencial
       const fadeOut = done ? smooth(0.55, 0.95, scrollE) : 0;
       layer.style.opacity = String(1 - fadeOut);
       if (done && scrollE > 0.92) return;
@@ -473,7 +486,15 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       if (ready && target - shown < 0.004) shown = 1;
       if (countRef.current) countRef.current.textContent = String(Math.round(clamp01(shown) * 100)).padStart(3, '0');
       if (wantIntro && failed) { finish(); flipDone = true; curtainRef.current?.classList.add('out'); }
-      if (wantIntro && clock < 0 && shown >= 1 && now - t0 > (short ? 0.25 : 0.5)) { clock = 0; hudRef.current?.classList.add('loaded'); if (skipPending) ff(); }
+      // ciclo 42: 0D → 1D — primero aparece un punto (tinta del tema) y DE ÉL crece la línea de carga
+      const age = now - t0, SEED = short ? 0.3 : 0.7, GROW = short ? 0.4 : 0.9;
+      const grow = ease((age - SEED) / GROW);
+      if (seedRef.current && !done) {
+        const sIn = easeOut(age / (SEED * 0.7));
+        seedRef.current.style.opacity = (sIn * (1 - smooth(0.35, 1, grow))).toFixed(3);
+        seedRef.current.style.transform = `translate(-50%,-50%) scale(${(0.2 + 0.8 * sIn + 0.25 * Math.sin(Math.min(1, grow) * Math.PI)).toFixed(3)})`;
+      }
+      if (wantIntro && clock < 0 && shown >= 1 && age > SEED + GROW + 0.1) { clock = 0; hudRef.current?.classList.add('loaded'); if (skipPending) ff(); }
       // depuración: window.__cxIntroAt = 1.2 fija el instante sin recargar (solo con ?introAt)
       const fzAt = (window as unknown as { __cxIntroAt?: number }).__cxIntroAt;
       if (Number.isFinite(freezeAt) && typeof fzAt === 'number') freezeAt = fzAt;
@@ -482,7 +503,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       // línea: crece desde el centro con la carga; al 100 % se recoge ACELERANDO (ease-in) hasta el punto:
       // máxima velocidad justo en el impacto → golpe de luz + onda; el icono nace de ese impacto
       const cin = (x: number) => { x = clamp01(x); return x * x * x; };
-      if (lineRef.current && !done) lineRef.current.style.transform = `scaleX(${(clamp01(shown) * (t < 0 ? 1 : 1 - cin((t - TL.c0) / TL.c))).toFixed(4)})`;
+      if (lineRef.current && !done) lineRef.current.style.transform = `scaleX(${(clamp01(shown) * grow * (t < 0 ? 1 : 1 - cin((t - TL.c0) / TL.c))).toFixed(4)})`;
       if (dotRef.current && !done) {
         const pre = smooth(TL.c * 0.4, TL.c, t);
         const hit = t < TL.c ? 0 : Math.exp(-(t - TL.c) * 7) * Math.sin(Math.min(Math.PI, (t - TL.c) * 9)) ;
@@ -503,7 +524,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       if (t >= TL.dz0 && !Number.isFinite(freezeAt)) spin += dt * rate * (1 - fz);
       const fol = Math.min(1, dt * 3) * (1 - fz);
       mxS += (mx - mxS) * fol; myS += (my - myS) * fol;
-      const flat = done ? smooth(0.1, 0.85, scrollE) : 0;   // 2D: piezas de frente y sin perspectiva (giro largo y lento)
+      const flat = done ? smooth(0.26, 0.85, scrollE) : 0;   // ciclo 42: el 2D llega después del despiece realista   // 2D: piezas de frente y sin perspectiva (giro largo y lento)
       camera.fov = done ? lerp(FOV1, 6, ease(flat)) : lerp(FOV0, FOV1, dz);
       const theta = lerp(0, 0.95, done ? 1 : dz) + spin + mxS * 0.22 * k;
       const phi = lerp(0.04, 1.16, done ? 1 : dz) + myS * 0.06 * k;
@@ -530,6 +551,18 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       U.uFwd.value = Math.min(ex, 3) * r * 0.07;            // las importantes se acercan algo a la cámara
       U.uView.value.copy(camera.position).sub(center).normalize();
       U.uFlat.value = ease(flat);
+      // ciclo 42: el modelo realista se desarma con el scroll igual que el esencial (antes solo lo hacía el esencial)
+      if (realPartsRef.length && (ex > 0 || realMoved)) {
+        realMoved = ex > 0;
+        const vw = U.uView.value;
+        for (const rp of realPartsRef) {
+          _o.copy(rp.c).sub(center);
+          hq(_o.x * 7 + 0.13, _o.y * 7 + 0.13, _o.z * 7 + 0.13, _h);
+          _d.copy(_o).multiplyScalar(U.uExS.value).addScaledVector(_n.set(_o.x + 1e-4, _o.y + 2e-4, _o.z + 3e-4).normalize(), U.uExR.value).addScaledVector(_h, U.uScat.value);
+          _d.addScaledVector(vw, -_d.dot(vw)).addScaledVector(vw, U.uFwd.value * (rp.imp ?? 0));
+          rp.m.position.copy(rp.base).add(_d.applyMatrix3(rp.inv));
+        }
+      }
       U.uMess.value = messE;
       minMat.opacity = accMat.opacity = 1 - sil; minMat.depthWrite = accMat.depthWrite = sil < 0.02;
       // fractura (solo DESARMADO): las cáscaras cercanas al cursor se desprenden y vuelven al alejarse
@@ -582,8 +615,10 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
         if (messE < 0.02 && !sweeping && fz < 0.01) lastRect = rc;   // zona de clic: el dron armado
         const lr = lastRect.x1 > lastRect.x0 ? lastRect : rc, lw = lr.x1 - lr.x0;
         const xL = (lr.x0 + lr.x1) / 2 - lw * 0.62;   // borde izquierdo del despiece (ocupa más que el dron armado)
+        const xR = (lr.x0 + lr.x1) / 2 + lw * 0.62;   // ciclo 42: borde derecho (todo realista)
         // la línea va BAJO el cursor (acotada al dron); sin cursor (táctil o quieto) deriva despacio
-        const idle = coarse || now - lastMove > 2.5 || px < 0;
+        // ciclo 42: solo sigue al cursor cuando está SOBRE el dron; si no, se mueve sola
+        const idle = coarse || px < 0 || !inRect(px, py) || now - lastMove > 6;
         const tgtX = idle ? lr.x0 + (0.5 + 0.28 * Math.sin((now - heroT) * 0.5)) * lw : Math.max(lr.x0 + lw * 0.03, Math.min(lr.x1 - lw * 0.03, px));
         if (divX < 0) divX = tgtX;
         // al terminar la intro la línea está en el borde derecho: vuelve despacio a su sitio (bajo el cursor)
@@ -608,8 +643,15 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
           lineLen = h * (1.3 + 0.4 * messE);
         } else labels = done;
         // al bajar (armado): el scroll empuja la línea al borde izquierdo → todo esencial, en silueta
-        const ps = done && messT < 0.5 && !sweeping ? smooth(0, 0.1, scrollE) : 0;
-        if (ps > 0) { lineX = lerp(lineX, xL, ps); bx = ps > 0.999 ? -1e5 : lineX; lineA *= 1 - smooth(0.75, 1, ps); labels = labels && ps < 0.3; }
+        // ciclo 42: 1) la línea se va a la DERECHA (todo realista) mientras el dron se desarma; 2) barrido vertical
+        // de derecha a izquierda: a su paso todo pasa a esencial; 3) silueta y 2D (como antes)
+        const scr = done && messT < 0.5 && !sweeping;
+        const pR = scr ? smooth(0, 0.07, scrollE) : 0, ps = scr ? smooth(0.12, 0.3, scrollE) : 0;
+        if (pR > 0) {
+          lineX = ps > 0 ? lerp(xR, xL, ps) : lerp(lineX, xR, pR);
+          bx = ps > 0.999 ? -1e5 : pR > 0.999 && ps <= 0 ? 1e5 : lineX;
+          lineA *= 1 - smooth(0.75, 1, ps); labels = labels && pR < 0.3;
+        }
         planeAtX(bx, planeReal, true); planeAtX(bx, planeMin, false);
         planeEdge.copy(planeMin);
         _c.copy(cols.edge); edgeMat.color.copy(_c); skelMat.color.copy(_c);
@@ -721,6 +763,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
                 <span className="ih-count"><b ref={countRef}>000</b></span>
                 <button type="button" className="ih-skip" onClick={() => skipRef.current()}>{L.skip} →</button>
               </div>
+              <i ref={seedRef} className="ih-seed" />
               <i ref={lineRef} className="ih-bar" />
               <i ref={dotRef} className="ih-dot" />
               <i className="ih-ring" /><i className="ih-flash" />

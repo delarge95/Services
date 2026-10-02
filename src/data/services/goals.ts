@@ -46,6 +46,7 @@ export const SERVICE_GOALS: Record<string, string[]> = {
   'VFX-01': ['video-redes'],
   'VFX-02': ['video-redes'],
   'VFX-03': ['video-redes'],
+  'VFX-04': ['video-redes', 'mostrar-web'],
 };
 
 export function servicesForGoal(goalId: string): ServiceDef[] {

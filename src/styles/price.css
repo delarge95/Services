@@ -64,3 +64,14 @@
 .cx-pricebar-38 .cx-price-cur{white-space:nowrap}
 .cx-pricebar-38 .cx-price-delta{font-size:11px;padding:3px 7px}
 @media (max-width:560px){.cx-pricebar.cx-pricebar-38{gap:8px;padding:8px 12px}.cx-pricebar-38 .cx-pricebar-tag{display:none}.cx-pricebar-38 .cx-pricebar-label{font-size:9px;letter-spacing:.1em;max-width:70px;white-space:normal;line-height:1.2}.cx-pricebar-38 .cx-price-num{font-size:17px}.cx-pricebar-38 .cx-price-cur{display:none}}
+
+/* ── ciclo 42: las etiquetas de variación (+/− por servicio) ya no se cortan: flotan sobre el filete superior de
+   la barra; el barrido de la línea se recorre con 'left' para no salirse de la barra sin 'overflow:hidden' ── */
+.cx-pricebar.cx-pricebar-38{overflow:visible}
+.cx-pricebar-38 .cx-price{position:static}
+.cx-pricebar-38 .cx-price-delta{position:absolute;right:14px;top:-11px;z-index:2;white-space:nowrap;
+  background:color-mix(in srgb,var(--cx-bg,#0b0c0e) 70%,transparent);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid currentColor}
+.cx-pricebar-38 .cx-price-delta.up{color:#34d399}.cx-pricebar-38 .cx-price-delta.down{color:#fb7185}
+html[data-cx-theme='light'] .cx-pricebar-38 .cx-price-delta.up{color:#0f7b3d}html[data-cx-theme='light'] .cx-pricebar-38 .cx-price-delta.down{color:#b4231f}
+.cx-pricebar-38 .cx-pricebar-sweep{animation-name:cx-pb-sweep-42}
+@keyframes cx-pb-sweep-42{0%{left:0;opacity:0}10%{opacity:1}90%{opacity:1}100%{left:calc(100% - 2px);opacity:0}}

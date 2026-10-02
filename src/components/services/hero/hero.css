@@ -194,3 +194,8 @@ html, body { overflow-x: clip; }
 .ih-lt-on .lt { color: transparent; -webkit-text-stroke: 1.1px var(--lt-ink); background-image: linear-gradient(var(--lt-ink), var(--lt-ink));
   background-repeat: no-repeat; background-position: 0 0; background-size: var(--lt-w, 100%) var(--lt-h, 100%); -webkit-background-clip: text; background-clip: text; }
 .ih-lt-on em.lt { --lt-ink: var(--cx-accent, #ff7a3d); }
+
+/* ── ciclo 42 · dimensión 0: la intro nace de un punto blanco (tinta del tema) del que crece la línea ── */
+.ih-seed { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; border-radius: 50%; background: var(--ih-ink); opacity: 0;
+  transform: translate(-50%, -50%) scale(.2); pointer-events: none;
+  box-shadow: 0 0 8px 1px color-mix(in srgb, var(--ih-ink) 70%, transparent), 0 0 26px 4px color-mix(in srgb, var(--ih-ink) 22%, transparent); }

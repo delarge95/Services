@@ -28,6 +28,7 @@ export const SERVICE_ROOTS: Record<string, { title: string; subtitle: string; op
       { id: 'VFX-01', label: 'Mi producto en un video real', desc: 'Integrar un modelo 3D en tus fotos o grabaciones', icon: 'camera', serviceIds: ['VFX-01'] },
       { id: 'VFX-02', label: 'Efectos visuales (VFX)', desc: 'Simulaciones, partículas, humo o destrucción sobre video', icon: 'sparkles', serviceIds: ['VFX-02'] },
       { id: 'VFX-03', label: 'Motion graphics 3D', desc: 'Piezas animadas para redes, intro o publicidad', icon: 'layers', serviceIds: ['VFX-03'] },
+      { id: 'VFX-04', label: 'Efectos procedurales en tu web (WebGL)', desc: 'Partículas, humo o fluidos generados en vivo en el navegador: más simple y económico', icon: 'wave', serviceIds: ['VFX-04'] },
     ],
   },
   imagenes: {

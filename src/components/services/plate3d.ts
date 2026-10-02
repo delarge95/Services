@@ -104,6 +104,9 @@ function figWeb(p: Pal): Fig {
   });
   const frame = new THREE.Mesh(extrude(roundedPts(34, 14, 286, 166, 7), 0.06), mat(new THREE.Color('#1a1d24'), { rough: 0.4, metal: 0.3 })); frame.position.z = -0.36;
   const scr = new THREE.Mesh(new THREE.PlaneGeometry(2.48, 1.48), mat(new THREE.Color('#ffffff'), { map: screen, rough: 0.9, flat: new THREE.Color('#141822') })); scr.position.set(0, 0, -0.295); scr.userData.noOutline = true;
+  // ciclo 42: el tablero se pinta primero y NO escribe profundidad → la órbita discontinua pasa por delante de él
+  // (y sigue escondiéndose detrás del cubo, que sí escribe profundidad)
+  frame.userData.noDepth = scr.userData.noDepth = true; frame.renderOrder = -2; scr.renderOrder = -1.5;
   // cubo isométrico: hexágono de radio 0,36 → arista 0,36 / √(2/3); caras visibles: +Y (acento), −X (izq.), +Z (der.)
   const a = 0.36 / Math.sqrt(2 / 3), grey = (k: number) => p.ink.clone().multiplyScalar(k);
   const cube = new THREE.Mesh(new THREE.BoxGeometry(a, a, a), [mat(grey(0.3)), mat(grey(0.5), { rough: 0.35 }), mat(p.acc, { rough: 0.35, metal: 0.2 }), mat(grey(0.3)), mat(grey(0.25), { rough: 0.35 }), mat(grey(0.3))]);
@@ -111,7 +114,7 @@ function figWeb(p: Pal): Fig {
   const cubeG = new THREE.Group(); cubeG.add(cube); cubeG.position.set(0, Y(98), 0.1);
   // órbita: elipse rx 74, ry 20 = círculo inclinado (discontinua, como el SVG)
   const orbitPts = Array.from({ length: 97 }, (_, i) => { const t = (i / 96) * Math.PI * 2; return new THREE.Vector3(0.74 * Math.cos(t), 0.2 * Math.sin(t), 0.71 * Math.sin(t)); });
-  const orbit = new THREE.Line(new THREE.BufferGeometry().setFromPoints(orbitPts), new THREE.LineDashedMaterial({ dashSize: 0.03, gapSize: 0.04, transparent: true })); orbit.computeLineDistances(); orbit.userData.kind = 'acc'; orbit.userData.anno = true; orbit.position.set(0, Y(100), 0.1);
+  const orbit = new THREE.Line(new THREE.BufferGeometry().setFromPoints(orbitPts), new THREE.LineDashedMaterial({ dashSize: 0.03, gapSize: 0.04, transparent: true })); orbit.computeLineDistances(); orbit.userData.kind = 'acc'; orbit.userData.anno = true; orbit.position.set(0, Y(100), 0.1); orbit.renderOrder = 5;
   const arrow = pl([[229, 94], [234, 100], [240, 95]], 'acc', false, 0.12);
   const hot = new THREE.Mesh(new THREE.SphereGeometry(0.032, 16, 12), mat(p.sig, { rough: 0.2, filled: true })); hot.userData.noOutline = true;
   const leader = pl([[192, 77], [220, 56], [252, 56]], 'sig', false, 0.3);
@@ -159,6 +162,16 @@ function figVideo(p: Pal): Fig {
     kf.forEach((k) => { k.rotation.y = t * 1.5 * lit; });
   } };
 }
+/** Tronco de pirámide rectangular: frente w0×h0 en z = 0 (abierto: lo tapa el difusor), fondo w1×h1 en z = −d. */
+function frustum(w0: number, h0: number, w1: number, h1: number, d: number) {
+  const f = [[-w0 / 2, -h0 / 2, 0], [w0 / 2, -h0 / 2, 0], [w0 / 2, h0 / 2, 0], [-w0 / 2, h0 / 2, 0]];
+  const b = [[-w1 / 2, -h1 / 2, -d], [w1 / 2, -h1 / 2, -d], [w1 / 2, h1 / 2, -d], [-w1 / 2, h1 / 2, -d]];
+  const P = [...f, ...b], quads = [[1, 0, 4, 5], [2, 1, 5, 6], [3, 2, 6, 7], [0, 3, 7, 4], [5, 4, 7, 6]];
+  const pos: number[] = [];
+  for (const [a, b2, c, e] of quads) for (const i of [a, b2, c, a, c, e]) pos.push(...P[i]);
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
+}
+
 function figProduct(p: Pal): Fig {
   const root = new THREE.Group();
   // perfil del frasco: cuerpo 130–190 (r 30, esquinas r10 arriba y r8 abajo), cuello r 9 (60–72), tapa r 14 (45–60)
@@ -178,12 +191,20 @@ function figProduct(p: Pal): Fig {
   ground.rotation.x = -Math.PI / 2 + Math.asin(6 / 54); ground.position.y = Y(154); ground.userData.noOutline = true; ground.userData.litOnly = true;
   const groundL = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 65 }, (_, i) => { const a = (i / 64) * Math.PI * 2; return new THREE.Vector3(0.54 * Math.cos(a), Y(154) + 0.06 * Math.sin(a), 0.537 * Math.sin(a)); })), new THREE.LineDashedMaterial({ dashSize: 0.03, gapSize: 0.04, transparent: true })); groundL.computeLineDistances(); groundL.userData.kind = 'ink'; groundL.userData.anno = true;
   // caja de luz: cuadrilátero (44,32)-(96,20)-(104,52)-(52,64) → 0,53 × 0,33, girada +13° (y hacia arriba)
-  const box = new THREE.Mesh(new THREE.BoxGeometry(0.535, 0.33, 0.04), mat(new THREE.Color('#ffffff'), { rough: 0.9, glow: true })); box.position.set(X(74), Y(42), 0.1); box.rotation.z = Math.atan2(12, 52);
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.535, 0.33, 0.04), mat(new THREE.Color('#ffffff'), { rough: 0.9, glow: true }));
+  // ciclo 42: una luz de estudio real (softbox): el difusor es la cara de un cuerpo troncopiramidal con fondo y pie;
+  // de frente coincide con el dibujo 2D (el cuerpo queda oculto detrás) y al girar la cámara se ve su volumen
+  const light = new THREE.Group(); light.position.set(X(74), Y(42), 0.1); light.rotation.z = Math.atan2(12, 52);
+  const housing = new THREE.Mesh(frustum(0.535, 0.33, 0.2, 0.12, 0.32), mat(new THREE.Color('#23262d'), { rough: 0.8, metal: 0.05, flat: p.ink.clone().multiplyScalar(0.35) })); housing.position.z = -0.02;
+  const yoke = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.08, 16), mat(new THREE.Color('#1c1f26'), { rough: 0.4, metal: 0.7 })); yoke.rotation.x = Math.PI / 2; yoke.position.z = -0.38; yoke.userData.noOutline = true;
+  light.add(box, housing, yoke);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, Y(42) - Y(156), 12), mat(new THREE.Color('#1c1f26'), { rough: 0.4, metal: 0.7 }));
+  pole.position.set(X(74), (Y(42) + Y(156)) / 2, 0.1 - 0.4); pole.userData.litOnly = true; pole.userData.noOutline = true;
   const rays = [[[104, 46], [134, 80]], [[100, 58], [132, 100]], [[92, 62], [130, 124]]].map((q) => pl(q as [number, number][], 'acc', true, 0.05));
   const brk = [[[116, 48], [116, 38], [126, 38]], [[204, 48], [204, 38], [194, 38]], [[116, 150], [116, 160], [126, 160]], [[204, 150], [204, 160], [194, 160]]].map((q) => pl(q as [number, number][], 'sig', false, 0.4));
   const lab2 = textPlane('f/8 · 1/125 · ISO 100', 214, 34);
-  root.add(liquid, glass, cap, lab, ground, groundL, box, ...rays, ...brk, lab2);
-  return { root, tick: (t, lit) => { glass.rotation.y = liquid.rotation.y = t * 0.5 * lit; lab.rotation.y = Math.PI + t * 0.5 * lit; } };   // u = 0,5 de la etiqueta (el «AW») de frente
+  root.add(liquid, glass, cap, lab, ground, groundL, light, pole, ...rays, ...brk, lab2);
+  return { root, tick: (t, lit) => { glass.rotation.y = liquid.rotation.y = t * 0.5 * lit; lab.rotation.y = Math.PI + t * 0.5 * lit; light.rotation.x = 0.3 * lit; } };   // u = 0,5 de la etiqueta (el «AW») de frente
 }
 function figIA(p: Pal): Fig {
   const root = new THREE.Group();
@@ -249,6 +270,7 @@ export function createPlate3D() {
   const LK = ['ink', 'acc', 'sig'] as const;
   const edgeMats = Object.fromEntries(LK.map((k) => [k, new THREE.LineBasicMaterial({ transparent: true, depthWrite: false })])) as Record<(typeof LK)[number], THREE.LineBasicMaterial>;
   const outMats = Object.fromEntries(LK.map((k) => [k, outlineMat()])) as Record<(typeof LK)[number], THREE.MeshBasicMaterial>;
+  const outClones: { k: (typeof LK)[number]; m: THREE.MeshBasicMaterial }[] = [];   // ciclo 42: contornos sin profundidad
   const cache = new Map<string, { fig: Fig; mats: Mat[]; annos: THREE.Line[]; labels: THREE.Mesh[]; litOnly: THREE.Object3D[] }>();
   let active: { id: string; plate: HTMLElement; svg: SVGSVGElement; P: number; dir: 1 | -1; t0: number } | null = null;
   let raf = 0, last = 0;
@@ -263,7 +285,13 @@ export function createPlate3D() {
       if (m.userData.litOnly) continue;
       const lk = (m.userData.lk ?? 'ink') as (typeof LK)[number];
       m.add(new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry, 28), edgeMats[lk]));
-      if (!m.userData.noOutline) { const o = new THREE.Mesh(m.geometry, outMats[lk]); o.renderOrder = -1; m.add(o); }
+      if (m.userData.noDepth) (Array.isArray(m.material) ? m.material : [m.material]).forEach((x) => { (x.userData as { noDepth?: boolean }).noDepth = true; });
+      if (!m.userData.noOutline) {
+        // ciclo 42: el contorno de una pieza sin profundidad va antes que ella y tampoco escribe profundidad
+        let om = outMats[lk];
+        if (m.userData.noDepth) { om = outMats[lk].clone(); om.depthWrite = false; outClones.push({ k: lk, m: om }); }
+        const o = new THREE.Mesh(m.geometry, om); o.renderOrder = m.userData.noDepth ? -3 : -1; m.add(o);
+      }
     }
     c = { fig, mats: [...new Set(mats)], annos, labels, litOnly }; cache.set(id, c); return c;
   };
@@ -292,6 +320,7 @@ export function createPlate3D() {
     const lineOp = 0.8 * (1 - 0.75 * lit);
     const lc = { ink: pal.ink, acc: pal.acc, sig: pal.sig };
     LK.forEach((k) => { edgeMats[k].color.copy(lc[k]); edgeMats[k].opacity = lineOp; outMats[k].color.copy(lc[k]); outMats[k].opacity = lineOp; });
+    for (const o of outClones) { o.m.color.copy(lc[o.k]); o.m.opacity = lineOp; }
     OUTLINE_W.value = (1.15 / cw) * 3.2 * (1 + cam * 0.6);
     const kc: Record<string, THREE.Color> = { ink: pal.ink, acc: pal.acc, sig: pal.sig, mute: pal.mute };
     for (const l of c.annos) { const m = l.material as THREE.LineBasicMaterial; m.color.copy(kc[l.userData.kind as string] ?? pal.ink); m.opacity = (l.userData.kind === 'mute' ? 0.55 : 0.85) * (1 - 0.45 * lit); }
@@ -307,6 +336,7 @@ export function createPlate3D() {
       m.color.copy(d.base).multiplyScalar(Math.max(0.0001, lit)); m.envMapIntensity = lit;
       // vidrio: transparente con reflejos del entorno y barniz (deja ver el líquido); sin transmisión (el fondo es transparente)
       if ((d as { physical?: boolean }).physical) { m.opacity = 1 - 0.74 * lit; m.depthWrite = lit < 0.5; m.envMapIntensity = 2.2 * lit; }
+      if ((d as { noDepth?: boolean }).noDepth) m.depthWrite = false;
     }
     hemi.intensity = 0.9 * lit; key.intensity = 2.2 * lit; rim.intensity = 1.1 * lit;
     c.fig.tick(time, lit);
