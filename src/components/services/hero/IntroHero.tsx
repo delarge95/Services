@@ -288,7 +288,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     let skKeys = new Float32Array(0);   // claves de dibujo del icono, ordenadas
     let real: THREE.Group | null = null, scan: THREE.LineLoop | null = null;
     let dl = 0, stage2 = 0, prep = 0, parseT0 = 0;
-    let realPartsRef: { m: THREE.Mesh; base: THREE.Vector3; c: THREE.Vector3; inv: THREE.Matrix3; imp?: number }[] = [];
+    let realPartsRef: { m: THREE.Mesh; base: THREE.Vector3; c: THREE.Vector3; inv: THREE.Matrix3; imp?: number; w0?: THREE.Matrix4; pinv?: THREE.Matrix4; ax?: number }[] = [];
 
     (async () => {
       const root = await preloadHolybro((p) => { dl = p; if (p >= 0.99 && !parseT0) parseT0 = performance.now(); });
@@ -307,7 +307,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       for (const m of meshes) { const z = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()), d = [z.x, z.y, z.z].sort((p, q) => q - p), A = d[0] * d[1]; areaOf.set(m, A); maxArea = Math.max(maxArea, A); }
       const minParts: ReturnType<typeof worldFloat>[] = [], accParts: ReturnType<typeof worldFloat>[] = [];
       const dA: number[] = [], dO: number[] = [], dD: number[] = [], dF: number[] = [], dE: number[] = []; // detalle (+ cáscara, importancia)
-      const realParts: { m: THREE.Mesh; base: THREE.Vector3; c: THREE.Vector3; inv: THREE.Matrix3; imp?: number }[] = [];
+      const realParts: { m: THREE.Mesh; base: THREE.Vector3; c: THREE.Vector3; inv: THREE.Matrix3; imp?: number; w0?: THREE.Matrix4; pinv?: THREE.Matrix4; ax?: number }[] = [];
       const motorMeshes: THREE.Box3[] = [];                                          // para el icono
       let budget = performance.now();
       const push = (ep: THREE.BufferAttribute | THREE.InterleavedBufferAttribute, c: THREE.Vector3, A: number[], O: number[], D: number[], Lr?: number[], Fo?: number[], wf?: ReturnType<typeof worldFloat>, Ex?: number[]) => {
@@ -335,7 +335,8 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
         if (isMotor) motorMeshes.push(new THREE.Box3().setFromBufferAttribute(new THREE.BufferAttribute(wf.P, 3)));
         const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(wf.P, 3)); if (wf.idx) g.setIndex(Array.from(wf.idx));
         const eg = new THREE.EdgesGeometry(g, 28); push(eg.getAttribute('position'), wf.c, dA, dO, dD, undefined, dF, wf, dE);
-        realParts.push({ m, base: m.position.clone(), c: wf.c.clone(), inv: new THREE.Matrix3().setFromMatrix4(m.parent ? m.parent.matrixWorld.clone().invert() : new THREE.Matrix4()), imp: wf.imp });
+        realParts.push({ m, base: m.position.clone(), c: wf.c.clone(), inv: new THREE.Matrix3().setFromMatrix4(m.parent ? m.parent.matrixWorld.clone().invert() : new THREE.Matrix4()), imp: wf.imp,
+          w0: m.matrixWorld.clone(), pinv: m.parent ? m.parent.matrixWorld.clone().invert() : new THREE.Matrix4(), ax: wf.ax });
         g.dispose(); eg.dispose();
         prep = (i + 1) / meshes.length * 0.8;
         if (performance.now() - budget > 8) { await nextFrame(); budget = performance.now(); if (disposed) return; }
@@ -454,6 +455,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
 
     const _v = new THREE.Vector3(), _r = new THREE.Vector3(), _c = new THREE.Color();
     const _o = new THREE.Vector3(), _h = new THREE.Vector3(), _d = new THREE.Vector3(), _n = new THREE.Vector3(); let realMoved = false;
+    const _a = new THREE.Vector3(), _k = new THREE.Vector3(), _q = new THREE.Quaternion(), _M = new THREE.Matrix4(), _R = new THREE.Matrix4();
     const rectOf = () => {
       let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
       for (let i = 0; i < 8; i++) {
@@ -566,7 +568,9 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       U.uScat.value = ex * rH * 0.45;                       // y se separan entre sí
       U.uFwd.value = Math.min(ex, 3) * r * 0.07;            // las importantes se acercan algo a la cámara
       U.uView.value.copy(camera.position).sub(center).normalize();
-      U.uFlat.value = ease(flat);
+      // ciclo 43c: cada pieza empieza a girar hacia su vista 2D desde el PRIMER momento del despiece (más natural);
+      // la cámara (fov) sigue pasando a 2D en su tramo 0,26–0,48
+      U.uFlat.value = done ? ease(smooth(0, 0.48, qE)) : 0;
       // ciclo 43: tramo final — las grandes frenan su dispersión (siguen en pantalla) y las pequeñas se encogen
       // monótono (nunca retrocede): hasta ex = 1,05 igual que las demás (el barrido realista/esencial coincide);
       // después siguen su MISMO camino del despiece, más despacio (15 %) que las pequeñas
@@ -582,7 +586,18 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
           hq(_o.x * 7 + 0.13, _o.y * 7 + 0.13, _o.z * 7 + 0.13, _h);
           _d.copy(_o).multiplyScalar(U.uExS.value).addScaledVector(_n.set(_o.x + 1e-4, _o.y + 2e-4, _o.z + 3e-4).normalize(), U.uExR.value).addScaledVector(_h, U.uScat.value);
           _d.addScaledVector(vw, -_d.dot(vw)).addScaledVector(vw, U.uFwd.value * (rp.imp ?? 0));
-          rp.m.position.copy(rp.base).add(_d.applyMatrix3(rp.inv));
+          if (rp.w0 && rp.pinv) {
+            // M = T(c + d) · R · T(−c) · W0 (mismo giro que cxFlatV: el eje más delgado de la pieza hacia la cámara)
+            const fl = U.uFlat.value; _q.identity();
+            if (fl > 0) {
+              _a.set(rp.ax === 0 ? 1 : 0, rp.ax === 1 ? 1 : 0, rp.ax === 2 ? 1 : 0); if (_a.dot(vw) < 0) _a.negate();
+              _k.crossVectors(_a, vw); const sn = _k.length();
+              if (sn > 1e-4) _q.setFromAxisAngle(_k.multiplyScalar(1 / sn), Math.atan2(sn, _a.dot(vw)) * fl);
+            }
+            _R.makeRotationFromQuaternion(_q);
+            _M.makeTranslation(rp.c.x + _d.x, rp.c.y + _d.y, rp.c.z + _d.z).multiply(_R).multiply(_R.makeTranslation(-rp.c.x, -rp.c.y, -rp.c.z)).multiply(rp.w0);
+            rp.m.matrixAutoUpdate = false; rp.m.matrix.copy(rp.pinv).multiply(_M); rp.m.matrixWorldNeedsUpdate = true;
+          } else rp.m.position.copy(rp.base).add(_d.applyMatrix3(rp.inv));
         }
       }
       U.uMess.value = messE;
