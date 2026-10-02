@@ -193,3 +193,15 @@
 .cx-urg > button:last-child { border-right: 0 !important; }
 .cx-urg > button[style*="var(--cx-accent-soft)"] { background: color-mix(in srgb, var(--cx-accent) 10%, transparent) !important; box-shadow: inset 0 -2px 0 var(--cx-accent); }
 .cx-config > div > div [style*="border-radius: 999px"]:not(.cx-back) { border-radius: 0 !important; }
+
+/* ── ciclo 40 ── */
+/* lo que aún viaja desde el dron (o espera invisible sobre él) no se puede tocar: el clic llega al dron */
+.cx-mono { pointer-events: none !important; }
+/* título + láminas caben en una pantalla en escritorio: el dibujo se ajusta al alto de la ventana */
+@media (min-width: 900px) {
+  .cx-thread { height: 44px; margin-bottom: 12px; }
+  .cx-plate-fig { padding: 30px 18px 2px; }
+  .cx-plate-fig svg { max-height: clamp(104px, 15.5vh, 210px); }
+  .cx-plate-txt { padding: 8px 20px 14px; }
+  .cx-plate-desc { font-size: 13px; }
+}

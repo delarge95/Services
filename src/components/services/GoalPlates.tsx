@@ -183,9 +183,12 @@ export function GoalPlates({ options, onPick, lang = 'es' }: { options: PlateOpt
       const vh = window.innerHeight, vw = window.innerWidth, sy = window.scrollY, sx = window.scrollX;
       const mobile = vw < 760 || vw / vh < 0.95;
       const dc = mobile ? { x: vw * 0.5, y: vh * 0.28 } : { x: vw * 0.73, y: vh * 0.5 };
+      const wide = vw >= 900, tb = title ? base.get(title) : null, kAll = tb ? (vh * 0.98 - (tb.y - sy)) / (vh * 0.55) : 0;
       fly.forEach((e, i) => {
         const b = base.get(e); if (!b) return;
-        const top = b.y - sy, k = reduce ? 1 : outE((vh * 0.98 - top) / (vh * 0.62) - (plates.includes(e) ? (plates.indexOf(e) % 3) * 0.05 : 0));
+        // escritorio (ciclo 40): TODO llega a la vez, guiado por el título (con un leve desfase por orden) → cuando el
+        // título está arriba, la sección completa está en su sitio sin seguir bajando. Móvil (una columna): cada uno el suyo.
+        const top = b.y - sy, k = reduce ? 1 : wide ? outE(kAll - i * 0.03) : outE((vh * 0.98 - top) / (vh * 0.62) - (plates.includes(e) ? (plates.indexOf(e) % 3) * 0.05 : 0));
         e.classList.toggle('cx-mono', k < 1);
         if (k >= 1) { e.style.transform = ''; e.style.opacity = ''; return; }
         const cx = b.x - sx + b.w / 2, cy = top + b.h / 2, dx = (dc.x - cx) * (1 - k), dy = (dc.y - cy) * (1 - k);
@@ -198,7 +201,7 @@ export function GoalPlates({ options, onPick, lang = 'es' }: { options: PlateOpt
       plates.forEach((p, i) => {
         const b = base.get(p); const top = b ? b.y - sy : p.getBoundingClientRect().top, hgt = b ? b.h : p.offsetHeight;
         // se traza mientras entra (del 98 % al 45 % del alto de la ventana), con un leve desfase por columna
-        const d = reduce ? 1 : Math.max(0, Math.min(1, (vh * 0.98 - top) / (vh * 0.5) - (i % 3) * 0.06));
+        const d = reduce ? 1 : wide ? Math.max(0, Math.min(1, (kAll - (fly.indexOf(p)) * 0.03) * 1.15)) : Math.max(0, Math.min(1, (vh * 0.98 - top) / (vh * 0.5) - (i % 3) * 0.06));
         p.style.setProperty('--d', d.toFixed(3));
         p.classList.toggle('drawn', d >= 1);
         if (coarse) { const c = top + hgt / 2, on = d >= 1 && c > vh * 0.25 && c < vh * 0.75; if (on !== p.classList.contains('live')) { p.classList.toggle('live', on); if (on) enter(p); else leave(p); } }

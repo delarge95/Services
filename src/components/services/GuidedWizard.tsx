@@ -213,7 +213,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
         <div style={{ paddingTop: 0, textAlign: 'center' }}>
           {/* ciclo 32: pantalla de inicio que se convierte en el hero ("de lo complejo a lo esencial") */}
           {rootChoice !== 'no-se' && <IntroHero lang={en ? 'en' : 'es'} />}
-          <div id="cx-goals" style={{ scrollMarginTop: 90, paddingTop: 72 }} />
+          <div id="cx-goals" style={{ scrollMarginTop: 70, paddingTop: 40 }} />
           <i className="cx-thread" aria-hidden="true" />
           <span className="cx-eyebrow" data-fly>{en ? '3D · Web · AI — quote in 1 minute' : '3D · Web · IA — cotiza en 1 minuto'}</span>
           {/* ciclo 38: el título sale de la explosión del dron en LINEART y se rellena al asentarse (o con el cursor) */}
@@ -226,7 +226,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
             {en ? W.l1Sub : 'Elige una opción y te guiamos paso a paso.'}
           </p>
           {/* ciclo 11: prototipo en vivo — la demo real del trabajo (Twinsight X500) */}
-          <div data-fly style={{ textAlign: 'center', margin: '0 0 44px' }}>
+          <div data-fly style={{ textAlign: 'center', margin: '0 0 26px' }}>
             <a href={BRAND.prototypeUrl} target="_blank" rel="noopener noreferrer" className="cx-prototype-link cx-protolink"
               style={{ fontSize: 14.5, fontWeight: 500, color: 'var(--cx-accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               {en ? W.prototypeLink : 'Mira un prototipo en vivo: TwinSight X500'}
