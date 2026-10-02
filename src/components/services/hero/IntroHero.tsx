@@ -113,10 +113,10 @@ function merge(parts: ReturnType<typeof worldFloat>[], center: THREE.Vector3) {
   g.setIndex(new THREE.BufferAttribute(I, 1)); return g;
 }
 /** Uniforms compartidos del despiece y la fractura (todo en GPU). */
-type XU = { uExplode: { value: number }; uExS: { value: number }; uExR: { value: number }; uScat: { value: number }; uFwd: { value: number }; uFlat: { value: number }; uMess: { value: number }; uSpread: { value: number }; uHover: { value: number }; uR: { value: number }; uPush: { value: number }; uSmall: { value: number }; uImpK: { value: number }; uCursor: { value: THREE.Vector3 }; uCenter: { value: THREE.Vector3 }; uView: { value: THREE.Vector3 } };
+type XU = { uExplode: { value: number }; uExS: { value: number }; uExR: { value: number }; uScat: { value: number }; uFwd: { value: number }; uFlat: { value: number }; uMess: { value: number }; uSpread: { value: number }; uHover: { value: number }; uR: { value: number }; uPush: { value: number }; uImpK: { value: number }; uCursor: { value: THREE.Vector3 }; uCenter: { value: THREE.Vector3 }; uView: { value: THREE.Vector3 } };
 const XGLSL = `
 attribute vec3 aOff; attribute vec3 aFrag; attribute vec3 aExt;
-uniform float uExplode, uExS, uExR, uScat, uFwd, uMess, uSpread, uHover, uR, uPush, uFlat, uSmall, uImpK; uniform vec3 uCursor, uCenter, uView;
+uniform float uExplode, uExS, uExR, uScat, uFwd, uMess, uSpread, uHover, uR, uPush, uFlat, uImpK; uniform vec3 uCursor, uCenter, uView;
 vec3 cxHash(vec3 p) { return fract(sin(vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)))) * 43758.5453) - 0.5; }
 // ciclo 42: dispersión del scroll con un hash SIN seno (mismo resultado en GPU y en JS: el modelo realista, que se mueve
 // en CPU, coincide pieza a pieza con el esencial en la línea del barrido)
@@ -163,13 +163,12 @@ function withExplode<M extends THREE.Material>(mat: M, u: XU): M {
         // y todas se alejan al menos uExR del centro, también las que estaban en medio
         vec3 cxS = aOff * uExS + normalize(aOff + vec3(1e-4, 2e-4, 3e-4)) * uExR + cxHq(aOff * 7.0 + 0.13) * uScat;
         cxS -= uView * dot(cxS, uView);
-        // ciclo 43: las piezas GRANDES (placas, brazos, hélices, motores) se dispersan más despacio en el tramo final
-        // (siguen en pantalla en 2D) y las pequeñas se encogen hasta desaparecer antes
+        // ciclo 43: las piezas GRANDES (placas, brazos, hélices, motores) recorren su MISMA trayectoria de despiece
+        // más despacio en el tramo final (siguen en pantalla en 2D); las pequeñas siguen a velocidad normal y salen
         float cxImp = smoothstep(0.42, 0.72, aExt.x), cxIk = mix(1.0, uImpK, cxImp);
         cxS *= cxIk;
         vec3 cxDisp = aOff * uExplode + cxH * vec3(1.0, 0.55, 1.0) * uMess * uSpread + cxS + uView * uFwd * aExt.x * cxIk;
         transformed += cxDisp;
-        { vec3 cxPd = uCenter + aOff + cxDisp; transformed = cxPd + (transformed - cxPd) * (1.0 - uSmall * (1.0 - cxImp)); }
         vec3 cxFc = uCenter + aFrag + cxDisp, cxD = cxFc - uCursor;
         vec3 cxDp = cxD - uView * dot(cxD, uView); float cxL = length(cxDp);
         float cxF = uHover * (1.0 - smoothstep(0.0, uR, max(0.0, cxL - min(aExt.y * 0.5, uR * 0.3))));   // cáscaras (solo en modo esencial)
@@ -267,7 +266,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     const planeReal = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1e6);   // empieza oculto
     const planeMin = new THREE.Plane(new THREE.Vector3(0, -1, 0), -1e6);   // empieza oculto
     const planeEdge = new THREE.Plane(new THREE.Vector3(0, 1, 0), 1e6);    // empieza visible entero
-    const U: XU = { uExplode: { value: 0 }, uExS: { value: 0 }, uExR: { value: 0 }, uScat: { value: 0 }, uFwd: { value: 0 }, uFlat: { value: 0 }, uMess: { value: 0 }, uSpread: { value: 1 }, uHover: { value: 0 }, uR: { value: 1 }, uPush: { value: 0.2 }, uSmall: { value: 0 }, uImpK: { value: 1 }, uCursor: { value: new THREE.Vector3(0, -99, 0) }, uCenter: { value: new THREE.Vector3() }, uView: { value: new THREE.Vector3(0, 0, 1) } };
+    const U: XU = { uExplode: { value: 0 }, uExS: { value: 0 }, uExR: { value: 0 }, uScat: { value: 0 }, uFwd: { value: 0 }, uFlat: { value: 0 }, uMess: { value: 0 }, uSpread: { value: 1 }, uHover: { value: 0 }, uR: { value: 1 }, uPush: { value: 0.2 }, uImpK: { value: 1 }, uCursor: { value: new THREE.Vector3(0, -99, 0) }, uCenter: { value: new THREE.Vector3() }, uView: { value: new THREE.Vector3(0, 0, 1) } };
     const minMat = withExplode(new THREE.MeshStandardMaterial({ color: cols.face, roughness: 0.82, metalness: 0.0, transparent: true, clippingPlanes: [planeMin], polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }), U);
     const accMat = withExplode(new THREE.MeshStandardMaterial({ color: cols.acc, roughness: 0.55, metalness: 0.1, emissive: cols.acc, emissiveIntensity: 0.25, transparent: true, clippingPlanes: [planeMin], polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }), U);
     const edgeMat = withExplode(new THREE.LineBasicMaterial({ color: 0xe9e6df, transparent: true, opacity: 0.55, depthWrite: false, clippingPlanes: [planeEdge] }), U);
@@ -302,6 +301,10 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       U.uCenter.value.copy(center); U.uR.value = rH * 0.42; U.uPush.value = rH * 0.13; U.uSpread.value = rH * 0.36;
       const meshes: THREE.Mesh[] = []; drone.traverse((o) => { if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh); });
       const matMap = new Map<THREE.Material, THREE.Material>();
+      // ciclo 43: área de cada pieza (sus dos lados mayores): las PLACAS son las de más superficie aunque su radio sea
+      // menor que el de hélices o patas → también cuentan como piezas grandes y reconocibles
+      const areaOf = new Map<THREE.Mesh, number>(); let maxArea = 1e-9;
+      for (const m of meshes) { const z = new THREE.Box3().setFromObject(m).getSize(new THREE.Vector3()), d = [z.x, z.y, z.z].sort((p, q) => q - p), A = d[0] * d[1]; areaOf.set(m, A); maxArea = Math.max(maxArea, A); }
       const minParts: ReturnType<typeof worldFloat>[] = [], accParts: ReturnType<typeof worldFloat>[] = [];
       const dA: number[] = [], dO: number[] = [], dD: number[] = [], dF: number[] = [], dE: number[] = []; // detalle (+ cáscara, importancia)
       const realParts: { m: THREE.Mesh; base: THREE.Vector3; c: THREE.Vector3; inv: THREE.Matrix3; imp?: number }[] = [];
@@ -327,6 +330,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
         wf.imp = clamp01((wf.r / radius - 0.08) / 0.3);   // importancia = tamaño relativo (placas, brazos, hélices)
         const isMotor = /DJ-2216/i.test(meshEffectiveName(m));
         if (isMotor && wf.r > radius * 0.05) wf.imp = Math.max(wf.imp, 0.75);   // ciclo 43: los motores también son piezas reconocibles
+        wf.imp = Math.max(wf.imp, clamp01(((areaOf.get(m) ?? 0) / maxArea - 0.3) / 0.3) * 0.95);   // placas
         (isMotor ? accParts : minParts).push(wf);
         if (isMotor) motorMeshes.push(new THREE.Box3().setFromBufferAttribute(new THREE.BufferAttribute(wf.P, 3)));
         const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(wf.P, 3)); if (wf.idx) g.setIndex(Array.from(wf.idx));
@@ -475,11 +479,10 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       const dt = Math.min(rawDt, 1 / 30);
       // scroll: solo se filtra el escalón de la rueda (≈45 ms), sin inercia ni seguimiento
       scrollE += (scrollRaw - scrollE) * (1 - Math.exp(-dt * 22));
-      // ciclo 43: el despiece/2D sigue al scroll pero con VELOCIDAD MÁXIMA en el tramo final: aunque el ajuste lleve
-      // la página de golpe a la siguiente sección, las piezas 2D se siguen dispersando y desaparecen en ≈ 2 s
-      // al llegar a la sección siguiente (≥ 0,85) el recorrido se completa SOLO hasta 1 (antes quedaba a medias)
-      const qT = scrollE > 0.85 ? 1 : scrollE;
-      if (qT > qE) qE = Math.min(qT, qE + dt * (qE < 0.45 ? 1.2 : 0.28)); else qE = Math.max(qT, qE - dt * 1.6);
+      // ciclo 43: el despiece/2D va FIJO al scroll (qE = scroll; el override de abajo es solo para depurar)
+      qE = scrollE;
+      // depuración: window.__cxQE fija el progreso de la transición (para revisar trayectorias cuadro a cuadro)
+      const qDbg = (window as unknown as { __cxQE?: number }).__cxQE; if (typeof qDbg === 'number') qE = qDbg;
       // ciclo 37: al empezar a bajar el dron QUEDA QUIETO (posición, giro, cursor): solo el scroll mueve las piezas
       const fz = done ? smooth(0, 0.05, scrollE) : 0;
       // despiece al bajar: crece SIEMPRE con el scroll (lineal + acelerando), sin tope dentro del recorrido
@@ -487,9 +490,11 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       const ex = done ? (1 - Math.exp(-qE * 14)) * 0.35 + qE * 1.4 + qE * qE * 3.0 : 0;
       // las caras se apagan (queda la SILUETA en líneas) y al final se desvanece antes de cruzar las opciones
       const sil = done ? smooth(0.3, 0.48, qE) : 0;   // ciclo 42: después del barrido a esencial
-      const fadeOut = done ? smooth(0.86, 1.0, qE) : 0;   // ciclo 43: las piezas grandes en 2D duran más antes de irse
+      // ciclo 43: el 2D dura más — se aplana antes (0,26–0,48) y se desvanece tarde (0,78–0,9): la sección de opciones
+      // queda en 0,91 del recorrido, así que al llegar a ella ya no queda nada encima
+      const fadeOut = done ? smooth(0.78, 0.9, qE) : 0;
       layer.style.opacity = String(1 - fadeOut);
-      if (done && scrollE > 0.85 && qE > 0.995) return;
+      if (done && qE > 0.92) return;
       // carga: etapas reales + suavizado crítico
       const parseK = stage2 ? 1 : parseT0 ? 1 - Math.exp(-(performance.now() - parseT0) / 450) : 0;
       const target = ready ? 1 : Math.min(0.995, dl * 0.7 + parseK * 0.1 + prep * 0.2);
@@ -535,7 +540,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       if (t >= TL.dz0 && !Number.isFinite(freezeAt)) spin += dt * rate * (1 - fz);
       const fol = Math.min(1, dt * 3) * (1 - fz);
       mxS += (mx - mxS) * fol; myS += (my - myS) * fol;
-      const flat = done ? smooth(0.26, 0.58, qE) : 0;   // ciclo 42: el 2D llega después del despiece realista   // 2D: piezas de frente y sin perspectiva (giro largo y lento)
+      const flat = done ? smooth(0.26, 0.48, qE) : 0;   // ciclo 42: el 2D llega después del despiece realista   // 2D: piezas de frente y sin perspectiva (giro largo y lento)
       camera.fov = done ? lerp(FOV1, 6, ease(flat)) : lerp(FOV0, FOV1, dz);
       const theta = lerp(0, 0.95, done ? 1 : dz) + spin + mxS * 0.22 * k;
       const phi = lerp(0.04, 1.16, done ? 1 : dz) + myS * 0.06 * k;
@@ -563,10 +568,11 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       U.uView.value.copy(camera.position).sub(center).normalize();
       U.uFlat.value = ease(flat);
       // ciclo 43: tramo final — las grandes frenan su dispersión (siguen en pantalla) y las pequeñas se encogen
-      // tras el barrido (0,30) las grandes se REAGRUPAN a una dispersión contenida que crece despacio: siguen en pantalla
-      const hImp = smooth(0.3, 0.5, qE), exImp = ex * (1 - hImp) + hImp * (0.75 + 0.1 * Math.max(0, ex - 0.75));
+      // monótono (nunca retrocede): hasta ex = 1,05 igual que las demás (el barrido realista/esencial coincide);
+      // después siguen su MISMO camino del despiece, más despacio (15 %) que las pequeñas
+      const exImp = ex <= 1.05 ? ex : 1.05 + (ex - 1.05) * 0.15;
       U.uImpK.value = ex > 1e-4 ? exImp / ex : 1;
-      U.uSmall.value = done ? smooth(0.42, 0.6, qE) : 0;
+      const kDbg = (window as unknown as { __cxImpK?: number }).__cxImpK; if (typeof kDbg === 'number') U.uImpK.value = kDbg;
       // ciclo 42: el modelo realista se desarma con el scroll igual que el esencial (antes solo lo hacía el esencial)
       if (realPartsRef.length && (ex > 0 || realMoved)) {
         realMoved = ex > 0;
