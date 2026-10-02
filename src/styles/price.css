@@ -28,3 +28,21 @@
 @keyframes cx-delta{0%{opacity:0;transform:translateY(8px)}12%{opacity:1;transform:none}
   78%{opacity:1}100%{opacity:0;transform:translateY(-8px)}}
 @media (prefers-reduced-motion: reduce){.cx-price-delta{animation:none}}
+
+/* ── ciclo 38: visor restaurado con el lenguaje de las láminas (filetes, mono, sin tarjetas redondeadas).
+   Vive dentro del bloque de preguntas: pegado abajo solo mientras se responden. */
+.cx-pricebar.cx-pricebar-38{position:sticky;bottom:12px;z-index:6;margin:4px 0 0;border-radius:0;
+  padding:14px 18px 16px;border:1px solid var(--cx-border)!important;border-top:1px solid var(--cx-accent-border)!important;
+  background:color-mix(in srgb,var(--cx-bg,#0b0c0e) 84%,transparent);overflow:hidden;
+  box-shadow:0 18px 40px -24px rgba(0,0,0,.6)}
+.cx-pricebar-38::before{content:'';position:absolute;left:-5px;top:-5px;width:9px;height:9px;pointer-events:none;
+  background:linear-gradient(var(--cx-faint),var(--cx-faint)) 50% 0/1px 100% no-repeat,linear-gradient(var(--cx-faint),var(--cx-faint)) 0 50%/100% 1px no-repeat}
+.cx-pricebar-38 .cx-pricebar-label{display:flex;align-items:center;gap:10px;font:500 10px/1 var(--cx-mono,monospace);letter-spacing:.18em;margin-bottom:8px}
+.cx-pricebar-tag{color:var(--cx-faint);letter-spacing:.14em}
+.cx-pricebar-38 .cx-price-delta{border-radius:0;font-family:var(--cx-mono,monospace)}
+.cx-pricebar-sweep{position:absolute;top:0;bottom:0;left:0;width:1px;background:var(--cx-accent,#ff7a3d);box-shadow:0 0 14px var(--cx-accent,#ff7a3d);
+  animation:cx-pb-sweep .9s cubic-bezier(.65,0,.35,1) forwards;pointer-events:none}
+@keyframes cx-pb-sweep{0%{transform:translateX(0);opacity:0}10%{opacity:1}90%{opacity:1}100%{transform:translateX(var(--pb-w,900px));opacity:0}}
+.cx-pricebar-38{--pb-w:min(680px,92vw)}
+@media (max-width:560px){.cx-pricebar.cx-pricebar-38{bottom:8px;padding:12px 14px 14px}.cx-pricebar-38 .cx-price-num{font-size:30px}}
+@media (prefers-reduced-motion: reduce){.cx-pricebar-sweep{display:none}}

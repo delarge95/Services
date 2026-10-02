@@ -91,32 +91,42 @@ function worldFloat(m: THREE.Mesh) {
   // posición → centro de su cáscara (para que las aristas se muevan con su cara)
   const key = (x: number, y: number, z: number) => `${Math.round(x * 2000)},${Math.round(y * 2000)},${Math.round(z * 2000)}`;
   const fragAt = new Map<string, number>(); for (let i = 0; i < pa.count; i++) fragAt.set(key(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]), i);
-  return { P, N, Fr, Sr, idx, count: pa.count, imp: 0, c: bb.getCenter(new THREE.Vector3()), r: bb.getSize(new THREE.Vector3()).length() / 2, fragOf: (x: number, y: number, z: number) => { const i = fragAt.get(key(x, y, z)); return i === undefined ? null : i; } };
+  const sz = bb.getSize(new THREE.Vector3()), ax = sz.x <= sz.y && sz.x <= sz.z ? 0 : sz.y <= sz.z ? 1 : 2;
+  return { P, N, Fr, Sr, idx, count: pa.count, imp: 0, ax, c: bb.getCenter(new THREE.Vector3()), r: sz.length() / 2, fragOf: (x: number, y: number, z: number) => { const i = fragAt.get(key(x, y, z)); return i === undefined ? null : i; } };
 }
 /** Une piezas en una geometría con `aOff` (desplazamiento de su pieza para el despiece) y `aExt` (importancia, radio de cáscara). */
 function merge(parts: ReturnType<typeof worldFloat>[], center: THREE.Vector3) {
   const total = parts.reduce((a, p) => a + p.count, 0);
   const nIdx = parts.reduce((a, p) => a + (p.idx ? p.idx.length : p.count), 0);
-  const P = new Float32Array(total * 3), N = new Float32Array(total * 3), O = new Float32Array(total * 3), Fg = new Float32Array(total * 3), E = new Float32Array(total * 2), I = new Uint32Array(nIdx);
+  const P = new Float32Array(total * 3), N = new Float32Array(total * 3), O = new Float32Array(total * 3), Fg = new Float32Array(total * 3), E = new Float32Array(total * 3), I = new Uint32Array(nIdx);
   let off = 0, io = 0;
   for (const p of parts) {
     P.set(p.P, off * 3); N.set(p.N, off * 3);
     const ox = p.c.x - center.x, oy = p.c.y - center.y, oz = p.c.z - center.z;
-    for (let k = 0; k < p.count; k++) { O[(off + k) * 3] = ox; O[(off + k) * 3 + 1] = oy; O[(off + k) * 3 + 2] = oz; Fg[(off + k) * 3] = p.Fr[k * 3] - center.x; Fg[(off + k) * 3 + 1] = p.Fr[k * 3 + 1] - center.y; Fg[(off + k) * 3 + 2] = p.Fr[k * 3 + 2] - center.z; E[(off + k) * 2] = p.imp; E[(off + k) * 2 + 1] = p.Sr[k]; }
+    for (let k = 0; k < p.count; k++) { O[(off + k) * 3] = ox; O[(off + k) * 3 + 1] = oy; O[(off + k) * 3 + 2] = oz; Fg[(off + k) * 3] = p.Fr[k * 3] - center.x; Fg[(off + k) * 3 + 1] = p.Fr[k * 3 + 1] - center.y; Fg[(off + k) * 3 + 2] = p.Fr[k * 3 + 2] - center.z; E[(off + k) * 3] = p.imp; E[(off + k) * 3 + 1] = p.Sr[k]; E[(off + k) * 3 + 2] = p.ax; }
     if (p.idx) for (let k = 0; k < p.idx.length; k++) I[io++] = p.idx[k] + off; else for (let k = 0; k < p.count; k++) I[io++] = k + off;
     off += p.count;
   }
   const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.BufferAttribute(N, 3)); g.setAttribute('aOff', new THREE.BufferAttribute(O, 3)); g.setAttribute('aFrag', new THREE.BufferAttribute(Fg, 3)); g.setAttribute('aExt', new THREE.BufferAttribute(E, 2));
+  g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('normal', new THREE.BufferAttribute(N, 3)); g.setAttribute('aOff', new THREE.BufferAttribute(O, 3)); g.setAttribute('aFrag', new THREE.BufferAttribute(Fg, 3)); g.setAttribute('aExt', new THREE.BufferAttribute(E, 3));
   g.setIndex(new THREE.BufferAttribute(I, 1)); return g;
 }
 /** Uniforms compartidos del despiece y la fractura (todo en GPU). */
-type XU = { uExplode: { value: number }; uScat: { value: number }; uFwd: { value: number }; uMess: { value: number }; uSpread: { value: number }; uHover: { value: number }; uR: { value: number }; uPush: { value: number }; uCursor: { value: THREE.Vector3 }; uCenter: { value: THREE.Vector3 }; uView: { value: THREE.Vector3 } };
+type XU = { uExplode: { value: number }; uScat: { value: number }; uFwd: { value: number }; uFlat: { value: number }; uMess: { value: number }; uSpread: { value: number }; uHover: { value: number }; uR: { value: number }; uPush: { value: number }; uCursor: { value: THREE.Vector3 }; uCenter: { value: THREE.Vector3 }; uView: { value: THREE.Vector3 } };
 const XGLSL = `
-attribute vec3 aOff; attribute vec3 aFrag; attribute vec2 aExt;
-uniform float uExplode, uScat, uFwd, uMess, uSpread, uHover, uR, uPush; uniform vec3 uCursor, uCenter, uView;
+attribute vec3 aOff; attribute vec3 aFrag; attribute vec3 aExt;
+uniform float uExplode, uScat, uFwd, uMess, uSpread, uHover, uR, uPush, uFlat; uniform vec3 uCursor, uCenter, uView;
 vec3 cxHash(vec3 p) { return fract(sin(vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)))) * 43758.5453) - 0.5; }
-vec3 cxRot(vec3 v, vec3 k, float a) { float c = cos(a), s = sin(a); return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c); }`;
+vec3 cxRot(vec3 v, vec3 k, float a) { float c = cos(a), s = sin(a); return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c); }
+// ciclo 38: vista 2D de cada pieza — gira sobre su centro hasta mirar a la cámara por su eje más delgado
+// (planta de una placa, perfil de un tornillo o de un tubo): una sola cara, sin profundidad
+vec3 cxFlatV(vec3 v, vec3 h) {
+  vec3 a = aExt.z < 0.5 ? vec3(1.0, 0.0, 0.0) : aExt.z < 1.5 ? vec3(0.0, 1.0, 0.0) : vec3(0.0, 0.0, 1.0);
+  a = cxRot(a, normalize(h + vec3(0.001, 0.002, 0.003)), uMess * h.x * 0.8);
+  a *= dot(a, uView) < 0.0 ? -1.0 : 1.0;
+  vec3 k = cross(a, uView); float s = length(k);
+  return s < 1e-4 ? v : cxRot(v, k / s, atan(s, dot(a, uView)) * uFlat);
+}`;
 /**
  * Despiece en GPU. Cada vértice conoce el centro de su PIEZA (aOff), el de su CÁSCARA (aFrag) y
  * aExt = (importancia de la pieza, radio de la cáscara):
@@ -133,11 +143,11 @@ function withExplode<M extends THREE.Material>(mat: M, u: XU): M {
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>' + XGLSL)
       .replace('#include <beginnormal_vertex>', `#include <beginnormal_vertex>
-        { vec3 h = cxHash(aOff * 7.0 + 0.13); objectNormal = cxRot(objectNormal, normalize(h + vec3(0.001, 0.002, 0.003)), uMess * h.x * 0.8); }`)
+        { vec3 h = cxHash(aOff * 7.0 + 0.13); objectNormal = cxFlatV(cxRot(objectNormal, normalize(h + vec3(0.001, 0.002, 0.003)), uMess * h.x * 0.8), h); }`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         vec3 cxH = cxHash(aOff * 7.0 + 0.13), cxHf = cxHash(aFrag * 13.0 + 0.71);
         vec3 cxPc = uCenter + aOff;
-        transformed = cxPc + cxRot(transformed - cxPc, normalize(cxH + vec3(0.001, 0.002, 0.003)), uMess * cxH.x * 0.8);
+        transformed = cxPc + cxFlatV(cxRot(transformed - cxPc, normalize(cxH + vec3(0.001, 0.002, 0.003)), uMess * cxH.x * 0.8), cxH);
         vec3 cxDisp = aOff * uExplode * (1.0 - 0.45 * aExt.x) + cxH * vec3(1.0, 0.55, 1.0) * (uMess * uSpread + uScat) + uView * uFwd * aExt.x;
         transformed += cxDisp;
         vec3 cxFc = uCenter + aFrag + cxDisp, cxD = cxFc - uCursor;
@@ -146,20 +156,20 @@ function withExplode<M extends THREE.Material>(mat: M, u: XU): M {
         transformed = cxFc + cxRot(transformed - cxFc, normalize(cxHf + vec3(0.002, 0.001, 0.003)), cxF * cxHf.z * 1.6);
         transformed += (cxDp / max(cxL, 1e-3)) * cxF * uPush + cxHf * cxF * uPush * 0.9;`);
   };
-  mat.customProgramCacheKey = () => 'cx-explode-37';
+  mat.customProgramCacheKey = () => 'cx-explode-38';
   return mat;
 }
 /** Segmentos ordenados (centro → afuera) a geometría de líneas con `aOff`, `aFrag` y `aExt`. */
 function lineGeo(pos: number[], offs: number[], dist: number[], order?: Uint32Array, frags?: number[], ext?: number[]) {
   const n = dist.length, o = order ?? (() => { const a = new Uint32Array(n); for (let i = 0; i < n; i++) a[i] = i; return a.sort((x, y) => dist[x] - dist[y]); })();
-  const P = new Float32Array(n * 6), O = new Float32Array(n * 6), Fg = new Float32Array(n * 6), E = new Float32Array(n * 4);
+  const P = new Float32Array(n * 6), O = new Float32Array(n * 6), Fg = new Float32Array(n * 6), E = new Float32Array(n * 6);
   const fr = frags ?? offs;
   for (let i = 0; i < n; i++) {
     const s = o[i]; for (let k = 0; k < 6; k++) P[i * 6 + k] = pos[s * 6 + k];
     for (let k = 0; k < 3; k++) { O[i * 6 + k] = offs[s * 3 + k]; O[i * 6 + 3 + k] = offs[s * 3 + k]; Fg[i * 6 + k] = fr[s * 3 + k]; Fg[i * 6 + 3 + k] = fr[s * 3 + k]; }
-    if (ext) { E[i * 4] = E[i * 4 + 2] = ext[s * 2]; E[i * 4 + 1] = E[i * 4 + 3] = ext[s * 2 + 1]; }
+    if (ext) for (let k = 0; k < 3; k++) E[i * 6 + k] = E[i * 6 + 3 + k] = ext[s * 3 + k];
   }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('aOff', new THREE.BufferAttribute(O, 3)); g.setAttribute('aFrag', new THREE.BufferAttribute(Fg, 3)); g.setAttribute('aExt', new THREE.BufferAttribute(E, 2));
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P, 3)); g.setAttribute('aOff', new THREE.BufferAttribute(O, 3)); g.setAttribute('aFrag', new THREE.BufferAttribute(Fg, 3)); g.setAttribute('aExt', new THREE.BufferAttribute(E, 3));
   return g;
 }
 
@@ -236,7 +246,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     const planeReal = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1e6);   // empieza oculto
     const planeMin = new THREE.Plane(new THREE.Vector3(0, -1, 0), -1e6);   // empieza oculto
     const planeEdge = new THREE.Plane(new THREE.Vector3(0, 1, 0), 1e6);    // empieza visible entero
-    const U: XU = { uExplode: { value: 0 }, uScat: { value: 0 }, uFwd: { value: 0 }, uMess: { value: 0 }, uSpread: { value: 1 }, uHover: { value: 0 }, uR: { value: 1 }, uPush: { value: 0.2 }, uCursor: { value: new THREE.Vector3(0, -99, 0) }, uCenter: { value: new THREE.Vector3() }, uView: { value: new THREE.Vector3(0, 0, 1) } };
+    const U: XU = { uExplode: { value: 0 }, uScat: { value: 0 }, uFwd: { value: 0 }, uFlat: { value: 0 }, uMess: { value: 0 }, uSpread: { value: 1 }, uHover: { value: 0 }, uR: { value: 1 }, uPush: { value: 0.2 }, uCursor: { value: new THREE.Vector3(0, -99, 0) }, uCenter: { value: new THREE.Vector3() }, uView: { value: new THREE.Vector3(0, 0, 1) } };
     const minMat = withExplode(new THREE.MeshStandardMaterial({ color: cols.face, roughness: 0.82, metalness: 0.0, transparent: true, clippingPlanes: [planeMin], polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }), U);
     const accMat = withExplode(new THREE.MeshStandardMaterial({ color: cols.acc, roughness: 0.55, metalness: 0.1, emissive: cols.acc, emissiveIntensity: 0.25, transparent: true, clippingPlanes: [planeMin], polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }), U);
     const edgeMat = withExplode(new THREE.LineBasicMaterial({ color: 0xe9e6df, transparent: true, opacity: 0.55, depthWrite: false, clippingPlanes: [planeEdge] }), U);
@@ -280,7 +290,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
           A.push(ax, ay, az, bx, by, bz); O.push(c.x - center.x, c.y - center.y, c.z - center.z);
           D.push(Math.hypot((ax + bx) / 2 - center.x, (ay + by) / 2 - center.y, (az + bz) / 2 - center.z));
           Lr?.push(Math.hypot(bx - ax, by - ay, bz - az));
-          if (Fo && wf) { const vi = wf.fragOf(ax, ay, az); if (vi === null) Fo.push(c.x - center.x, c.y - center.y, c.z - center.z); else Fo.push(wf.Fr[vi * 3] - center.x, wf.Fr[vi * 3 + 1] - center.y, wf.Fr[vi * 3 + 2] - center.z); Ex?.push(wf.imp, vi === null ? wf.r : wf.Sr[vi]); }
+          if (Fo && wf) { const vi = wf.fragOf(ax, ay, az); if (vi === null) Fo.push(c.x - center.x, c.y - center.y, c.z - center.z); else Fo.push(wf.Fr[vi * 3] - center.x, wf.Fr[vi * 3 + 1] - center.y, wf.Fr[vi * 3 + 2] - center.z); Ex?.push(wf.imp, vi === null ? wf.r : wf.Sr[vi], wf.ax); }
         }
       };
       for (let i = 0; i < meshes.length; i++) {
@@ -398,6 +408,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       if (done) return; done = true; playedThisLoad = true;
       try { sessionStorage.setItem('cx-intro', '1'); } catch { /* */ }
       delete html.dataset.cxIntro; setStage('hero');
+      heroTitleRef.current?.classList.remove('ih-lt-on');
     };
     const ff = () => {
       if (!wantIntro || done) return;
@@ -481,7 +492,8 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       if (t >= TL.dz0 && !Number.isFinite(freezeAt)) spin += dt * rate * (1 - fz);
       const fol = Math.min(1, dt * 3) * (1 - fz);
       mxS += (mx - mxS) * fol; myS += (my - myS) * fol;
-      camera.fov = done ? FOV1 : lerp(FOV0, FOV1, dz);
+      const flat = done ? smooth(0.18, 0.6, scrollE) : 0;   // 2D: piezas de frente y sin perspectiva
+      camera.fov = done ? lerp(FOV1, 6, ease(flat)) : lerp(FOV0, FOV1, dz);
       const theta = lerp(0, 0.95, done ? 1 : dz) + spin + mxS * 0.22 * k;
       const phi = lerp(0.04, 1.16, done ? 1 : dz) + myS * 0.06 * k;
       const mobile = W < 760 || W / H < 0.95;
@@ -504,6 +516,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       U.uScat.value = ex * rH * 0.35;                       // se separan también entre sí (no solo del centro)
       U.uFwd.value = Math.min(ex, 3) * r * 0.16;            // las piezas importantes se acercan a la cámara
       U.uView.value.copy(camera.position).sub(center).normalize();
+      U.uFlat.value = ease(flat);
       U.uMess.value = messE;
       minMat.opacity = accMat.opacity = 1 - sil; minMat.depthWrite = accMat.depthWrite = sil < 0.02;
       // fractura (solo DESARMADO): las cáscaras cercanas al cursor se desprenden y vuelven al alejarse
@@ -605,6 +618,25 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
 
       // titular y cierre
       if (wantIntro && !done) {
+        // ciclo 38: el titular sigue a la línea — al subir el corte (esencial) queda en LINEART por debajo de ella;
+        // con el barrido vertical final vuelve a rellenarse de izquierda a derecha
+        const ltOn = t >= TL.m0;
+        for (const tt of [introTitleRef.current, heroTitleRef.current]) {
+          if (!tt) continue;
+          tt.classList.toggle('ih-lt-on', ltOn);
+          if (!ltOn) continue;
+          const tr = tt.getBoundingClientRect(), sc = tr.width / Math.max(1, tt.offsetWidth);
+          let Y = Infinity, X = Infinity;
+          if (t < TL.w0) {
+            const vv = ease((t - TL.m0) / TL.m);
+            if (vv >= 1) Y = -1e5; else { _v.set(center.x, lerp(box.min.y - 0.02, box.max.y + 0.02, vv), center.z).project(camera); Y = (-_v.y * 0.5 + 0.5) * H; }
+          } else X = tr.left + ease((t - TL.w0) / TL.w) * tr.width;
+          tt.querySelectorAll<HTMLElement>('.lt').forEach((el) => {
+            const r = el.getBoundingClientRect();
+            el.style.setProperty('--lt-h', Y === Infinity ? '100%' : `${Math.max(0, (Y - r.top) / sc).toFixed(1)}px`);
+            el.style.setProperty('--lt-w', X === Infinity ? '100%' : `${Math.max(0, (X - r.left) / sc).toFixed(1)}px`);
+          });
+        }
         introTitleRef.current?.classList.toggle('l1', t > TL.t1);
         introTitleRef.current?.classList.toggle('l2', t > TL.t2);
         hudRef.current?.classList.toggle('skip-on', now - t0 > 1.5);
@@ -643,12 +675,14 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
 
   const scrollTo = (sel: string) => document.querySelector(sel)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const hero = stage === 'hero';
+  // ciclo 38: cada trozo de texto es un «.lt» para poder pasarlo a lineart (contorno sin relleno) y rellenarlo con una barrida
+  const titleLines = <><span><b className="lt">{L.l1}</b></span><span><b className="lt">{L.l2a}</b><em className="lt">{L.l2b}</em><b className="lt">.</b></span></>;
   return (
     <>
       <section className={`ih-hero${hero ? ' ih-on' : ''}`} aria-label={`${L.l1} ${L.l2a}${L.l2b}`}>
         <div className="ih-copy">
           <p className="ih-kicker">{L.kicker}</p>
-          <h1 className={`ih-h1${hero ? ' in' : ''}`} ref={heroTitleRef}><span>{L.l1}</span><span>{L.l2a}<em>{L.l2b}</em>.</span></h1>
+          <h1 className={`ih-h1${hero ? ' in' : ''}`} ref={heroTitleRef}>{titleLines}</h1>
           <p className="ih-sub">{L.sub}</p>
           <div className="ih-ctas">
             <button type="button" className="ih-btn pri" onClick={() => scrollTo('#cx-goals')}>{L.quote} <span aria-hidden="true">↓</span></button>
@@ -667,7 +701,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
           {showBrand && brandPos && <div className="ih-brand" style={{ left: brandPos.left, top: brandPos.top }}><BrandLockup state="mark" height={13} /></div>}
           {!hero && (
             <div ref={hudRef} className="ih-hud ih-v34" role="status" aria-live="polite">
-              <div ref={introTitleRef} className="ih-intro-title" aria-hidden="true"><span>{L.l1}</span><span>{L.l2a}<em>{L.l2b}</em>.</span></div>
+              <div ref={introTitleRef} className="ih-intro-title" aria-hidden="true">{titleLines}</div>
               <div className="ih-hud-bot">
                 <span className="ih-count"><b ref={countRef}>000</b></span>
                 <button type="button" className="ih-skip" onClick={() => skipRef.current()}>{L.skip} →</button>

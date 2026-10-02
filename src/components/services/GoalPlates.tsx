@@ -139,32 +139,93 @@ export function GoalPlates({ options, onPick, lang = 'es' }: { options: PlateOpt
     const root = ref.current; if (!root) return;
     const plates = [...root.querySelectorAll<HTMLElement>('.cx-plate')];
     const thread = document.querySelector<HTMLElement>('.cx-thread');
+    const title = document.querySelector<HTMLElement>('.cx-goals-title');
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const coarse = window.matchMedia('(hover: none)').matches;
-    let raf = 0;
+    // ciclo 38: todo lo de la sección SALE DEL DRON — cada elemento viaja desde el centro del dron (fijo en pantalla)
+    // hasta su sitio, creciendo, ligado al scroll; el título llega en lineart y se rellena al asentarse
+    const fly = [...document.querySelectorAll<HTMLElement>('[data-fly]')].filter((e) => !plates.includes(e)).concat(plates);
+    const base = new Map<HTMLElement, { x: number; y: number; w: number; h: number }>();
+    const measure = () => {
+      for (const e of [...fly, ...(thread && !fly.includes(thread) ? [thread] : [])]) {
+        const tf = e.style.transform; e.style.transform = 'none';
+        const r = e.getBoundingClientRect(); base.set(e, { x: r.left + window.scrollX, y: r.top + window.scrollY, w: r.width, h: r.height });
+        e.style.transform = tf;
+      }
+    };
+    const outE = (x: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
+    let raf = 0, titleK = 0, hovered = false, fill = reduce ? 1 : 0, fillRaf = 0;
+    const paintFill = () => {
+      if (!title) return;
+      const tr = title.getBoundingClientRect(), X = tr.left + fill * tr.width;
+      title.querySelectorAll<HTMLElement>('.lt').forEach((el) => { const r = el.getBoundingClientRect(); el.style.setProperty('--lt-w', `${Math.max(0, X - r.left).toFixed(1)}px`); });
+      title.classList.toggle('lt-on', fill < 0.999);
+    };
+    const fillLoop = () => {
+      fillRaf = 0;
+      const target = hovered || titleK >= 0.97 ? 1 : 0;
+      fill += (target - fill) * 0.075 + Math.sign(target - fill) * 0.004; fill = Math.max(0, Math.min(1, fill));
+      paintFill();
+      if (Math.abs(target - fill) > 0.001) fillRaf = requestAnimationFrame(fillLoop); else { fill = target; paintFill(); }
+    };
+    const kickFill = () => { if (!fillRaf) fillRaf = requestAnimationFrame(fillLoop); };
+    // 2D → 3D al pasar el cursor (módulo three.js perezoso, un solo lienzo compartido)
+    let p3: { enter: (p: HTMLElement, id: string) => void; leave: (p: HTMLElement) => void; dispose: () => void } | null = null;
+    let loading: Promise<void> | null = null, disposed = false;
+    const ensure = () => loading ?? (loading = import('./plate3d').then((m) => { if (!disposed) p3 = m.createPlate3D(); }).catch(() => { /* sin WebGL: queda el 2D */ }));
+    const enter = (p: HTMLElement) => { if (reduce) return; ensure().then(() => { if (p.matches(':hover, :focus-visible, .live')) p3?.enter(p, p.dataset.id ?? ''); }); };
+    const leave = (p: HTMLElement) => { p3?.leave(p); };
     const upd = () => {
       raf = 0;
-      const vh = window.innerHeight;
+      const vh = window.innerHeight, vw = window.innerWidth, sy = window.scrollY, sx = window.scrollX;
+      const mobile = vw < 760 || vw / vh < 0.95;
+      const dc = mobile ? { x: vw * 0.5, y: vh * 0.28 } : { x: vw * 0.73, y: vh * 0.5 };
+      fly.forEach((e, i) => {
+        const b = base.get(e); if (!b) return;
+        const top = b.y - sy, k = reduce ? 1 : outE((vh * 0.98 - top) / (vh * 0.62) - (plates.includes(e) ? (plates.indexOf(e) % 3) * 0.05 : 0));
+        if (e === title) { titleK = k; kickFill(); }
+        if (k >= 1) { e.style.transform = ''; e.style.opacity = ''; return; }
+        const cx = b.x - sx + b.w / 2, cy = top + b.h / 2, dx = (dc.x - cx) * (1 - k), dy = (dc.y - cy) * (1 - k);
+        e.style.transform = `translate3d(${dx.toFixed(1)}px, ${dy.toFixed(1)}px, 0) scale(${(0.28 + 0.72 * k).toFixed(3)}) rotate(${((1 - k) * (i % 2 ? 9 : -9)).toFixed(2)}deg)`;
+        e.style.opacity = Math.min(1, k * 1.5).toFixed(3);
+      });
       plates.forEach((p, i) => {
-        const r = p.getBoundingClientRect();
+        const b = base.get(p); const top = b ? b.y - sy : p.getBoundingClientRect().top, hgt = b ? b.h : p.offsetHeight;
         // se traza mientras entra (del 98 % al 45 % del alto de la ventana), con un leve desfase por columna
-        const d = reduce ? 1 : Math.max(0, Math.min(1, (vh * 0.98 - r.top) / (vh * 0.5) - (i % 3) * 0.06));
+        const d = reduce ? 1 : Math.max(0, Math.min(1, (vh * 0.98 - top) / (vh * 0.5) - (i % 3) * 0.06));
         p.style.setProperty('--d', d.toFixed(3));
         p.classList.toggle('drawn', d >= 1);
-        if (coarse) { const c = (r.top + r.bottom) / 2; p.classList.toggle('live', d >= 1 && c > vh * 0.25 && c < vh * 0.75); }
+        if (coarse) { const c = top + hgt / 2, on = d >= 1 && c > vh * 0.25 && c < vh * 0.75; if (on !== p.classList.contains('live')) { p.classList.toggle('live', on); if (on) enter(p); else leave(p); } }
       });
-      if (thread) { const r = thread.getBoundingClientRect(); thread.style.setProperty('--d', reduce ? '1' : Math.max(0, Math.min(1, (vh * 1.0 - r.top) / (vh * 0.35))).toFixed(3)); }
+      if (thread) { const b = base.get(thread); const top = b ? b.y - sy : thread.getBoundingClientRect().top; thread.style.setProperty('--d', reduce ? '1' : Math.max(0, Math.min(1, (vh * 1.0 - top) / (vh * 0.35))).toFixed(3)); }
     };
+    const offs: (() => void)[] = [];
+    plates.forEach((p) => {
+      const en2 = () => enter(p), lv = () => leave(p);
+      p.addEventListener('pointerenter', en2); p.addEventListener('pointerleave', lv); p.addEventListener('focus', en2); p.addEventListener('blur', lv);
+      offs.push(() => { p.removeEventListener('pointerenter', en2); p.removeEventListener('pointerleave', lv); p.removeEventListener('focus', en2); p.removeEventListener('blur', lv); });
+    });
+    const tIn = () => { hovered = true; kickFill(); }, tOut = () => { hovered = false; kickFill(); };
+    title?.addEventListener('pointerenter', tIn); title?.addEventListener('pointerleave', tOut);
     const on = () => { if (!raf) raf = requestAnimationFrame(upd); };
-    upd();
-    window.addEventListener('scroll', on, { passive: true }); window.addEventListener('resize', on);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('scroll', on); window.removeEventListener('resize', on); };
+    const remeasure = () => { measure(); on(); };
+    measure(); upd(); paintFill();
+    const t1 = setTimeout(remeasure, 400), t2 = setTimeout(remeasure, 1500);
+    document.fonts?.ready.then(remeasure).catch(() => {});
+    window.addEventListener('scroll', on, { passive: true }); window.addEventListener('resize', remeasure);
+    return () => {
+      disposed = true; cancelAnimationFrame(raf); cancelAnimationFrame(fillRaf); clearTimeout(t1); clearTimeout(t2);
+      window.removeEventListener('scroll', on); window.removeEventListener('resize', remeasure);
+      title?.removeEventListener('pointerenter', tIn); title?.removeEventListener('pointerleave', tOut);
+      offs.forEach((f) => f()); p3?.dispose();
+      fly.forEach((e) => { e.style.transform = ''; e.style.opacity = ''; });
+    };
   }, [options.length]);
 
   return (
     <div ref={ref} className="cx-plates cx-wide">
       {options.map((o, i) => (
-        <button key={o.id} type="button" className={`cx-plate cx-plate-${i < 3 ? 'a' : 'b'}`} onClick={() => onPick(o.id)} aria-label={`${o.label}. ${o.desc ?? ''}`}>
+        <button key={o.id} type="button" data-id={o.id} className={`cx-plate cx-plate-${i < 3 ? 'a' : 'b'}`} onClick={() => onPick(o.id)} aria-label={`${o.label}. ${o.desc ?? ''}`}>
           <span className="cx-plate-fig">
             <span className="cx-plate-tag" aria-hidden="true">FIG. {String(i + 1).padStart(2, '0')} — {(FIG[o.id] ?? FIG['web-3d'])[en ? 'en' : 'es']}</span>
             <svg viewBox="0 0 320 180" aria-hidden="true" preserveAspectRatio="xMidYMid meet">{FIGURES[o.id] ?? FIGURES['web-3d']}</svg>

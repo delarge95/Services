@@ -113,3 +113,63 @@
 @media (prefers-reduced-motion: reduce) {
   .cx-plate svg *, .cx-plate svg .f-screw { animation: none !important; transition: none !important; }
 }
+
+/* ── ciclo 38 ── */
+/* 3D al pasar el cursor: el lienzo compartido se monta sobre el dibujo de la lámina activa */
+.cx-plate-3d { position: absolute; pointer-events: none; opacity: 0; }
+/* «¿Qué quieres lograr?» llega en LINEART y se rellena de izquierda a derecha (GoalPlates fija --lt-w) */
+.cx-goals-title .lt { font-weight: inherit; }
+.cx-goals-title.lt-on .lt { color: transparent; -webkit-text-stroke: 1.1px var(--cx-text); background-image: linear-gradient(var(--cx-text), var(--cx-text));
+  background-repeat: no-repeat; background-size: var(--lt-w, 0px) 100%; -webkit-background-clip: text; background-clip: text; }
+.cx-goals-title.lt-on .cx-ember.lt { -webkit-text-stroke-color: var(--cx-accent); background-image: linear-gradient(100deg, var(--cx-accent) 10%, var(--cx-accent-2) 90%); }
+[data-fly] { transform-origin: 50% 50%; }
+
+/* ═══ ciclo 38 — LÁMINAS en todo el cotizador (menús internos, preguntas, catálogo) ═══
+   Mismo idioma que «¿Qué quieres lograr?»: retícula de filetes con cruces de registro, sin cajas redondeadas
+   ni fondos de cristal; títulos que se trazan en LINEART y se rellenan; iconos dibujados como líneas. */
+@property --lt-k { syntax: '<percentage>'; inherits: false; initial-value: 100%; }
+.cx-lt-title { color: transparent !important; -webkit-text-stroke: 1px var(--cx-text); background-image: linear-gradient(var(--cx-text), var(--cx-text));
+  background-repeat: no-repeat; background-size: var(--lt-k) 100%; -webkit-background-clip: text; background-clip: text;
+  animation: cx-lt-fill 1.1s .45s cubic-bezier(.65, 0, .35, 1) both; }
+@keyframes cx-lt-fill { from { --lt-k: 0%; } to { --lt-k: 100%; } }
+
+.cx-plategrid, .cx-choicegrid { gap: 0 !important; border-top: 1px solid var(--cx-border); border-left: 1px solid var(--cx-border); }
+.cx-plategrid > button, .cx-choicegrid > button { border: 0 !important; border-right: 1px solid var(--cx-border) !important; border-bottom: 1px solid var(--cx-border) !important;
+  border-radius: 0 !important; background: transparent !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; box-shadow: none !important; overflow: visible !important; }
+.cx-plategrid > button { padding: 24px 22px 26px !important; transform: none !important; transition: background .45s var(--cx-ease) !important; }
+.cx-plategrid > button:hover, .cx-plategrid > button:focus-visible, .cx-choicegrid > button:hover { background: color-mix(in srgb, var(--cx-accent) 4%, transparent) !important; }
+.cx-plategrid > button::after { display: none !important; }
+.cx-plategrid > button::before, .cx-choicegrid > button::before { content: '' !important; position: absolute; left: -5px !important; top: -5px !important; width: 9px !important; height: 9px !important;
+  border: 0 !important; border-radius: 0 !important; z-index: 2; pointer-events: none;
+  background: linear-gradient(var(--cx-faint), var(--cx-faint)) 50% 0 / 1px 100% no-repeat, linear-gradient(var(--cx-faint), var(--cx-faint)) 0 50% / 100% 1px no-repeat !important; }
+.cx-plategrid .cx-option-icon { background: none !important; border: 0 !important; width: auto !important; height: auto !important; justify-content: flex-start !important; margin-bottom: 14px !important; }
+.cx-plategrid .cx-option-icon svg { width: 46px; height: 46px; stroke-width: 1; overflow: visible; }
+.cx-plategrid .cx-option-icon svg :is(path, circle, rect, line, polyline, polygon, ellipse) { stroke-dasharray: 160; stroke-dashoffset: 160; animation: cx-icon-draw 1.5s .25s cubic-bezier(.65, 0, .35, 1) forwards; }
+.cx-plategrid > button:hover .cx-option-icon svg :is(path, circle, rect, line, polyline, polygon, ellipse) { animation: cx-icon-redraw 1.1s cubic-bezier(.65, 0, .35, 1) forwards; }
+@keyframes cx-icon-draw { to { stroke-dashoffset: 0; } }
+@keyframes cx-icon-redraw { 0% { stroke-dashoffset: 160; } 100% { stroke-dashoffset: 0; } }
+.cx-plategrid .cx-option-idx { color: var(--cx-faint); }
+.cx-plategrid .cx-case-badge { border-radius: 0; }
+
+/* preguntas: hojas numeradas separadas por un filete, sin tarjeta */
+.cx-qblock { counter-reset: cxq; }
+.cx-qcard { counter-increment: cxq; position: relative; border: 0 !important; border-top: 1px solid var(--cx-border) !important; border-radius: 0 !important;
+  background: transparent !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; padding: 30px 0 4px !important; }
+.cx-qcard::before { content: 'Q.' counter(cxq, decimal-leading-zero); position: absolute; top: 10px; left: 0; font: 500 10px/1 var(--cx-mono); letter-spacing: .16em; color: var(--cx-accent); }
+.cx-qcard::after { content: ''; position: absolute; left: -5px; top: -5px; width: 9px; height: 9px; pointer-events: none;
+  background: linear-gradient(var(--cx-faint), var(--cx-faint)) 50% 0 / 1px 100% no-repeat, linear-gradient(var(--cx-faint), var(--cx-faint)) 0 50% / 100% 1px no-repeat; }
+.cx-choicegrid > button { padding: 16px 18px !important; }
+.cx-choicegrid > button[aria-pressed="true"] { background: color-mix(in srgb, var(--cx-accent) 9%, transparent) !important; box-shadow: inset 0 0 0 1.5px var(--cx-accent) !important; }
+.cx-qcard :is(button, [role="switch"])[style*="border-radius: 999px"] { border-radius: 0 !important; }
+.cx-qcard .cx-adv-btn { border-radius: 0 !important; }
+.cx-qcard .cx-check { border-radius: 0; }
+
+/* catálogo (trabajos reales y configuración): misma retícula */
+.cx-show-grid { gap: 0 !important; border-top: 1px solid var(--cx-border); border-left: 1px solid var(--cx-border); }
+.cx-show-card { border-radius: 0 !important; border: 0 !important; border-right: 1px solid var(--cx-border) !important; border-bottom: 1px solid var(--cx-border) !important; background: transparent !important; position: relative; overflow: visible !important; }
+.cx-show-card:hover, .cx-show-card:focus-visible { transform: none !important; box-shadow: none !important; background: color-mix(in srgb, var(--cx-accent) 4%, transparent) !important; }
+.cx-show-card::before { content: ''; position: absolute; left: -5px; top: -5px; width: 9px; height: 9px; z-index: 2; pointer-events: none;
+  background: linear-gradient(var(--cx-faint), var(--cx-faint)) 50% 0 / 1px 100% no-repeat, linear-gradient(var(--cx-faint), var(--cx-faint)) 0 50% / 100% 1px no-repeat; }
+.cx-show-media { margin: 12px 12px 0; }
+.cx-show-game { border-radius: 0 !important; }
+.cx-config [style*="border-radius: 20px"], .cx-config [style*="border-radius: 16px"], .cx-config [style*="border-radius: 18px"], .cx-config [style*="border-radius: 14px"] { border-radius: 0 !important; }

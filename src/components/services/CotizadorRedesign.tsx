@@ -871,7 +871,8 @@ export function CotizadorRedesign() {
 
       <div className="cx-content">
         {/* ═══ MODO GUIADO ═══ */}
-        {mode === 'guided' && !svc && <GuidedWizard onComplete={applyPlan} onProgress={setLivePlan} lang={lang} homeSignal={homeKey} />}
+        {mode === 'guided' && !svc && <GuidedWizard onComplete={applyPlan} onProgress={setLivePlan} lang={lang} homeSignal={homeKey}
+          priceSlot={wizardLevel === 3 && liveQuote ? <PriceBar min={liveQuote.min} max={liveQuote.max} currency={currency} lang={lang} /> : null} />}
 
         {/* ═══ CICLO 17 — VISOR DEL PRECIO (sticky, solo modo guiado) ═══ */}
         {/* ciclo 32 (decisión del usuario): la barra fija de "Inversión estimada" ya NO se muestra al

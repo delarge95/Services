@@ -5,7 +5,7 @@
  */
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import type { CSSProperties, Dispatch, SetStateAction } from 'react';
+import type { CSSProperties, Dispatch, SetStateAction, ReactNode } from 'react';
 import { ROOT_OPTIONS, WEB3D_LEVEL2, WEB3D_BRANCHES, sliderDefault } from '../../data/services/decisionTree';
 import type { TreeQuestion, TreeBranch, TreeOption } from '../../data/services/decisionTree';
 import { planFromTreeAnswers } from '../../data/services/treeToQuote';
@@ -70,7 +70,7 @@ const branchEn = (id: string): BranchEn | undefined => {
   return { ...(b ?? {}), questions: qs };
 };
 
-export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal = 0 }: { onComplete?: (plan: WizardQuotePlan, answers?: Record<string, string | number | boolean>) => void; onProgress?: (plan: WizardQuotePlan) => void; lang?: Lang; homeSignal?: number }) {
+export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal = 0, priceSlot = null }: { onComplete?: (plan: WizardQuotePlan, answers?: Record<string, string | number | boolean>) => void; onProgress?: (plan: WizardQuotePlan) => void; lang?: Lang; homeSignal?: number; priceSlot?: ReactNode }) {
   // ciclo 25: el wizard se DESMONTA al abrir la cotización final; al volver con Atrás se
   // remonta y su listener de popstate aún no existía → caía al paso 1 sin respuestas.
   // Se hidrata el estado inicial desde history.state (fuente de verdad de la navegación).
@@ -209,17 +209,18 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
           {rootChoice !== 'no-se' && <IntroHero lang={en ? 'en' : 'es'} />}
           <div id="cx-goals" style={{ scrollMarginTop: 90, paddingTop: 72 }} />
           <i className="cx-thread" aria-hidden="true" />
-          <span className="cx-eyebrow">{en ? '3D · Web · AI — quote in 1 minute' : '3D · Web · IA — cotiza en 1 minuto'}</span>
-          <h2 style={{
+          <span className="cx-eyebrow" data-fly>{en ? '3D · Web · AI — quote in 1 minute' : '3D · Web · IA — cotiza en 1 minuto'}</span>
+          {/* ciclo 38: el título sale de la explosión del dron en LINEART y se rellena al asentarse (o con el cursor) */}
+          <h2 className="cx-goals-title lt-on" data-fly style={{
             fontSize: 'clamp(2.2rem, 5vw, 3.5rem)', fontWeight: 700,
             letterSpacing: '-0.03em', color: 'var(--cx-text)', textAlign: 'center',
             margin: '0 0 12px', lineHeight: 1.1,
-          }}>{en ? <>What do you want to <span className="cx-ember">achieve</span>?</> : <>¿Qué quieres <span className="cx-ember">lograr</span>?</>}</h2>
-          <p style={{ fontSize: 17, color: 'var(--cx-muted)', textAlign: 'center', margin: '0 0 10px' }}>
+          }}>{en ? <><span className="lt">What do you want to </span><span className="cx-ember lt">achieve</span><span className="lt">?</span></> : <><span className="lt">¿Qué quieres </span><span className="cx-ember lt">lograr</span><span className="lt">?</span></>}</h2>
+          <p data-fly style={{ fontSize: 17, color: 'var(--cx-muted)', textAlign: 'center', margin: '0 0 10px' }}>
             {en ? W.l1Sub : 'Elige una opción y te guiamos paso a paso.'}
           </p>
           {/* ciclo 11: prototipo en vivo — la demo real del trabajo (Twinsight X500) */}
-          <div style={{ textAlign: 'center', margin: '0 0 44px' }}>
+          <div data-fly style={{ textAlign: 'center', margin: '0 0 44px' }}>
             <a href={BRAND.prototypeUrl} target="_blank" rel="noopener noreferrer" className="cx-prototype-link cx-protolink"
               style={{ fontSize: 14.5, fontWeight: 500, color: 'var(--cx-accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
               {en ? W.prototypeLink : 'Mira un prototipo en vivo: TwinSight X500'}
@@ -243,7 +244,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
       {/* NO ESTOY SEGURO */}
       {level === 1 && rootChoice === 'no-se' && (
         <div style={{ paddingTop: 60, textAlign: 'center' }}>
-          <h2 style={{ fontSize: 'clamp(1.8rem,3vw,2.4rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 8px' }}>{en ? W.ideaTitle : 'Cuéntame tu idea'}</h2>
+          <h2 className="cx-lt-title" style={{ fontSize: 'clamp(1.8rem,3vw,2.4rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 8px' }}>{en ? W.ideaTitle : 'Cuéntame tu idea'}</h2>
           <p style={{ fontSize: 15, color: 'var(--cx-muted)', margin: '0 0 40px' }}>{en ? W.ideaSub : 'No necesitas saber cómo se llama — describe lo que imaginas.'}</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 14, maxWidth: 760, margin: '0 auto' }}>
             {/* ciclo 25: el asistente con precios reales también como camino para indecisos */}
@@ -276,11 +277,11 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
             style={{ font: '500 14px inherit', color: 'var(--cx-accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginBottom: 20 }}>
             {en ? W.back : '← Atrás'}
           </button>
-          <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 8px' }}>
+          <h2 className="cx-lt-title" style={{ fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 8px' }}>
             {en ? SERVICE_ROOTS_EN[rootChoice]?.title ?? SERVICE_ROOTS[rootChoice].title : SERVICE_ROOTS[rootChoice].title}
           </h2>
           <p style={{ fontSize: 15, color: 'var(--cx-muted)', margin: '0 0 32px' }}>{en ? SERVICE_ROOTS_EN[rootChoice]?.subtitle ?? SERVICE_ROOTS[rootChoice].subtitle : SERVICE_ROOTS[rootChoice].subtitle}</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
+          <div className="cx-plategrid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
             {SERVICE_ROOTS[rootChoice].options.map((o, i) => (
               <button key={o.id}
                 onClick={() => { setSubChoice(o.id); setAnswers({}); setLevel(3); }}
@@ -307,7 +308,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
 
       {level === 2 && rootChoice !== 'web-3d' && !SERVICE_ROOTS[rootChoice] && (
         <div style={{ paddingTop: 60, textAlign: 'center' }}>
-          <h2 style={{ fontSize: 'clamp(1.8rem,3vw,2.4rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 8px' }}>{en ? W.comingTitle : 'Te cotizo esto personalmente'}</h2>
+          <h2 className="cx-lt-title" style={{ fontSize: 'clamp(1.8rem,3vw,2.4rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 8px' }}>{en ? W.comingTitle : 'Te cotizo esto personalmente'}</h2>
           <p style={{ fontSize: 15, color: 'var(--cx-muted)', margin: '0 auto 40px', maxWidth: 440, lineHeight: 1.5 }}>
             {en ? W.comingSub : 'El cotizador guiado cubre webs con 3D. Para video, imágenes o IA escríbeme directamente y te respondo con una propuesta en menos de 24 h.'}
           </p>
@@ -332,11 +333,11 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
         <div style={{ paddingTop: 40 }}>
           <button onClick={goBack} className="cx-back"
             style={{ font: '600 14px inherit', color: 'var(--cx-accent)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 20 }}>{en ? W.back : '← Atrás'}</button>
-          <h2 style={{ fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 8px' }}>
+          <h2 className="cx-lt-title" style={{ fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 8px' }}>
             {en ? W.l2Title : '¿Qué tipo de web con 3D?'}
           </h2>
           <p style={{ fontSize: 15, color: 'var(--cx-muted)', margin: '0 0 32px' }}>{en ? W.l2Sub : 'No necesitas saber términos técnicos — describe lo que imaginas.'}</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
+          <div className="cx-plategrid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
             {WEB3D_LEVEL2.map((o, i) => {
               const t = optText('__level2', o);
               return (
@@ -367,7 +368,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
         <div style={{ paddingTop: 40 }}>
           <button onClick={goBack} className="cx-back"
             style={{ font: '600 14px inherit', color: 'var(--cx-accent)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 20 }}>{en ? W.back : '← Atrás'}</button>
-          <h2 style={{ fontSize: 'clamp(1.6rem, 3vw, 2.2rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 6px' }}>
+          <h2 className="cx-lt-title" style={{ fontSize: 'clamp(1.6rem, 3vw, 2.2rem)', fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: '0 0 6px' }}>
             {en ? branchEn(branch.id)?.title ?? branch.title : branch.title}
           </h2>
           <p style={{ fontSize: 15, color: 'var(--cx-muted)', margin: '0 0 36px' }}>
@@ -378,7 +379,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
           {branch.id.startsWith('svc:') && CASE_STUDIES[subChoice] && <CaseStudyView cs={CASE_STUDIES[subChoice]} lang={lang} />}
           {/* ciclo 32: demo en vivo donde ningún caso real encaja (modelo animado, catálogo 3D) */}
           {branch.id.startsWith('svc:') && !CASE_STUDIES[subChoice] && LIVE_DEMOS[subChoice] && <LiveDemoView id={subChoice} lang={en ? 'en' : 'es'} />}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+          <div className="cx-qblock" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
             {branch.questions.filter(q => (!q.advanced || showAdvanced) && (!q.showWhen || q.showWhen(answers))).map((q) => (
               <QuestionCard key={q.id} q={q} answers={answers} onAnswer={set} lang={lang} branchId={branch.id} />
             ))}
@@ -395,6 +396,8 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
                 <GearIcon size={16} /> {en ? W.opcionesTecnicas : 'Opciones técnicas'}
               </button>
             )}
+            {/* ciclo 38: visor del precio en vivo (restaurado) — pegado abajo solo dentro de las preguntas */}
+            {priceSlot}
           </div>
 
           {/* Ver precio → mapea respuestas a servicios y cotiza */}
@@ -549,7 +552,7 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
   const qEn = en ? branchEn(branchId)?.questions?.[q.id] : undefined;
 
   return (
-    <div style={compact ? {
+    <div className={compact ? undefined : 'cx-qcard'} style={compact ? {
       padding: 0,
     } : {
       background: 'var(--cx-card)', backdropFilter: 'blur(12px)',
@@ -592,7 +595,7 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
       {/* ciclo 26: asset producido de la opción elegida (cuando exista) */}
       {q.type === 'cards' && (() => { const o = q.options?.find(x => x.id === current && x.visual); return o?.visual ? <MediaVisual v={o.visual} /> : null; })()}
       {q.type === 'cards' && q.options && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+        <div className="cx-choicegrid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
           {q.options.map(o => {
             const t = en
               ? { label: qEn?.options?.[o.id]?.label ?? o.label, desc: qEn?.options?.[o.id]?.desc ?? o.desc }

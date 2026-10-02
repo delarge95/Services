@@ -71,9 +71,15 @@ export function PriceDisplay({ min, max, currency, lang = 'es' }: {
 export function PriceBar({ min, max, currency, lang = 'es' }: {
   min: number; max: number; currency: Cur; lang?: Lang;
 }) {
+  // ciclo 38: barrido de la línea naranja en cada cambio (mismo gesto que el hero) + lámina técnica
+  const [sweep, setSweep] = useState(0);
+  const first = useRef(true);
+  useEffect(() => { if (first.current) { first.current = false; return; } setSweep((k) => k + 1); }, [min, max]);
   return (
-    <div className="cx-pricebar">
+    <div className="cx-pricebar cx-pricebar-38">
+      {sweep > 0 && <i key={sweep} className="cx-pricebar-sweep" aria-hidden="true" />}
       <div className="cx-pricebar-label">
+        <span className="cx-pricebar-tag" aria-hidden="true">FIG. $</span>
         {lang === 'es' ? 'Inversión estimada' : 'Estimated investment'}
       </div>
       <PriceDisplay min={min} max={max} currency={currency} lang={lang} />

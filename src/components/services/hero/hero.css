@@ -179,3 +179,13 @@ html, body { overflow-x: clip; }
   color: var(--cx-muted, #9aa1ab); white-space: nowrap; opacity: 0; transition: opacity .4s ease; pointer-events: none; }
 @media (pointer: coarse) { .ih-hint { display: none; } }
 @media (prefers-reduced-motion: reduce) { .ih-hud.hit .ih-ring, .ih-hud.hit .ih-flash { animation: none; } }
+
+/* ── ciclo 38: titular en LINEART (contorno sin relleno) que se rellena con una barrida ──
+   Cada trozo de texto es un .lt; IntroHero fija --lt-w / --lt-h (px, en el espacio del elemento). */
+.ih-intro-title, .ih-h1 { --lt-ink: currentColor; }
+.ih-intro-title { --lt-ink: #edeee8; }
+.ih-h1 { --lt-ink: var(--cx-text); }
+.lt { font-weight: inherit; font-style: inherit; }
+.ih-lt-on .lt { color: transparent; -webkit-text-stroke: 1.1px var(--lt-ink); background-image: linear-gradient(var(--lt-ink), var(--lt-ink));
+  background-repeat: no-repeat; background-position: 0 0; background-size: var(--lt-w, 100%) var(--lt-h, 100%); -webkit-background-clip: text; background-clip: text; }
+.ih-lt-on em.lt { --lt-ink: var(--cx-accent, #ff7a3d); }
