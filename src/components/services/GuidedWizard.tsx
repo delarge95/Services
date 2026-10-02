@@ -213,7 +213,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
         <div style={{ paddingTop: 0, textAlign: 'center' }}>
           {/* ciclo 32: pantalla de inicio que se convierte en el hero ("de lo complejo a lo esencial") */}
           {rootChoice !== 'no-se' && <IntroHero lang={en ? 'en' : 'es'} />}
-          <div id="cx-goals" style={{ scrollMarginTop: 70, paddingTop: 40 }} />
+          <div id="cx-goals" data-snap style={{ scrollMarginTop: 70, paddingTop: 40 }} />
           <i className="cx-thread" aria-hidden="true" />
           <span className="cx-eyebrow" data-fly>{en ? '3D · Web · AI — quote in 1 minute' : '3D · Web · IA — cotiza en 1 minuto'}</span>
           {/* ciclo 38: el título sale de la explosión del dron en LINEART y se rellena al asentarse (o con el cursor) */}
@@ -385,7 +385,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
           {branch.id.startsWith('svc:') && CASE_STUDIES[subChoice] && <CaseStudyView cs={CASE_STUDIES[subChoice]} lang={lang} />}
           {/* ciclo 32: demo en vivo donde ningún caso real encaja (modelo animado, catálogo 3D) */}
           {branch.id.startsWith('svc:') && !CASE_STUDIES[subChoice] && LIVE_DEMOS[subChoice] && <LiveDemoView id={subChoice} lang={en ? 'en' : 'es'} />}
-          <div className="cx-qblock" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+          <div className="cx-qblock" data-snap data-snap-offset="70" style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
             {branch.questions.filter(q => (!q.advanced || showAdvanced) && (!q.showWhen || q.showWhen(answers))).map((q) => (
               <QuestionCard key={q.id} q={q} answers={answers} onAnswer={set} lang={lang} branchId={branch.id} />
             ))}

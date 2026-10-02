@@ -49,7 +49,8 @@ function palette(el: HTMLElement): Pal {
 // ───────── materiales por fases ─────────
 type Mat = THREE.MeshStandardMaterial & { userData: { base: THREE.Color; flat: THREE.Color; maxOp: number; glow?: boolean; filled?: boolean; glass?: boolean } };
 function mat(color: THREE.Color, o: { rough?: number; metal?: number; map?: THREE.Texture | null; opacity?: number; flat?: THREE.Color; glow?: boolean; filled?: boolean; physical?: boolean } = {}): Mat {
-  const P = { color: color.clone(), roughness: o.rough ?? 0.55, metalness: o.metal ?? 0.1, map: o.map ?? null, transparent: true, opacity: 1, emissive: color.clone() };
+  // ciclo 41: SOLO lo que se vuelve translúcido es transparente (si todo lo es, three ordena mal etiqueta, líquido y vidrio)
+  const P = { color: color.clone(), roughness: o.rough ?? 0.55, metalness: o.metal ?? 0.1, map: o.map ?? null, transparent: (o.opacity ?? 1) < 1 || !!o.physical, opacity: 1, emissive: color.clone() };
   // vidrio: MeshPhysicalMaterial con transmisión (refracción real), que entra con la luz
   const m = (o.physical ? new THREE.MeshPhysicalMaterial({ ...P, ior: 1.5, clearcoat: 1, clearcoatRoughness: 0.04, specularIntensity: 1, reflectivity: 0.6 }) : new THREE.MeshStandardMaterial(P)) as Mat;
   m.userData = { base: color.clone(), flat: (o.flat ?? color).clone(), maxOp: o.opacity ?? 1, glow: o.glow, filled: o.filled, glass: (o.opacity ?? 1) < 1, ...(o.physical ? { physical: true } : {}) } as Mat["userData"];   // filled: relleno ya en el 2D · glow: emite desde la fase sólida
@@ -166,14 +167,15 @@ function figProduct(p: Pal): Fig {
   prof.push([30, 82]); for (let i = 1; i <= 6; i++) { const a = (i / 6) * (Math.PI / 2); prof.push([20 + Math.cos(a) * 10, 82 - Math.sin(a) * 10]); }
   prof.push([9, 72], [9, 60], [0, 60]);
   const glassM = mat(new THREE.Color('#eef6ff'), { rough: 0.04, metal: 0, physical: true, flat: p.sig.clone().lerp(new THREE.Color('#ffffff'), 0.55) });
-  const glass = new THREE.Mesh(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r / 100, Y(y))), 56), glassM);
+  const glass = new THREE.Mesh(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r / 100, Y(y))), 56), glassM); glass.renderOrder = 4;   // el vidrio se dibuja el último
   // líquido (perfume ámbar) visible a través del vidrio solo en la fase iluminada
   const liq: [number, number][] = [[0, 149], [24, 149], [27, 145], [27, 98], [0, 98]];
   const liquid = new THREE.Mesh(new THREE.LatheGeometry(liq.map(([r, y]) => new THREE.Vector2(r / 100, Y(y))), 48), mat(new THREE.Color('#e08a2c'), { rough: 0.15, metal: 0 })); liquid.userData.litOnly = true; liquid.userData.noOutline = true;
   const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.15, 40), mat(new THREE.Color('#1c1f26'), { rough: 0.25, metal: 0.8 })); cap.position.y = Y(52.5);
   const label = canvasTex(512, 160, (g) => { g.fillStyle = '#efe9df'; g.fillRect(0, 0, 512, 160); g.fillStyle = '#1b1d22'; g.font = '700 64px sans-serif'; g.fillText('AW', 210, 92); g.fillRect(200, 112, 112, 4); g.font = '500 20px monospace'; g.fillText('50 ML · N.º 01', 186, 140); });
-  const lab = new THREE.Mesh(new THREE.CylinderGeometry(0.305, 0.305, 0.24, 56, 1, true), mat(new THREE.Color('#ffffff'), { map: label, rough: 0.7, flat: new THREE.Color('#efe9df') })); lab.position.y = Y(114);
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(0.54, 56), mat(new THREE.Color('#141519'), { rough: 0.35, metal: 0.3 }));   // base de estudio oscura y algo reflectante ground.rotation.x = -Math.PI / 2 + Math.asin(6 / 54); ground.position.y = Y(154); ground.userData.noOutline = true; ground.userData.litOnly = true;
+  const lab = new THREE.Mesh(new THREE.CylinderGeometry(0.302, 0.302, 0.24, 56, 1, true), mat(new THREE.Color('#ffffff'), { map: label, rough: 0.7, flat: new THREE.Color('#efe9df') })); lab.position.y = Y(114);
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(0.54, 56), mat(new THREE.Color('#141519'), { rough: 0.35, metal: 0.3 }));   // base de estudio oscura y algo reflectante
+  ground.rotation.x = -Math.PI / 2 + Math.asin(6 / 54); ground.position.y = Y(154); ground.userData.noOutline = true; ground.userData.litOnly = true;
   const groundL = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 65 }, (_, i) => { const a = (i / 64) * Math.PI * 2; return new THREE.Vector3(0.54 * Math.cos(a), Y(154) + 0.06 * Math.sin(a), 0.537 * Math.sin(a)); })), new THREE.LineDashedMaterial({ dashSize: 0.03, gapSize: 0.04, transparent: true })); groundL.computeLineDistances(); groundL.userData.kind = 'ink'; groundL.userData.anno = true;
   // caja de luz: cuadrilátero (44,32)-(96,20)-(104,52)-(52,64) → 0,53 × 0,33, girada +13° (y hacia arriba)
   const box = new THREE.Mesh(new THREE.BoxGeometry(0.535, 0.33, 0.04), mat(new THREE.Color('#ffffff'), { rough: 0.9, glow: true })); box.position.set(X(74), Y(42), 0.1); box.rotation.z = Math.atan2(12, 52);

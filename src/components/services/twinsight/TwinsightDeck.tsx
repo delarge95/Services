@@ -65,13 +65,15 @@ const SLIDES: SlideDef[] = [
   { id: 'cover', label: ['PORTADA', 'COVER'], stage: { mode: 'tax', step: 0 } },
   { id: 'problem', label: ['PROBLEMA', 'PROBLEM'], stage: { mode: 'tax', step: 4 } },
   { id: 'pipeline', label: ['PIPELINE', 'PIPELINE'], stage: { mode: 'tax', step: 3, cap: ['El activo que corre aquí · <b>95 617</b> triángulos, cada pieza seleccionable', 'The asset running here · <b>95,617</b> triangles, every part selectable'] } },
-  { id: 'taxonomy', label: ['TAXONOMIA', 'TAXONOMY'], stage: { mode: 'tax', step: 0 }, steps: 8 },
+  { id: 'taxonomy', label: ['TAXONOMIA', 'TAXONOMY'], stage: { mode: 'tax', step: 0 }, steps: 6 },
   { id: 'thermal', label: ['THERMAL', 'THERMAL'], stage: { mode: 'th', step: 0 }, steps: 2 },
   { id: 'perf', label: ['RENDIMIENTO', 'PERFORMANCE'] },
   { id: 'sus', label: ['USABILIDAD_SUS', 'USABILITY_SUS'] },
   { id: 'close', label: ['CIERRE', 'CLOSING'], stage: { mode: 'tax', step: 0, cap: ['Holybro X500 V2 · WebGL en tiempo real, en tu navegador', 'Holybro X500 V2 · real-time WebGL, in your browser'] } },
 ];
-const TAX_STEPS: T2[] = [['Dron', 'Drone'], ['28 piezas', '28 parts'], ['30 anclas', '30 anchors'], ['257', '257'], ['Hotspots', 'Hotspots'], ['Tornillería', 'Fasteners'], ['Tornillo', 'Screw'], ['5 piezas', '5 pieces']];
+// ciclo 41: la taxonomía se queda con 6 pasos (sin «30 anclas» ni «257»); TAX_MAP los lleva a los pasos de la escena 3D
+const TAX_STEPS: T2[] = [['Dron', 'Drone'], ['28 piezas', '28 parts'], ['Hotspots', 'Hotspots'], ['Tornillería', 'Fasteners'], ['Tornillo', 'Screw'], ['5 piezas', '5 pieces']];
+const TAX_MAP = [0, 1, 4, 5, 6, 7];
 
 export function TwinsightDeck({ lang = 'es', liveUrl }: { lang?: Lang; liveUrl?: string }) {
   const en = lang === 'en';
@@ -110,7 +112,7 @@ export function TwinsightDeck({ lang = 'es', liveUrl }: { lang?: Lang; liveUrl?:
     setI(k); setSub(d < 0 ? (SLIDES[k].steps ?? 1) - 1 : 0);
   };
   const jump = (k: number) => { setI(k); setSub(0); };
-  const stage: Stage | undefined = s.stage && { ...s.stage, step: s.steps ? sub : s.stage.step };
+  const stage: Stage | undefined = s.stage && { ...s.stage, step: s.steps ? (s.id === 'taxonomy' ? TAX_MAP[sub] ?? sub : sub) : s.stage.step };
   const act = armed ? ' active' : '';
   const scrollToQuote = () => {
     const card = rootRef.current?.closest('.cs-card');
@@ -180,11 +182,11 @@ export function TwinsightDeck({ lang = 'es', liveUrl }: { lang?: Lang; liveUrl?:
       </>;
       break;
     case 'taxonomy': {
-      const met: [number, T2, number][] = [[28, ['Piezas canónicas', 'Canonical parts'], 1], [30, ['Anclas de escena', 'Scene anchors'], 2], [257, ['Elementos que se dibujan o se tocan', 'Elements drawn or touched'], 3]];
+      const met: [number, T2, number][] = [[28, ['Piezas canónicas', 'Canonical parts'], 1]];
       const trio: [T2, T2, T2, number[]][] = [
-        [['Hotspots', 'Hotspots'], ['Puntos de entrada', 'Entry points'], ['Un toque selecciona el grupo sin apuntar a una pieza diminuta.', 'One tap selects the group without aiming at a tiny part.'], [4]],
-        [['Tornillería', 'Fasteners'], ['El mayor peso', 'The heaviest load'], ['425 208 triángulos: el 79 % del archivo importado. En escena, proxies de 88 triángulos o menos (14 408 en total).', '425,208 triangles: 79% of the imported file. In the scene, proxies of 88 triangles or fewer (14,408 total).'], [5]],
-        [['Tornillo modular', 'Modular screw'], ['5 piezas base', '5 base pieces'], ['Al inspeccionar un tornillo, la app lo arma con cabeza, vueltas de rosca y punta. Vueltas = largo ÷ paso.', 'When a screw is inspected, the app builds it from head, thread turns and tip. Turns = length ÷ pitch.'], [6, 7]],
+        [['Hotspots', 'Hotspots'], ['Puntos de entrada', 'Entry points'], ['Un toque selecciona el grupo sin apuntar a una pieza diminuta.', 'One tap selects the group without aiming at a tiny part.'], [2]],
+        [['Tornillería', 'Fasteners'], ['El mayor peso', 'The heaviest load'], ['425 208 triángulos: el 79 % del archivo importado. En escena, proxies de 88 triángulos o menos (14 408 en total).', '425,208 triangles: 79% of the imported file. In the scene, proxies of 88 triangles or fewer (14,408 total).'], [3]],
+        [['Tornillo modular', 'Modular screw'], ['5 piezas base', '5 base pieces'], ['Al inspeccionar un tornillo, la app lo arma con cabeza, vueltas de rosca y punta. Vueltas = largo ÷ paso.', 'When a screw is inspected, the app builds it from head, thread turns and tip. Turns = length ÷ pitch.'], [4, 5]],
       ];
       text = <>
         {kicker('Taxonomía', 'Taxonomy')}
@@ -295,7 +297,7 @@ export function TwinsightDeck({ lang = 'es', liveUrl }: { lang?: Lang; liveUrl?:
   }
 
   return (
-    <div className="tw-deck" ref={rootRef} tabIndex={0} role="region" aria-roledescription={en ? 'slideshow' : 'presentación'}
+    <div className="tw-deck" data-snap data-snap-offset="70" ref={rootRef} tabIndex={0} role="region" aria-roledescription={en ? 'slideshow' : 'presentación'}
       aria-label={en ? 'Interactive presentation: TwinSight X500' : 'Presentación interactiva: TwinSight X500'}
       onKeyDown={(e) => {
         if ((e.target as HTMLElement).closest('button,a') && (e.key === ' ' || e.key === 'Enter')) return;

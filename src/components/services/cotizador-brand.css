@@ -200,3 +200,12 @@
     border-bottom: 1px solid var(--cx-border); animation: cx-menu-in .28s cubic-bezier(.2,.8,.2,1); }
   @keyframes cx-menu-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 }
+
+/* ── ciclo 41 · barra superior que solo aparece cuando se la busca (escritorio) ── */
+@media (min-width: 769px) and (hover: hover) {
+  .cx-nav { background: transparent !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; border-bottom-color: transparent !important;
+    transition: background .35s ease, border-color .35s ease, -webkit-backdrop-filter .35s ease, backdrop-filter .35s ease; }
+  .cx-nav.nav-glass { background: color-mix(in srgb, var(--cx-bg) 72%, transparent) !important; backdrop-filter: saturate(1.4) blur(14px) !important; -webkit-backdrop-filter: saturate(1.4) blur(14px) !important; border-bottom-color: var(--cx-border) !important; }
+  .cx-nav :is(.cx-nav-right, .cx-navback, .cx-home) { transition: opacity .35s ease, transform .35s cubic-bezier(.22, 1, .36, 1); }
+  .cx-nav:not(.nav-show) :is(.cx-nav-right, .cx-navback, .cx-home) { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+}

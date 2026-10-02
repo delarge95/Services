@@ -54,3 +54,13 @@
 .cx-pricehero-num{font:700 clamp(2rem,4vw,3rem)/1 'Space Grotesk',system-ui,sans-serif;letter-spacing:-.03em;color:var(--cx-text)}
 .cx-pricehero-max{font:500 clamp(1.2rem,2vw,1.6rem)/1.2 'Space Grotesk',system-ui,sans-serif;color:var(--cx-muted);margin-top:4px}
 .cx-pricehero .cx-price-delta{border-radius:0;font-family:var(--cx-mono,monospace)}
+
+/* ── ciclo 41: visor más delgado — etiqueta y rango en UN renglón ── */
+.cx-pricebar.cx-pricebar-38{display:flex;align-items:center;gap:14px;padding:9px 16px 10px;bottom:10px}
+.cx-pricebar-38 .cx-pricebar-label{margin:0;flex-shrink:0;white-space:nowrap}
+.cx-pricebar-38 .cx-price{min-width:0;flex:1}
+.cx-pricebar-38 .cx-price-row{flex-wrap:nowrap;gap:8px;align-items:center}
+.cx-pricebar-38 .cx-price-num{font-size:clamp(18px,2.3vw,26px);white-space:nowrap}
+.cx-pricebar-38 .cx-price-cur{white-space:nowrap}
+.cx-pricebar-38 .cx-price-delta{font-size:11px;padding:3px 7px}
+@media (max-width:560px){.cx-pricebar.cx-pricebar-38{gap:8px;padding:8px 12px}.cx-pricebar-38 .cx-pricebar-tag{display:none}.cx-pricebar-38 .cx-pricebar-label{font-size:9px;letter-spacing:.1em;max-width:70px;white-space:normal;line-height:1.2}.cx-pricebar-38 .cx-price-num{font-size:17px}.cx-pricebar-38 .cx-price-cur{display:none}}

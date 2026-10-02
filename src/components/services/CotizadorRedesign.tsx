@@ -22,6 +22,8 @@ import type { Lang } from '../../data/services/i18n';
 import type { Currency } from '../../data/services/types';
 import type { WizardPick, WizardQuotePlan } from '../../data/services/treeToQuote';
 import { bundlePct, esquemaPago, RONDAS_NOTA } from '../../lib/services/quoteSummary';
+import type { FormalQuote } from '../../lib/services/formalQuote';
+import { installSmoothScroll } from '../../lib/services/smoothScroll';
 import { encodeShare, decodeShare, quoteId } from '../../lib/services/share';
 import type { ShareState } from '../../lib/services/share';
 import { QuoteCta } from './QuoteCta';
@@ -347,6 +349,33 @@ export function CotizadorRedesign() {
    *  frame, antes de que la isla hidrate. */
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [navOpen, setNavOpen] = useState(false); // ciclo 32: menú compacto en móvil
+  // ciclo 41 — barra que no roba espacio (escritorio): arriba del todo se ven los botones sin barra; al bajar se
+  // ocultan; al acercar el cursor a la zona superior aparecen con la barra de cristal. Al alejarlo se va primero
+  // la barra y luego los botones (al deslizar o tras 1,8 s lejos). La marca queda siempre.
+  const navRef = useRef<HTMLElement>(null);
+  // ciclo 41: rueda amortiguada y ajuste a las secciones marcadas con [data-snap]
+  useEffect(() => installSmoothScroll(), []);
+  useEffect(() => {
+    const nav = navRef.current; if (!nav) return;
+    const fine = window.matchMedia('(hover: hover) and (pointer: fine)');
+    let near = false, timer = 0;
+    const set = (show: boolean, glass: boolean) => { nav.classList.toggle('nav-show', show); nav.classList.toggle('nav-glass', glass); };
+    const top = () => window.scrollY < 12;
+    const hideLater = () => { clearTimeout(timer); timer = window.setTimeout(() => { if (!near && !top() && !nav.matches(':focus-within')) set(false, false); }, 1800); };
+    const onMove = (e: PointerEvent) => {
+      if (!fine.matches || document.documentElement.dataset.cxIntro) return;
+      const z = e.clientY < 96;
+      if (z && !near) { near = true; clearTimeout(timer); set(true, true); }
+      else if (!z && near) { near = false; set(true, false); hideLater(); }
+    };
+    const onScroll = () => { if (near) return; if (top()) set(true, false); else { set(false, false); clearTimeout(timer); } };
+    const onFocus = () => set(true, true);
+    const onBlur = () => { if (!near) { set(true, false); hideLater(); } };
+    set(true, false); onScroll();
+    window.addEventListener('pointermove', onMove, { passive: true }); window.addEventListener('scroll', onScroll, { passive: true });
+    nav.addEventListener('focusin', onFocus); nav.addEventListener('focusout', onBlur);
+    return () => { clearTimeout(timer); window.removeEventListener('pointermove', onMove); window.removeEventListener('scroll', onScroll); nav.removeEventListener('focusin', onFocus); nav.removeEventListener('focusout', onBlur); };
+  }, []);
   // ciclo 35: marca AW ↔ «Alex Woodcock». Acrónimo durante la intro, en móvil y al bajar del hero;
   // nombre en escritorio arriba del todo o al pasar el cursor por la marca.
   const [brandHover, setBrandHover] = useState(false);
@@ -655,6 +684,41 @@ export function CotizadorRedesign() {
     return lines.join('\n');
   }, [svc, quote, lang, qId, svcName, tier, currency, extraQuotes, totalProyecto, bundle, pagoSugerido, entregaDias, cfgBits, shareUrl]);
 
+  // ciclo 41: cotización FORMAL (PDF de una página, WhatsApp y correo con el mismo contenido)
+  const formal = useMemo<FormalQuote | null>(() => {
+    if (!svc || !quote || !tier) return null;
+    const es = lang === 'es';
+    const tierName = es ? (tier === 'XS' ? 'esencial' : tier === 'S' ? 'estándar' : tier === 'M' ? 'profesional' : tier === 'L' ? 'premium' : 'máximo') : (EN.tierNames[tier] ?? '');
+    const adjustments: string[] = [];
+    if (urgencyPct) adjustments.push(es ? `Urgencia ${urgency === '72h' ? 'pronto' : 'crítica'} (+${urgencyPct} %)` : `${urgency === '72h' ? 'Soon' : 'Critical'} urgency (+${urgencyPct}%)`);
+    if (firstClient) adjustments.push(es ? `Descuento de lanzamiento (−${LAUNCH_DISCOUNT.defaultPct} %)` : `Launch discount (−${LAUNCH_DISCOUNT.defaultPct}%)`);
+    if (bundle > 0) adjustments.push(es ? `Agrupación de ${numServicios} servicios (−${bundle} %)` : `${numServicios}-service bundle (−${bundle}%)`);
+    const fmtVal = (v: ServiceVariable, x: unknown): string | null => {
+      if (x === undefined || x === null || x === '') return null;
+      if (typeof x === 'boolean') return x ? (es ? 'Sí' : 'Yes') : 'No';
+      if (typeof x === 'number') return `${x}${v.unidadEs ? ` ${v.unidadEs}` : ''}`;
+      return String(x);
+    };
+    const config: [string, string][] = [];
+    for (const v of SERVICE_VARIABLES[svc.id]?.variables ?? []) {
+      const val = fmtVal(v, (vals as Record<string, unknown>)[v.id]); if (!val) continue;
+      const q = (es ? v.preguntaEs : VARS_EN[svc.id]?.[v.id]?.question ?? v.preguntaEs).replace(/[¿?]/g, '').trim();
+      config.push([q.charAt(0).toUpperCase() + q.slice(1), val]);
+      if (config.length >= 8) break;
+    }
+    return {
+      lang: es ? 'es' : 'en', id: qId, date: new Date(), validDays: 15, currency,
+      main: { name: svcName, code: svc.id, tier, tierLabel: tierName, min: quote.totalMin, max: quote.totalMax },
+      extras: extraQuotes.map((e) => ({ name: pickLabel(e.pick, lang), code: e.pick.serviceId, tier: e.tier, min: e.quote.totalMin, max: e.quote.totalMax })),
+      adjustments, total: totalProyecto ?? { min: quote.totalMin, max: quote.totalMax }, delivery: entregaDias,
+      payment: pagoSugerido ? (es ? pagoSugerido : EN.pago[pagoSugerido] ?? pagoSugerido) : null,
+      rounds: es ? RONDAS_NOTA : EN.rondas,
+      includes: ((lang === 'en' ? (CATALOG_EN[svc.id]?.entregables ?? quote.entregables) : quote.entregables) as string[]).slice(0, 6).map((e) => (lang === 'en' ? e : esDisplay(e))),
+      config, url: shareUrl,
+      issuer: { name: BRAND.name, role: es ? 'Desarrollo 3D en tiempo real · Web 3D · IA aplicada' : BRAND.role, email: BRAND.contactEmail, phone: BRAND.whatsappNumber, web: 'alexwoodcock.me' },
+    };
+  }, [svc, quote, tier, lang, urgency, urgencyPct, firstClient, bundle, numServicios, vals, qId, currency, svcName, extraQuotes, totalProyecto, entregaDias, pagoSugerido, shareUrl]);
+
   return (
     <div className="cx-root" data-theme={theme} style={{ minHeight: '100vh', background: 'var(--cx-bg)', position: 'relative' }}>
       {/* ciclo 24: fondo WebGL de cubos retirado del montaje (canvas a pantalla completa
@@ -800,7 +864,7 @@ export function CotizadorRedesign() {
       {/* NAV minimal — ciclo 12: clases cx-nav/cx-nav-right para que en móvil
           los switches envuelvan a una segunda línea en vez de desbordar el
           viewport (425px de grupo no caben en 360-430px). */}
-      <nav data-noprint className="cx-nav" style={{
+      <nav ref={navRef} data-noprint className="cx-nav nav-show" style={{
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         padding: '20px 32px', position: 'relative', zIndex: 2,
         borderBottom: '1px solid var(--cx-border)',
@@ -808,7 +872,7 @@ export function CotizadorRedesign() {
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {/* ciclo 27: Atrás SIEMPRE visible en la barra superior (deshabilitado en el inicio) */}
           <button onClick={navBack} disabled={!canGoBack} className="cx-navback" aria-label={lang === 'es' ? 'Atrás' : 'Back'} title={lang === 'es' ? 'Atrás' : 'Back'}>←</button>
-          <button onClick={goHome} aria-label={lang === 'es' ? 'Inicio' : 'Home'} title={lang === 'es' ? 'Inicio' : 'Home'}
+          <button onClick={goHome} className="cx-home" aria-label={lang === 'es' ? 'Inicio' : 'Home'} title={lang === 'es' ? 'Inicio' : 'Home'}
             style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', background: 'var(--cx-tile)', border: 'none', cursor: 'pointer', color: 'var(--cx-text)' }}>
             <HomeIcon size={16} />
           </button>
@@ -826,14 +890,7 @@ export function CotizadorRedesign() {
           <span>{lang === 'es' ? 'Menú' : 'Menu'}</span><i aria-hidden="true" />
         </button>
         <div id="cx-nav-right" className={`cx-nav-right${navOpen ? ' open' : ''}`} onClick={(e) => { if ((e.target as HTMLElement).closest('button')) setNavOpen(false); }} style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <button onClick={() => { setMode('guided'); setServiceId(''); }}
-            style={{ font: '600 14px inherit', color: mode === 'guided' ? 'var(--cx-accent)' : 'var(--cx-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
-            {lang === 'es' ? 'Cotizar' : EN.navQuote}
-          </button>
-          <button onClick={() => setMode('catalog')}
-            style={{ font: '600 14px inherit', color: mode === 'catalog' ? 'var(--cx-accent)' : 'var(--cx-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
-            {lang === 'es' ? 'Catálogo' : EN.navCatalog}
-          </button>
+          {/* ciclo 41: «Cotizar» y «Catálogo» retirados de la barra (decisión del usuario) */}
           {/* Tema claro/oscuro */}
           <button onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')} aria-label={theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
             style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%', background: 'var(--cx-tile)', border: 'none', cursor: 'pointer', color: 'var(--cx-text)' }}>
@@ -997,7 +1054,7 @@ export function CotizadorRedesign() {
                   {(() => {
                     const dias = entregaDias;
                     return (
-                      <div style={{ marginTop: 24, padding: 14, borderRadius: 14, background: 'var(--cx-tile)' }}>
+                      <div className="cx-deliv" style={{ marginTop: 24, padding: 14, borderRadius: 14, background: 'var(--cx-tile)' }}>
                         <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--cx-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{lang === 'es' ? 'Entrega' : EN.delivery}</div>
                         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--cx-text)', marginTop: 2 }}>
                           {dias ? `${dias[0]}–${dias[1]} ${lang === 'en' ? 'days' : 'días'}` : '—'}
@@ -1030,7 +1087,7 @@ export function CotizadorRedesign() {
                     </div>
                   )}
                   {quote.entregables.length > 0 && (
-                    <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid var(--cx-soft)' }}>
+                    <div className="cx-incl" style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid var(--cx-soft)' }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cx-muted)', marginBottom: 8 }}>{lang === 'es' ? 'Incluye' : EN.includes}</div>
                       {(lang === 'en' ? (CATALOG_EN[svc.id]?.entregables ?? quote.entregables) : quote.entregables).slice(0, 4).map((e: string) => (
                         <div key={e} style={{ fontSize: 14, color: 'var(--cx-text)', padding: '4px 0', display: 'flex', gap: 6 }}>
@@ -1040,7 +1097,7 @@ export function CotizadorRedesign() {
                     </div>
                   )}
                   {/* D3+D5 ciclo 2.1: rondas incluidas y esquema de pago sugerido */}
-                  <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed var(--cx-soft)' }}>
+                  <div className="cx-pay" style={{ marginTop: 16, paddingTop: 14, borderTop: '1px dashed var(--cx-soft)' }}>
                     {pagoSugerido && (
                       <div style={{ fontSize: 13, color: 'var(--cx-text)', padding: '3px 0', display: 'flex', gap: 6 }}>
                         <span style={{ color: 'var(--cx-accent)', fontWeight: 600 }}>{lang === 'es' ? 'Pago sugerido:' : EN.paymentSuggested}</span> {lang === 'en' ? EN.pago[pagoSugerido] ?? pagoSugerido : pagoSugerido}
@@ -1048,8 +1105,8 @@ export function CotizadorRedesign() {
                     )}
                     <div style={{ fontSize: 13, color: 'var(--cx-text)', padding: '3px 0' }}>{lang === 'es' ? RONDAS_NOTA : EN.rondas}</div>
                   </div>
-                  <div data-noprint style={{ marginTop: 24 }}>
-                    <QuoteCta summary={summary} url={shareUrl} lang={lang} />
+                  <div data-noprint className="cx-ctawrap" style={{ marginTop: 24 }}>
+                    <QuoteCta summary={summary} url={shareUrl} lang={lang} formal={formal} />
                   </div>
                   <p style={{ fontSize: 11, color: 'var(--cx-faint)', marginTop: 16, textAlign: 'center' }}>{lang === 'es' ? 'Rango orientativo · válida 15 días' : EN.rangeValidity}</p>
                   {/* ciclo 11: prototipo en vivo junto al CTA — la demo real del trabajo */}

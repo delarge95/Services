@@ -216,7 +216,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     // depuración de timing: ?introAt=2.4 congela la intro en ese instante del guion (revisión fotograma a fotograma)
     let freezeAt = NaN; try { freezeAt = Number(new URLSearchParams(location.search).get('introAt') ?? 'NaN'); } catch { /* */ }
     const K = short && !Number.isFinite(freezeAt) ? 0.7 : 1.3;   // ciclo 37: un 30 % más lenta que el guion base (misma aceleración)
-    if (wantIntro) html.dataset.cxIntro = 'on'; else { delete html.dataset.cxIntro; setStage('hero'); }
+    if (wantIntro) { html.dataset.cxIntro = 'on'; try { history.scrollRestoration = 'manual'; } catch { /* */ } window.scrollTo(0, 0); } else { delete html.dataset.cxIntro; setStage('hero'); }
     MeshoptDecoder.useWorkers?.(2);
 
     const layer = layerRef.current!;
@@ -244,7 +244,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       ? { face: new THREE.Color(0xeef0f3), edge: new THREE.Color(0x1b2433), acc: new THREE.Color(0xc4400d), edgeOp: 0.5 }
       : { face: new THREE.Color(0x15171b), edge: new THREE.Color(0xe9e6df), acc: new THREE.Color(0xff7a3d), edgeOp: 0.55 };
     let cols = themeCols();
-    const mo = new MutationObserver(() => { cols = themeCols(); });
+    const mo = new MutationObserver(() => { cols = themeCols(); applyTheme(); });
     mo.observe(html, { attributes: true, attributeFilter: ['data-cx-theme'] });
 
     // planos de recorte: SIEMPRE uno por material (cambiar el número recompila el sombreador)
@@ -259,6 +259,9 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     const frontMat = withExplode(new THREE.LineBasicMaterial({ color: 0xff7a3d, transparent: true, opacity: 1, depthWrite: false, blending: THREE.AdditiveBlending }), U);
     const scanMat = new THREE.LineBasicMaterial({ color: 0xff7a3d, transparent: true, opacity: 0, depthWrite: false });
     const disposables: { dispose: () => void }[] = [env, pmrem, minMat, accMat, edgeMat, skelMat, frontMat, scanMat];
+    // ciclo 41: en claro el frente de luz no puede sumar (sobre blanco desaparece) y la tinta es oscura
+    const applyTheme = () => { const light = html.dataset.cxTheme === 'light'; frontMat.blending = light ? THREE.NormalBlending : THREE.AdditiveBlending; frontMat.needsUpdate = true; edgeMat.color.copy(cols.edge); skelMat.color.copy(cols.edge); };
+    applyTheme();
 
     const pivot = new THREE.Group(); pivot.visible = false; scene.add(pivot);
     let ready = false, failed = false, disposed = false, compiling = false;
@@ -412,13 +415,15 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     const finish = () => {
       if (done) return; done = true; playedThisLoad = true;
       try { sessionStorage.setItem('cx-intro', '1'); } catch { /* */ }
+      window.scrollTo(0, 0);   // ciclo 41: tras la intro SIEMPRE el hero, sin importar el scroll previo
       delete html.dataset.cxIntro; setStage('hero');
       heroTitleRef.current?.classList.remove('ih-lt-on');
       divX = W - SW0; doneAt = performance.now() / 1000;   // la línea divisoria arranca donde terminó el barrido
     };
+    let skipPending = false;   // «Saltar» pulsado mientras carga: se aplica en cuanto el modelo esté listo
     const ff = () => {
       if (!wantIntro || done) return;
-      if (clock < 0) { if (!ready) return; clock = 0; }
+      if (clock < 0) { if (!ready) { skipPending = true; return; } clock = 0; }
       clock = Math.max(clock, (TL.s0 - 0.02) * K);
       document.getAnimations?.().forEach((an) => { try { an.finish(); } catch { /* */ } });
     };
@@ -468,7 +473,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       if (ready && target - shown < 0.004) shown = 1;
       if (countRef.current) countRef.current.textContent = String(Math.round(clamp01(shown) * 100)).padStart(3, '0');
       if (wantIntro && failed) { finish(); flipDone = true; curtainRef.current?.classList.add('out'); }
-      if (wantIntro && clock < 0 && shown >= 1 && now - t0 > (short ? 0.25 : 0.5)) { clock = 0; hudRef.current?.classList.add('loaded'); }
+      if (wantIntro && clock < 0 && shown >= 1 && now - t0 > (short ? 0.25 : 0.5)) { clock = 0; hudRef.current?.classList.add('loaded'); if (skipPending) ff(); }
       // depuración: window.__cxIntroAt = 1.2 fija el instante sin recargar (solo con ?introAt)
       const fzAt = (window as unknown as { __cxIntroAt?: number }).__cxIntroAt;
       if (Number.isFinite(freezeAt) && typeof fzAt === 'number') freezeAt = fzAt;
@@ -565,7 +570,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
         scan!.position.y = v > 0 ? sM : sR; scanMat.opacity = scanOn ? 0.95 : 0;
         const eo = lerp(lerp(0.6, 0.12, u), cols.edgeOp, v);
         edgeMat.opacity = eo;
-        edgeMat.color.set(0xe9e6df); skelMat.color.set(0xf4f2ec);
+        edgeMat.color.copy(cols.edge); skelMat.color.copy(cols.edge);   // ciclo 41: tinta del tema (claro: oscura)
         if (dividerRef.current) dividerRef.current.style.opacity = '0';
       } else {
         // hero: la línea entra horizontal, gira 90° viajando al borde izquierdo y CRUZA el modelo hasta su sitio.
@@ -607,7 +612,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
         if (ps > 0) { lineX = lerp(lineX, xL, ps); bx = ps > 0.999 ? -1e5 : lineX; lineA *= 1 - smooth(0.75, 1, ps); labels = labels && ps < 0.3; }
         planeAtX(bx, planeReal, true); planeAtX(bx, planeMin, false);
         planeEdge.copy(planeMin);
-        _c.set(0xe9e6df).lerp(cols.edge, k); edgeMat.color.copy(_c); skelMat.color.copy(_c);
+        _c.copy(cols.edge); edgeMat.color.copy(_c); skelMat.color.copy(_c);
         edgeMat.opacity = cols.edgeOp * (1 - fadeOut * 0.7);
         const dv = dividerRef.current;
         if (dv) {
@@ -659,7 +664,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
             const ra = a2.getBoundingClientRect(), rb = b2.getBoundingClientRect();
             const to = getComputedStyle(b2).color;
             a2.style.transformOrigin = '0 0';
-            a2.animate([{ transform: 'translate(0,0) scale(1)', color: '#edeee8' }, { transform: `translate(${rb.left - ra.left}px, ${rb.top - ra.top}px) scale(${rb.height / Math.max(1, ra.height)})`, color: to }],
+            a2.animate([{ transform: 'translate(0,0) scale(1)', color: getComputedStyle(a2).color }, { transform: `translate(${rb.left - ra.left}px, ${rb.top - ra.top}px) scale(${rb.height / Math.max(1, ra.height)})`, color: to }],
               { duration: 1100 * K, easing: 'cubic-bezier(.65,0,.35,1)', fill: 'forwards' })
               .finished.then(() => { flipDone = true; b2.classList.add('in'); a2.style.opacity = '0'; }).catch(() => { flipDone = true; });
           } else flipDone = true;
@@ -689,7 +694,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
   const titleLines = <><span><b className="lt">{L.l1}</b></span><span><b className="lt">{L.l2a}</b><em className="lt">{L.l2b}</em><b className="lt">.</b></span></>;
   return (
     <>
-      <section className={`ih-hero${hero ? ' ih-on' : ''}`} aria-label={`${L.l1} ${L.l2a}${L.l2b}`}>
+      <section data-snap data-snap-offset="9999" className={`ih-hero${hero ? ' ih-on' : ''}`} aria-label={`${L.l1} ${L.l2a}${L.l2b}`}>
         <div className="ih-copy">
           <p className="ih-kicker">{L.kicker}</p>
           <h1 className={`ih-h1${hero ? ' in' : ''}`} ref={heroTitleRef}>{titleLines}</h1>

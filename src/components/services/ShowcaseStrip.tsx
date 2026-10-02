@@ -53,7 +53,7 @@ function CardView({ c, lang, i }: { c: Card; lang: Lang; i: number }) {
 export function ShowcaseStrip({ lang = 'es' }: { lang?: Lang }) {
   const en = lang === 'en';
   return (
-    <section className="cx-show cx-wide" aria-labelledby="cx-show-h">
+    <section data-snap data-snap-offset="70" className="cx-show cx-wide" aria-labelledby="cx-show-h">
       <style>{`
         .cx-show { margin: 56px 0 0; text-align: left; }
         .cx-show-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }

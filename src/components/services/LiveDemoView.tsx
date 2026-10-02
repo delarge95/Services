@@ -33,7 +33,7 @@ export function LiveDemoView({ id, lang = 'es' }: { id: string; lang?: Lang }) {
   if (!d) return null;
   const L = (p: [string, string]) => (lang === 'en' ? p[1] : p[0]);
   return (
-    <section className="cs-card cx-wide" aria-label={L(d.title)}>
+    <section data-snap data-snap-offset="70" className="cs-card cx-wide" aria-label={L(d.title)}>
       <style>{`
         .cs-card { border: 1px solid var(--cx-accent-border); border-radius: 18px; background: var(--cx-card); padding: 18px; margin: 0 0 18px; }
         .ld-kicker { display: inline-flex; align-items: center; gap: 6px; font: 600 10.5px var(--cx-mono, monospace); letter-spacing: .16em; text-transform: uppercase; color: var(--cx-accent); }
