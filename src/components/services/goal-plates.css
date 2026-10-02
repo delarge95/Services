@@ -15,14 +15,14 @@
 /* cruz de registro en cada esquina superior izquierda (como en un plano) */
 .cx-plate::before { content: ''; position: absolute; left: -5px; top: -5px; width: 9px; height: 9px; pointer-events: none; z-index: 1;
   background: linear-gradient(var(--cx-faint), var(--cx-faint)) 50% 0 / 1px 100% no-repeat, linear-gradient(var(--cx-faint), var(--cx-faint)) 0 50% / 100% 1px no-repeat; }
-.cx-plate:is(:hover, :focus-visible, .live) { background: color-mix(in srgb, var(--cx-accent) 4%, transparent); }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) { background: color-mix(in srgb, var(--cx-accent) 4%, transparent); }
 .cx-plate:focus-visible { outline: 2px solid var(--cx-signal); outline-offset: -2px; }
 
 .cx-plate-fig { position: relative; display: block; padding: 34px 20px 4px; }
 .cx-plate-fig svg { display: block; width: 100%; height: auto; max-height: 210px; overflow: visible; }
 .cx-plate-tag { position: absolute; top: 14px; left: 18px; font: 500 9.5px/1 var(--cx-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--cx-faint);
   opacity: clamp(0, calc(var(--d, 0) * 3), 1); transition: color .3s; }
-.cx-plate:is(:hover, :focus-visible, .live) .cx-plate-tag { color: var(--cx-signal); }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) .cx-plate-tag { color: var(--cx-signal); }
 
 .cx-plate-txt { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 12px; row-gap: 4px; align-items: baseline; padding: 12px 20px 22px; }
 .cx-plate-idx { grid-row: span 2; font: 500 11px/1.6 var(--cx-mono); letter-spacing: .1em; color: var(--cx-accent); }
@@ -30,8 +30,8 @@
 .cx-plate-desc { grid-column: 2; font-size: 13.5px; line-height: 1.45; color: var(--cx-muted); }
 .cx-plate-go { grid-column: 3; grid-row: 1; font: 500 10.5px/1.6 var(--cx-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--cx-faint); white-space: nowrap; transition: color .3s; }
 .cx-plate-go i { display: inline-block; font-style: normal; transition: transform .35s var(--cx-ease); }
-.cx-plate:is(:hover, :focus-visible, .live) .cx-plate-go { color: var(--cx-accent); }
-.cx-plate:is(:hover, :focus-visible, .live) .cx-plate-go i { transform: translateX(4px); }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) .cx-plate-go { color: var(--cx-accent); }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) .cx-plate-go i { transform: translateX(4px); }
 
 /* ── trazo (esencial) ── */
 .cx-plate svg .dr { fill: none; stroke: var(--cx-text); stroke-opacity: .5; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round;
@@ -62,34 +62,27 @@
 .cx-plate svg :is(.f-cursor, .f-head) { transform-origin: 0 0; }
 
 /* ── complejo (hover / foco / táctil centrado) ── */
-.cx-plate:is(:hover, :focus-visible, .live) svg .dr { stroke-opacity: .8; }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) svg .dr { stroke-opacity: .8; }
 /* 01 web 3D: el cubo toma materiales, flota; la órbita gira y el cursor lo arrastra */
-.cx-plate:is(:hover, :focus-visible, .live) svg .f1 { fill-opacity: .9; }
-.cx-plate:is(:hover, :focus-visible, .live) svg .f2 { fill-opacity: .2; }
-.cx-plate:is(:hover, :focus-visible, .live) svg .f3 { fill-opacity: .09; }
-.cx-plate:is(:hover, :focus-visible, .live) svg .f-cube { animation: cxp-float 2.8s var(--cx-ease) infinite; }
-.cx-plate:is(:hover, :focus-visible, .live) svg .f-orbit .dr { stroke: var(--cx-accent); animation: cxp-march 1s linear infinite; }
-.cx-plate:is(:hover, :focus-visible, .live) svg .f-cursor { animation: cxp-drag 2.8s var(--cx-ease) infinite; }
-.cx-plate:is(:hover, :focus-visible, .live) svg .hot { animation: cxp-ping 1.4s var(--cx-ease) infinite; }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) svg .f-cube { animation: cxp-float 2.8s var(--cx-ease) infinite; }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) svg .f-orbit .dr { stroke: var(--cx-accent); animation: cxp-march 1s linear infinite; }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) svg .f-cursor { animation: cxp-drag 2.8s var(--cx-ease) infinite; }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) svg .hot { animation: cxp-ping 1.4s var(--cx-ease) infinite; }
 /* 02 video: la bola recorre su trayectoria entre fotogramas clave; el cabezal avanza a la vez */
-.cx-plate:is(:hover, :focus-visible, .live) svg .f-ball { fill-opacity: 1; animation: cxp-ball 2.6s cubic-bezier(.65, 0, .35, 1) infinite; }
-.cx-plate:is(:hover, :focus-visible, .live) svg .f-head { animation: cxp-head 2.6s linear infinite; }
-.cx-plate:is(:hover, :focus-visible, .live) svg .ghost { stroke: var(--cx-accent); stroke-opacity: .5; }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) svg .f-ball { fill-opacity: 1; animation: cxp-ball 2.6s cubic-bezier(.65, 0, .35, 1) infinite; }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) svg .f-head { animation: cxp-head 2.6s linear infinite; }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) svg .ghost { stroke: var(--cx-accent); stroke-opacity: .5; }
 /* 03 imágenes: el frasco toma vidrio y brillo; disparo de flash */
-.cx-plate:is(:hover, :focus-visible, .live) svg .f-glass { fill-opacity: .16; }
-.cx-plate:is(:hover, :focus-visible, .live) svg .f-shine { animation: cxp-shine 2.4s var(--cx-ease) infinite; }
-.cx-plate:is(:hover, :focus-visible, .live) svg .f-flash { animation: cxp-flash .7s ease-out 1; }
-.cx-plate:is(:hover, :focus-visible, .live) svg .ray { stroke: var(--cx-accent); stroke-opacity: .7; }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) svg .f-flash { animation: cxp-flash .7s ease-out 1; }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) svg .ray { stroke: var(--cx-accent); stroke-opacity: .7; }
 /* 04 IA: señales recorren la red; nodos de salida se encienden; escribe */
-.cx-plate:is(:hover, :focus-visible, .live) svg .pulse { opacity: 1; animation: cxp-pulse 1.1s linear infinite; }
-.cx-plate:is(:hover, :focus-visible, .live) svg .node.out { fill: var(--cx-accent); }
-.cx-plate:is(:hover, :focus-visible, .live) svg .type { animation: cxp-type 1s ease-in-out infinite; }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) svg .pulse { opacity: 1; animation: cxp-pulse 1.1s linear infinite; }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) svg .type { animation: cxp-type 1s ease-in-out infinite; }
 .cx-plate svg .t2 { animation-delay: .15s !important; } .cx-plate svg .t3 { animation-delay: .3s !important; }
 /* 05 técnicos: el engranaje gira y los tornillos bajan a su sitio (ensamble) */
 .cx-plate svg .f-screw { transition: transform 1s cubic-bezier(.65, 0, .35, 1); }
-.cx-plate:is(:hover, :focus-visible, .live) svg .f-gearfill { fill-opacity: .12; }
-.cx-plate:is(:hover, :focus-visible, .live) svg .f-gear { animation: cxp-spin 9s linear infinite; }
-.cx-plate:is(:hover, :focus-visible, .live) svg .f-screw { transform: translateY(56px); }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) svg .f-gear { animation: cxp-spin 9s linear infinite; }
+.cx-plate:is(:hover, :focus-visible, .live, .p3d-live) svg .f-screw { transform: translateY(56px); }
 
 @keyframes cxp-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
 @keyframes cxp-march { to { stroke-dashoffset: -14; } }
@@ -173,3 +166,30 @@
 .cx-show-media { margin: 12px 12px 0; }
 .cx-show-game { border-radius: 0 !important; }
 .cx-config [style*="border-radius: 20px"], .cx-config [style*="border-radius: 16px"], .cx-config [style*="border-radius: 18px"], .cx-config [style*="border-radius: 14px"] { border-radius: 0 !important; }
+
+/* ── ciclo 39 · 2D → 3D: la línea naranja barre la lámina (el hover 2D se queda en lineart; el color llega en 3D) ── */
+.cx-plate-wipe { position: absolute; width: 1.5px; margin-left: -.75px; pointer-events: none; opacity: 0; z-index: 2;
+  background: var(--cx-accent, #ff7a3d); box-shadow: 0 0 12px var(--cx-accent, #ff7a3d); }
+
+/* ── ciclo 39 · llegada en BLANCO: mientras viajan desde el dron, todo es tinta clara; al asentarse, su color ── */
+.cx-mono { --cx-accent: var(--cx-text); --cx-accent-2: var(--cx-text); --cx-signal: var(--cx-text); --cx-muted: var(--cx-text);
+  --cx-faint: color-mix(in srgb, var(--cx-text) 60%, transparent); --cx-signal-soft: transparent; --cx-accent-border: color-mix(in srgb, var(--cx-text) 40%, transparent); }
+.cx-eyebrow, .cx-eyebrow::before, .cx-protolink, .cx-plate-txt *, .cx-plate-tag, .cx-goals-title + p { transition: color .6s ease, background-color .6s ease, border-color .6s ease, -webkit-text-stroke-color .6s ease; }
+
+/* ── ciclo 39 · nivel 2: los iconos se dibujan una vez; el hover los redibuja SIN repetir al salir ── */
+.cx-plategrid.cx-drawn .cx-option-icon svg :is(path, circle, rect, line, polyline, polygon, ellipse) { animation: none; stroke-dashoffset: 0; }
+
+/* ── ciclo 39 · panel del precio final con el lenguaje de láminas ── */
+.cx-config > div > div[style*="border-radius"] { border-radius: 0 !important; background: transparent !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  border: 0 !important; border-top: 1px solid var(--cx-border) !important; padding-left: 0 !important; padding-right: 0 !important; position: relative; }
+.cx-config > div > div[style*="border-radius"]::before { content: ''; position: absolute; left: -5px; top: -5px; width: 9px; height: 9px; pointer-events: none;
+  background: linear-gradient(var(--cx-faint), var(--cx-faint)) 50% 0 / 1px 100% no-repeat, linear-gradient(var(--cx-faint), var(--cx-faint)) 0 50% / 100% 1px no-repeat; }
+.cx-config-aside { border-radius: 0 !important; box-shadow: none !important; background: color-mix(in srgb, var(--cx-bg) 78%, transparent) !important; border: 1px solid var(--cx-border) !important; border-top: 1px solid var(--cx-accent-border) !important; }
+.cx-config-aside::before { content: ''; position: absolute; left: -5px; top: -5px; width: 9px; height: 9px; pointer-events: none;
+  background: linear-gradient(var(--cx-faint), var(--cx-faint)) 50% 0 / 1px 100% no-repeat, linear-gradient(var(--cx-faint), var(--cx-faint)) 0 50% / 100% 1px no-repeat; }
+.cx-config-aside [style*="border-radius: 14px"], .cx-config-aside [style*="border-radius: 12px"] { border-radius: 0 !important; }
+.cx-urg { gap: 0 !important; border: 1px solid var(--cx-border); }
+.cx-urg > button { border-radius: 0 !important; border: 0 !important; border-right: 1px solid var(--cx-border) !important; background: transparent !important; transition: background .3s, box-shadow .3s; }
+.cx-urg > button:last-child { border-right: 0 !important; }
+.cx-urg > button[style*="var(--cx-accent-soft)"] { background: color-mix(in srgb, var(--cx-accent) 10%, transparent) !important; box-shadow: inset 0 -2px 0 var(--cx-accent); }
+.cx-config > div > div [style*="border-radius: 999px"]:not(.cx-back) { border-radius: 0 !important; }

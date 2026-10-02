@@ -26,7 +26,7 @@ import { encodeShare, decodeShare, quoteId } from '../../lib/services/share';
 import type { ShareState } from '../../lib/services/share';
 import { QuoteCta } from './QuoteCta';
 import { GuidedWizard, WizardEditInline } from './GuidedWizard';
-import { PriceBar } from './PriceDisplay';
+import { PriceBar, PriceHero } from './PriceDisplay';
 import { planFromTreeAnswers } from '../../data/services/treeToQuote';
 import { RefDropzone } from './RefDropzone';
 import { SunIcon, MoonIcon, HomeIcon, GearIcon, ExternalIcon } from './icons';
@@ -892,7 +892,7 @@ export function CotizadorRedesign() {
                 style={{ alignSelf: 'flex-start', font: '600 14px inherit', color: 'var(--cx-accent)', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 8 }}>
                 {lang === 'es' ? '← Cambiar servicio' : EN.changeService}
               </button>
-              <h2 style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: 0 }}>{lang === 'en' ? (CATALOG_EN[svc.id]?.name ?? svc.nameEs) : NAME_ES_DISPLAY[svc.id] ?? svc.nameEs}</h2>
+              <h2 className="cx-lt-title" style={{ fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em', color: 'var(--cx-text)', margin: 0 }}>{lang === 'en' ? (CATALOG_EN[svc.id]?.name ?? svc.nameEs) : NAME_ES_DISPLAY[svc.id] ?? svc.nameEs}</h2>
 
               {/* #6: 'Editar detalles' despliega el menú anterior (wizard) con
                   todas las configuraciones hechas y las respuestas conservadas */}
@@ -911,7 +911,7 @@ export function CotizadorRedesign() {
                   />
                 ) : (
                 <button
-                  onClick={() => setEditOpen(true)}
+                  onClick={() => { if (typeof window !== 'undefined' && window.history.state?.config !== undefined) window.history.back(); else setEditOpen(true); }}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
                     padding: '10px 22px', borderRadius: 999,
@@ -942,7 +942,7 @@ export function CotizadorRedesign() {
                 background: 'var(--cx-card)', backdropFilter: 'blur(12px)',
                 border: '1px solid var(--cx-border)', borderRadius: 20, padding: 24,
               }}>
-                <div style={{ display: 'flex', gap: 10 }}>
+                <div className="cx-urg" style={{ display: 'flex', gap: 10 }}>
                   {([['none', lang === 'es' ? 'Normal' : EN.urgency.normal], ['72h', lang === 'es' ? 'Pronto +30%' : EN.urgency.soon], ['24h', lang === 'es' ? 'Crítico +50%' : EN.urgency.critical]] as const).map(([id, label]) => (
                     <button key={id} onClick={() => setUrgency(id as Urgency)}
                       style={{
@@ -981,32 +981,14 @@ export function CotizadorRedesign() {
                   {/* ciclo 10 — precio grande: con extras es EL RANGO DEL PROYECTO
                       (principal + extras, ya con bundle); el tier solo se muestra
                       para un servicio sin extras. */}
+                  {/* ciclo 39: precio con las MISMAS animaciones del visor (números, variación, barrido) */}
                   {extraQuotes.length > 0 && totalProyecto ? (
-                    <>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cx-accent)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-                        {lang === 'en' ? EN.yourProject(numServicios) : `Tu proyecto · ${numServicios} servicios`}
-                      </div>
-                      <div aria-live="polite" aria-atomic="true" style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--cx-text)', lineHeight: 1 }}>
-                        {fmt(currency, totalProyecto.min)}
-                      </div>
-                      <div style={{ fontSize: 'clamp(1.2rem, 2vw, 1.6rem)', fontWeight: 500, color: 'var(--cx-muted)', marginTop: 4 }}>
-                        a {fmt(currency, totalProyecto.max)}
-                      </div>
-                    </>
+                    <PriceHero label={lang === 'en' ? EN.yourProject(numServicios) : `Tu proyecto · ${numServicios} servicios`} min={totalProyecto.min} max={totalProyecto.max} currency={currency} lang={lang} />
                   ) : (
-                    <>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--cx-accent)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-                        {lang === 'en'
-                          ? `${tier} · ${EN.tierNames[tier] ?? ''} ${EN.tierWord}`
-                          : `${tier} · Nivel ${tier === 'XS' ? 'esencial' : tier === 'S' ? 'estándar' : tier === 'M' ? 'profesional' : tier === 'L' ? 'premium' : 'máximo'}`}
-                      </div>
-                      <div style={{ fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 700, letterSpacing: '-0.03em', color: 'var(--cx-text)', lineHeight: 1 }}>
-                        {fmt(currency, quote.totalMin)}
-                      </div>
-                      <div style={{ fontSize: 'clamp(1.2rem, 2vw, 1.6rem)', fontWeight: 500, color: 'var(--cx-muted)', marginTop: 4 }}>
-                        a {fmt(currency, quote.totalMax)}
-                      </div>
-                    </>
+                    <PriceHero label={lang === 'en'
+                      ? `${tier} · ${EN.tierNames[tier] ?? ''} ${EN.tierWord}`
+                      : `${tier} · Nivel ${tier === 'XS' ? 'esencial' : tier === 'S' ? 'estándar' : tier === 'M' ? 'profesional' : tier === 'L' ? 'premium' : 'máximo'}`}
+                      min={quote.totalMin} max={quote.totalMax} currency={currency} lang={lang} />
                   )}
                   {/* ciclo 10 — card HORAS retirada; ENTREGA sola a lo ancho.
                       Regla de entrega con extras: lo MÁS CONSERVADOR de cada

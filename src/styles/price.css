@@ -46,3 +46,11 @@
 .cx-pricebar-38{--pb-w:min(680px,92vw)}
 @media (max-width:560px){.cx-pricebar.cx-pricebar-38{bottom:8px;padding:12px 14px 14px}.cx-pricebar-38 .cx-price-num{font-size:30px}}
 @media (prefers-reduced-motion: reduce){.cx-pricebar-sweep{display:none}}
+
+/* ── ciclo 39: precio grande del panel final (mismas animaciones que el visor) ── */
+.cx-pricehero{position:relative;overflow:hidden;padding:2px 0 4px;font-variant-numeric:tabular-nums;--pb-w:420px}
+.cx-pricehero-label{font:500 10.5px/1 var(--cx-mono,monospace);letter-spacing:.16em;text-transform:uppercase;color:var(--cx-accent);margin-bottom:12px}
+.cx-pricehero-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.cx-pricehero-num{font:700 clamp(2rem,4vw,3rem)/1 'Space Grotesk',system-ui,sans-serif;letter-spacing:-.03em;color:var(--cx-text)}
+.cx-pricehero-max{font:500 clamp(1.2rem,2vw,1.6rem)/1.2 'Space Grotesk',system-ui,sans-serif;color:var(--cx-muted);margin-top:4px}
+.cx-pricehero .cx-price-delta{border-radius:0;font-family:var(--cx-mono,monospace)}

@@ -51,11 +51,12 @@ const TL = {
   r0: 2.2, r: 1.2,         // corte baja: realista
   m0: 3.2, m: 1.2,         // corte sube: esencial
   s0: 4.4, s: 1.2,         // asentamiento en el hero
-  v0: 4.8, v: 0.6,         // la línea gira 90° mientras viaja al borde izquierdo del dron
-  w0: 5.3, w: 1.0,         // la línea CRUZA el modelo: a su paso, lo esencial se vuelve realista
+  v0: 4.8, v: 0.7,         // la línea gira 90° mientras viaja al borde IZQUIERDO DE LA PANTALLA
+  w0: 5.6, w: 1.7,         // ciclo 39: la línea cruza TODA la pantalla: rellena el titular y vuelve realista el dron a su paso
   t1: 2.6, t2: 3.8,        // titular, línea 1 y 2
 };
 const FOV0 = 13, FOV1 = 30;
+const SW0 = 6;   // márgenes del barrido final de la intro (px desde cada borde de la pantalla)
 
 const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 const ease = (x: number) => { x = clamp01(x); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };   // in-out cúbica
@@ -112,10 +113,10 @@ function merge(parts: ReturnType<typeof worldFloat>[], center: THREE.Vector3) {
   g.setIndex(new THREE.BufferAttribute(I, 1)); return g;
 }
 /** Uniforms compartidos del despiece y la fractura (todo en GPU). */
-type XU = { uExplode: { value: number }; uScat: { value: number }; uFwd: { value: number }; uFlat: { value: number }; uMess: { value: number }; uSpread: { value: number }; uHover: { value: number }; uR: { value: number }; uPush: { value: number }; uCursor: { value: THREE.Vector3 }; uCenter: { value: THREE.Vector3 }; uView: { value: THREE.Vector3 } };
+type XU = { uExplode: { value: number }; uExS: { value: number }; uExR: { value: number }; uScat: { value: number }; uFwd: { value: number }; uFlat: { value: number }; uMess: { value: number }; uSpread: { value: number }; uHover: { value: number }; uR: { value: number }; uPush: { value: number }; uCursor: { value: THREE.Vector3 }; uCenter: { value: THREE.Vector3 }; uView: { value: THREE.Vector3 } };
 const XGLSL = `
 attribute vec3 aOff; attribute vec3 aFrag; attribute vec3 aExt;
-uniform float uExplode, uScat, uFwd, uMess, uSpread, uHover, uR, uPush, uFlat; uniform vec3 uCursor, uCenter, uView;
+uniform float uExplode, uExS, uExR, uScat, uFwd, uMess, uSpread, uHover, uR, uPush, uFlat; uniform vec3 uCursor, uCenter, uView;
 vec3 cxHash(vec3 p) { return fract(sin(vec3(dot(p, vec3(127.1, 311.7, 74.7)), dot(p, vec3(269.5, 183.3, 246.1)), dot(p, vec3(113.5, 271.9, 124.6)))) * 43758.5453) - 0.5; }
 vec3 cxRot(vec3 v, vec3 k, float a) { float c = cos(a), s = sin(a); return v * c + cross(k, v) * s + k * dot(k, v) * (1.0 - c); }
 // ciclo 38: vista 2D de cada pieza — gira sobre su centro hasta mirar a la cámara por su eje más delgado
@@ -148,7 +149,11 @@ function withExplode<M extends THREE.Material>(mat: M, u: XU): M {
         vec3 cxH = cxHash(aOff * 7.0 + 0.13), cxHf = cxHash(aFrag * 13.0 + 0.71);
         vec3 cxPc = uCenter + aOff;
         transformed = cxPc + cxFlatV(cxRot(transformed - cxPc, normalize(cxH + vec3(0.001, 0.002, 0.003)), uMess * cxH.x * 0.8), cxH);
-        vec3 cxDisp = aOff * uExplode * (1.0 - 0.45 * aExt.x) + cxH * vec3(1.0, 0.55, 1.0) * (uMess * uSpread + uScat) + uView * uFwd * aExt.x;
+        // scroll (ciclo 39): las piezas se separan EN EL PLANO DE LA PANTALLA (no en profundidad, donde se tapan entre sí)
+        // y todas se alejan al menos uExR del centro, también las que estaban en medio
+        vec3 cxS = aOff * uExS + normalize(aOff + vec3(1e-4, 2e-4, 3e-4)) * uExR + cxH * uScat;
+        cxS -= uView * dot(cxS, uView);
+        vec3 cxDisp = aOff * uExplode + cxH * vec3(1.0, 0.55, 1.0) * uMess * uSpread + cxS + uView * uFwd * aExt.x;
         transformed += cxDisp;
         vec3 cxFc = uCenter + aFrag + cxDisp, cxD = cxFc - uCursor;
         vec3 cxDp = cxD - uView * dot(cxD, uView); float cxL = length(cxDp);
@@ -156,7 +161,7 @@ function withExplode<M extends THREE.Material>(mat: M, u: XU): M {
         transformed = cxFc + cxRot(transformed - cxFc, normalize(cxHf + vec3(0.002, 0.001, 0.003)), cxF * cxHf.z * 1.6);
         transformed += (cxDp / max(cxL, 1e-3)) * cxF * uPush + cxHf * cxF * uPush * 0.9;`);
   };
-  mat.customProgramCacheKey = () => 'cx-explode-38';
+  mat.customProgramCacheKey = () => 'cx-explode-39';
   return mat;
 }
 /** Segmentos ordenados (centro → afuera) a geometría de líneas con `aOff`, `aFrag` y `aExt`. */
@@ -246,7 +251,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     const planeReal = new THREE.Plane(new THREE.Vector3(0, 1, 0), -1e6);   // empieza oculto
     const planeMin = new THREE.Plane(new THREE.Vector3(0, -1, 0), -1e6);   // empieza oculto
     const planeEdge = new THREE.Plane(new THREE.Vector3(0, 1, 0), 1e6);    // empieza visible entero
-    const U: XU = { uExplode: { value: 0 }, uScat: { value: 0 }, uFwd: { value: 0 }, uFlat: { value: 0 }, uMess: { value: 0 }, uSpread: { value: 1 }, uHover: { value: 0 }, uR: { value: 1 }, uPush: { value: 0.2 }, uCursor: { value: new THREE.Vector3(0, -99, 0) }, uCenter: { value: new THREE.Vector3() }, uView: { value: new THREE.Vector3(0, 0, 1) } };
+    const U: XU = { uExplode: { value: 0 }, uExS: { value: 0 }, uExR: { value: 0 }, uScat: { value: 0 }, uFwd: { value: 0 }, uFlat: { value: 0 }, uMess: { value: 0 }, uSpread: { value: 1 }, uHover: { value: 0 }, uR: { value: 1 }, uPush: { value: 0.2 }, uCursor: { value: new THREE.Vector3(0, -99, 0) }, uCenter: { value: new THREE.Vector3() }, uView: { value: new THREE.Vector3(0, 0, 1) } };
     const minMat = withExplode(new THREE.MeshStandardMaterial({ color: cols.face, roughness: 0.82, metalness: 0.0, transparent: true, clippingPlanes: [planeMin], polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }), U);
     const accMat = withExplode(new THREE.MeshStandardMaterial({ color: cols.acc, roughness: 0.55, metalness: 0.1, emissive: cols.acc, emissiveIntensity: 0.25, transparent: true, clippingPlanes: [planeMin], polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }), U);
     const edgeMat = withExplode(new THREE.LineBasicMaterial({ color: 0xe9e6df, transparent: true, opacity: 0.55, depthWrite: false, clippingPlanes: [planeEdge] }), U);
@@ -378,7 +383,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     // izquierda, rearma el dron y vuelve a quedar bajo el cursor.
     let mx = 0, my = 0, mxS = 0, myS = 0, spin = 0, lastMove = -10, divX = -1, heroT = -1;
     let px = -1, py = -1, overDrone = false, hoverE = 0, messT = 0, messE = 0, lastRect = { x0: 0, x1: 0, y0: 0, y1: 0 };
-    let sweepT0 = -1, sweepFrom = 0, sweepX0 = 0; const SWEEP = 1.15;   // cambio de modo: la línea cruza el modelo en 1,15 s
+    let sweepT0 = -1, sweepFrom = 0, sweepX0 = 0, doneAt = -100; const SWEEP = 1.15;   // cambio de modo: la línea cruza el modelo en 1,15 s
     const coarse = window.matchMedia('(pointer: coarse)').matches;
     const interactive = (t: EventTarget | null) => !!(t as HTMLElement | null)?.closest?.('a,button,input,select,textarea,label,summary,[role="button"],.cx-chat-fab,.cx-nav,.cx-option,.cx-plate,.cx-show-card');
     const inRect = (x: number, y: number) => { const r = lastRect, k = messE > 0.5 ? 0.3 : 0.06, mX = (r.x1 - r.x0) * k, mY = (r.y1 - r.y0) * k; return x > r.x0 - mX && x < r.x1 + mX && y > r.y0 - mY && y < r.y1 + mY; };
@@ -396,7 +401,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
     window.addEventListener('pointermove', onMove, { passive: true });
     let scrollRaw = 0, scrollE = 0;
     const onScroll = () => {
-      scrollRaw = clamp01(window.scrollY / (H * 0.9));
+      scrollRaw = clamp01(window.scrollY / (H * 1.1));
       if (window.scrollY < 24) html.dataset.cxHeroTop = '1'; else delete html.dataset.cxHeroTop;
     };
     window.addEventListener('scroll', onScroll, { passive: true }); onScroll();
@@ -409,6 +414,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       try { sessionStorage.setItem('cx-intro', '1'); } catch { /* */ }
       delete html.dataset.cxIntro; setStage('hero');
       heroTitleRef.current?.classList.remove('ih-lt-on');
+      divX = W - SW0; doneAt = performance.now() / 1000;   // la línea divisoria arranca donde terminó el barrido
     };
     const ff = () => {
       if (!wantIntro || done) return;
@@ -452,7 +458,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       const ex = done ? scrollE * 1.8 + scrollE * scrollE * 3.0 : 0;
       // las caras se apagan (queda la SILUETA en líneas) y al final se desvanece antes de cruzar las opciones
       const sil = done ? smooth(0.14, 0.42, scrollE) : 0;
-      const fadeOut = done ? smooth(0.4, 0.88, scrollE) : 0;
+      const fadeOut = done ? smooth(0.55, 0.95, scrollE) : 0;
       layer.style.opacity = String(1 - fadeOut);
       if (done && scrollE > 0.92) return;
       // carga: etapas reales + suavizado crítico
@@ -492,7 +498,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       if (t >= TL.dz0 && !Number.isFinite(freezeAt)) spin += dt * rate * (1 - fz);
       const fol = Math.min(1, dt * 3) * (1 - fz);
       mxS += (mx - mxS) * fol; myS += (my - myS) * fol;
-      const flat = done ? smooth(0.18, 0.6, scrollE) : 0;   // 2D: piezas de frente y sin perspectiva
+      const flat = done ? smooth(0.1, 0.85, scrollE) : 0;   // 2D: piezas de frente y sin perspectiva (giro largo y lento)
       camera.fov = done ? lerp(FOV1, 6, ease(flat)) : lerp(FOV0, FOV1, dz);
       const theta = lerp(0, 0.95, done ? 1 : dz) + spin + mxS * 0.22 * k;
       const phi = lerp(0.04, 1.16, done ? 1 : dz) + myS * 0.06 * k;
@@ -512,9 +518,11 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
       // despiece: scroll (radial, amplio) + clic (radial + desorden), muelle exponencial sin rebote
       // el despiece por clic sigue al barrido de la línea (se desarma a medida que la línea pasa)
       if (sweepT0 > 0) { const sp = ease((now - sweepT0) / SWEEP); messE = lerp(sweepFrom, messT, sp); }
-      U.uExplode.value = ex * 2.2 + messE * 0.75;
-      U.uScat.value = ex * rH * 0.35;                       // se separan también entre sí (no solo del centro)
-      U.uFwd.value = Math.min(ex, 3) * r * 0.16;            // las piezas importantes se acercan a la cámara
+      U.uExplode.value = messE * 0.75;                      // clic: despiece 3D con desorden
+      U.uExS.value = ex * 2.4;                              // scroll: radial en el plano de la pantalla
+      U.uExR.value = ex * rH * 0.3;                         // separación mínima (las piezas del centro también salen)
+      U.uScat.value = ex * rH * 0.45;                       // y se separan entre sí
+      U.uFwd.value = Math.min(ex, 3) * r * 0.07;            // las importantes se acercan algo a la cámara
       U.uView.value.copy(camera.position).sub(center).normalize();
       U.uFlat.value = ease(flat);
       U.uMess.value = messE;
@@ -573,14 +581,16 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
         const idle = coarse || now - lastMove > 2.5 || px < 0;
         const tgtX = idle ? lr.x0 + (0.5 + 0.28 * Math.sin((now - heroT) * 0.5)) * lw : Math.max(lr.x0 + lw * 0.03, Math.min(lr.x1 - lw * 0.03, px));
         if (divX < 0) divX = tgtX;
-        divX += (tgtX - divX) * Math.min(1, dt * (idle ? 1.5 : 9)) * (1 - fz);
-        let lineX = divX, lineA = 1, rotA = 1, lineLen = h * 1.3, bx = divX, labels = false;
+        // al terminar la intro la línea está en el borde derecho: vuelve despacio a su sitio (bajo el cursor)
+        const endB = smooth(0, 0.9, now - doneAt);
+        divX += (tgtX - divX) * Math.min(1, dt * (idle || endB < 1 ? 1.6 : 9)) * (1 - fz);
+        let lineX = divX, lineA = 1, rotA = 1, lineLen = lerp(H * 0.86, h * 1.3, endB), bx = divX, labels = false, cyL = lerp(H * 0.5, cy, endB);
         if (!done && t < TL.w0 + TL.w + 0.2) {
-          // cierre de la intro: esencial → complejo hasta la posición de reposo de la línea
+          // cierre de la intro (ciclo 39): la línea gira viajando al borde IZQUIERDO de la pantalla y la cruza ENTERA:
+          // a su paso el titular se rellena y el dron pasa de esencial a complejo (mismo x, mismo instante)
           const rot = easeOutExpo((t - TL.v0) / TL.v); rotA = rot;
-          const prog = ease((t - TL.w0) / TL.w), x0 = rc.x0 - w * 0.08;
-          lineX = t < TL.w0 ? lerp((rc.x0 + rc.x1) / 2, x0, rot) : lerp(x0, divX, prog);
-          lineLen = lerp(w * 0.9, h * 1.3, rot);
+          lineX = t < TL.w0 ? lerp((rc.x0 + rc.x1) / 2, SW0, rot) : lerp(SW0, W - SW0, ease((t - TL.w0) / TL.w));
+          lineLen = lerp(w * 0.9, H * 0.86, rot); cyL = lerp(cy, H * 0.5, rot);
           lineA = smooth(TL.v0 - 0.15, TL.v0 + 0.1, t);
           bx = t < TL.w0 ? -1e5 : lineX;
         } else if (messT > 0.5 || sweeping) {
@@ -603,7 +613,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
         if (dv) {
           dv.style.opacity = String(clamp01(lineA));
           dv.style.height = `${Math.max(0, lineLen).toFixed(0)}px`;
-          dv.style.transform = `translate3d(${lineX.toFixed(1)}px, ${(cy - lineLen / 2).toFixed(1)}px, 0) rotate(${((1 - rotA) * 90).toFixed(2)}deg)`;
+          dv.style.transform = `translate3d(${lineX.toFixed(1)}px, ${(cyL - lineLen / 2).toFixed(1)}px, 0) rotate(${((1 - rotA) * 90).toFixed(2)}deg)`;
           dv.classList.toggle('labels', labels);
         }
       }
@@ -630,7 +640,7 @@ export function IntroHero({ lang = 'es' }: { lang?: Lang }) {
           if (t < TL.w0) {
             const vv = ease((t - TL.m0) / TL.m);
             if (vv >= 1) Y = -1e5; else { _v.set(center.x, lerp(box.min.y - 0.02, box.max.y + 0.02, vv), center.z).project(camera); Y = (-_v.y * 0.5 + 0.5) * H; }
-          } else X = tr.left + ease((t - TL.w0) / TL.w) * tr.width;
+          } else X = lerp(SW0, W - SW0, ease((t - TL.w0) / TL.w));   // EXACTAMENTE donde está la línea
           tt.querySelectorAll<HTMLElement>('.lt').forEach((el) => {
             const r = el.getBoundingClientRect();
             el.style.setProperty('--lt-h', Y === Infinity ? '100%' : `${Math.max(0, (Y - r.top) / sc).toFixed(1)}px`);

@@ -86,3 +86,35 @@ export function PriceBar({ min, max, currency, lang = 'es' }: {
     </div>
   );
 }
+
+/** Precio grande del panel final (ciclo 39): mismas animaciones que el visor en vivo — números que corren,
+ *  aviso de la variación y barrido de la línea naranja en cada cambio (urgencia, descuento, extras…). */
+export function PriceHero({ label, min, max, currency, lang = 'es' }: {
+  label: string; min: number; max: number; currency: Cur; lang?: Lang;
+}) {
+  const minA = useAnimatedNumber(min);
+  const maxA = useAnimatedNumber(max);
+  const prev = useRef(min);
+  const [delta, setDelta] = useState<{ v: number; k: number } | null>(null);
+  const [sweep, setSweep] = useState(0);
+  const kRef = useRef(0);
+  useEffect(() => {
+    const d = min - prev.current; prev.current = min;
+    if (d !== 0) {
+      kRef.current += 1; setDelta({ v: d, k: kRef.current }); setSweep((x) => x + 1);
+      const t = setTimeout(() => setDelta(null), 900);
+      return () => clearTimeout(t);
+    }
+  }, [min]);
+  return (
+    <div className="cx-pricehero" aria-live="polite" aria-atomic="true">
+      {sweep > 0 && <i key={sweep} className="cx-pricebar-sweep" aria-hidden="true" />}
+      <div className="cx-pricehero-label">{label}</div>
+      <div className="cx-pricehero-row">
+        <span className="cx-pricehero-num">{fmt(currency, minA, lang)}</span>
+        {delta && <span key={delta.k} className={`cx-price-delta ${delta.v > 0 ? 'up' : 'down'}`}>{delta.v > 0 ? '+' : '−'}{fmt(currency, Math.abs(delta.v), lang)}</span>}
+      </div>
+      {max > min && <div className="cx-pricehero-max">{lang === 'es' ? 'a' : 'to'} {fmt(currency, maxA, lang)}</div>}
+    </div>
+  );
+}

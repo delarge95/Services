@@ -154,7 +154,9 @@ export function GoalPlates({ options, onPick, lang = 'es' }: { options: PlateOpt
       }
     };
     const outE = (x: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
-    let raf = 0, titleK = 0, hovered = false, fill = reduce ? 1 : 0, fillRaf = 0;
+    let raf = 0, hovered = false, fill = reduce ? 1 : 0, fillRaf = 0, arrivedAt = -1;
+    // ciclo 39: el texto y las láminas llegan en BLANCO; al asentarse toman su color; solo DESPUÉS se rellena el título
+    const firstRow = plates.slice(0, 3), header = fly.filter((e) => !plates.includes(e));
     const paintFill = () => {
       if (!title) return;
       const tr = title.getBoundingClientRect(), X = tr.left + fill * tr.width;
@@ -163,10 +165,11 @@ export function GoalPlates({ options, onPick, lang = 'es' }: { options: PlateOpt
     };
     const fillLoop = () => {
       fillRaf = 0;
-      const target = hovered || titleK >= 0.97 ? 1 : 0;
+      const ready = arrivedAt > 0 && performance.now() - arrivedAt > 450;
+      const target = hovered || ready ? 1 : 0;
       fill += (target - fill) * 0.075 + Math.sign(target - fill) * 0.004; fill = Math.max(0, Math.min(1, fill));
       paintFill();
-      if (Math.abs(target - fill) > 0.001) fillRaf = requestAnimationFrame(fillLoop); else { fill = target; paintFill(); }
+      if (Math.abs(target - fill) > 0.001 || (arrivedAt > 0 && !ready)) fillRaf = requestAnimationFrame(fillLoop); else { fill = target; paintFill(); }
     };
     const kickFill = () => { if (!fillRaf) fillRaf = requestAnimationFrame(fillLoop); };
     // 2D → 3D al pasar el cursor (módulo three.js perezoso, un solo lienzo compartido)
@@ -183,12 +186,15 @@ export function GoalPlates({ options, onPick, lang = 'es' }: { options: PlateOpt
       fly.forEach((e, i) => {
         const b = base.get(e); if (!b) return;
         const top = b.y - sy, k = reduce ? 1 : outE((vh * 0.98 - top) / (vh * 0.62) - (plates.includes(e) ? (plates.indexOf(e) % 3) * 0.05 : 0));
-        if (e === title) { titleK = k; kickFill(); }
+        e.classList.toggle('cx-mono', k < 1);
         if (k >= 1) { e.style.transform = ''; e.style.opacity = ''; return; }
         const cx = b.x - sx + b.w / 2, cy = top + b.h / 2, dx = (dc.x - cx) * (1 - k), dy = (dc.y - cy) * (1 - k);
         e.style.transform = `translate3d(${dx.toFixed(1)}px, ${dy.toFixed(1)}px, 0) scale(${(0.28 + 0.72 * k).toFixed(3)}) rotate(${((1 - k) * (i % 2 ? 9 : -9)).toFixed(2)}deg)`;
         e.style.opacity = Math.min(1, k * 1.5).toFixed(3);
       });
+      const arrived = [...header, ...firstRow].every((e) => !e.classList.contains('cx-mono'));
+      if (arrived && arrivedAt < 0) { arrivedAt = performance.now(); kickFill(); }
+      if (!arrived && arrivedAt > 0) { arrivedAt = -1; kickFill(); }
       plates.forEach((p, i) => {
         const b = base.get(p); const top = b ? b.y - sy : p.getBoundingClientRect().top, hgt = b ? b.h : p.offsetHeight;
         // se traza mientras entra (del 98 % al 45 % del alto de la ventana), con un leve desfase por columna

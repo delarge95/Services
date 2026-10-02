@@ -130,6 +130,12 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
+  // ciclo 39: los iconos del nivel 2 se dibujan UNA vez; después el hover los redibuja sin repetir al salir
+  useEffect(() => {
+    const t = setTimeout(() => document.querySelectorAll('.cx-plategrid').forEach((g) => g.classList.add('cx-drawn')), 1900);
+    return () => clearTimeout(t);
+  }, [level, rootChoice]);
+
   // ciclo 27: el botón Atrás global (barra superior) conoce el nivel y delega aquí
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('cx-wizard-level', { detail: { level } }));
