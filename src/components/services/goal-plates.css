@@ -1,0 +1,115 @@
+/* goal-plates.css — "¿Qué quieres lograr?" como láminas técnicas (ciclo 37).
+   ESENCIAL: líneas sin relleno que se trazan con el scroll (--d 0→1, lo pone GoalPlates).
+   COMPLEJO: al pasar el cursor (o .live en táctil) el dibujo se rellena y se anima.
+   Retícula de hojas con filetes finos y cruces de registro en vez de cajas redondeadas. */
+
+.cx-thread { display: block; width: 1px; height: 72px; margin: 0 auto 18px; transform-origin: 50% 0; transform: scaleY(var(--d, 0));
+  background: linear-gradient(var(--cx-accent), color-mix(in srgb, var(--cx-accent) 0%, transparent)); }
+
+.cx-plates { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); text-align: left; margin-top: 4px;
+  border-top: 1px solid var(--cx-border); border-left: 1px solid var(--cx-border); }
+.cx-plate { grid-column: span 2; position: relative; display: flex; flex-direction: column; padding: 0; margin: 0; border: 0;
+  border-right: 1px solid var(--cx-border); border-bottom: 1px solid var(--cx-border); border-radius: 0;
+  background: transparent; color: var(--cx-text); font: inherit; text-align: left; cursor: pointer; transition: background .5s var(--cx-ease); }
+.cx-plate-b { grid-column: span 3; }
+/* cruz de registro en cada esquina superior izquierda (como en un plano) */
+.cx-plate::before { content: ''; position: absolute; left: -5px; top: -5px; width: 9px; height: 9px; pointer-events: none; z-index: 1;
+  background: linear-gradient(var(--cx-faint), var(--cx-faint)) 50% 0 / 1px 100% no-repeat, linear-gradient(var(--cx-faint), var(--cx-faint)) 0 50% / 100% 1px no-repeat; }
+.cx-plate:is(:hover, :focus-visible, .live) { background: color-mix(in srgb, var(--cx-accent) 4%, transparent); }
+.cx-plate:focus-visible { outline: 2px solid var(--cx-signal); outline-offset: -2px; }
+
+.cx-plate-fig { position: relative; display: block; padding: 34px 20px 4px; }
+.cx-plate-fig svg { display: block; width: 100%; height: auto; max-height: 210px; overflow: visible; }
+.cx-plate-tag { position: absolute; top: 14px; left: 18px; font: 500 9.5px/1 var(--cx-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--cx-faint);
+  opacity: clamp(0, calc(var(--d, 0) * 3), 1); transition: color .3s; }
+.cx-plate:is(:hover, :focus-visible, .live) .cx-plate-tag { color: var(--cx-signal); }
+
+.cx-plate-txt { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 12px; row-gap: 4px; align-items: baseline; padding: 12px 20px 22px; }
+.cx-plate-idx { grid-row: span 2; font: 500 11px/1.6 var(--cx-mono); letter-spacing: .1em; color: var(--cx-accent); }
+.cx-plate-txt strong { font: 600 17px/1.25 var(--cx-display); letter-spacing: -0.015em; color: var(--cx-text); }
+.cx-plate-desc { grid-column: 2; font-size: 13.5px; line-height: 1.45; color: var(--cx-muted); }
+.cx-plate-go { grid-column: 3; grid-row: 1; font: 500 10.5px/1.6 var(--cx-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--cx-faint); white-space: nowrap; transition: color .3s; }
+.cx-plate-go i { display: inline-block; font-style: normal; transition: transform .35s var(--cx-ease); }
+.cx-plate:is(:hover, :focus-visible, .live) .cx-plate-go { color: var(--cx-accent); }
+.cx-plate:is(:hover, :focus-visible, .live) .cx-plate-go i { transform: translateX(4px); }
+
+/* ── trazo (esencial) ── */
+.cx-plate svg .dr { fill: none; stroke: var(--cx-text); stroke-opacity: .5; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 1 1; stroke-dashoffset: calc(1 - clamp(0, (var(--d, 0) - var(--o, 0)) * 2.6, 1));
+  transition: stroke .5s var(--cx-ease), stroke-opacity .5s var(--cx-ease); }
+.cx-plate svg .dr.dash { stroke-dasharray: 3 4; stroke-dashoffset: 0; opacity: clamp(0, calc((var(--d, 0) - var(--o, 0)) * 3), 1); }
+.cx-plate svg .acc { stroke: var(--cx-accent); stroke-opacity: .75; }
+.cx-plate svg .sig { stroke: var(--cx-signal); stroke-opacity: .7; }
+.cx-plate svg .axis { stroke-opacity: .25; }
+.cx-plate svg .lbl { font: 500 7.5px var(--cx-mono, monospace); letter-spacing: .08em; fill: var(--cx-faint); opacity: clamp(0, calc((var(--d, 0) - .6) * 3), 1); }
+.cx-plate svg :is(.dot, .ghost, .node, .type, .hot) { opacity: clamp(0, calc((var(--d, 0) - var(--o, .45)) * 3), 1); }
+.cx-plate svg .dot { fill: none; stroke: var(--cx-text); stroke-opacity: .45; }
+.cx-plate svg .hot { fill: var(--cx-signal); }
+.cx-plate svg .ghost { fill: none; stroke: var(--cx-text); stroke-opacity: .28; stroke-dasharray: 2 3; }
+.cx-plate svg .node { fill: var(--cx-bg, #0b0c0e); stroke: var(--cx-text); stroke-opacity: .55; stroke-width: 1.2; transition: fill .4s var(--cx-ease); }
+.cx-plate svg .node.out { stroke: var(--cx-accent); stroke-opacity: .8; }
+.cx-plate svg .type { fill: var(--cx-text); fill-opacity: .55; }
+.cx-plate svg .pulse { fill: none; stroke: var(--cx-accent); stroke-width: 2; stroke-linecap: round; stroke-dasharray: .12 .88; stroke-dashoffset: .12; opacity: 0; }
+/* rellenos: invisibles en esencial */
+.cx-plate svg .fill { fill-opacity: 0; stroke: none; transition: fill-opacity .6s var(--cx-ease); }
+.cx-plate svg .f1 { fill: var(--cx-accent); } .cx-plate svg .f2 { fill: var(--cx-text); } .cx-plate svg .f3 { fill: var(--cx-text); }
+.cx-plate svg .f-ball { fill: var(--cx-accent); }
+.cx-plate svg .f-glass { fill: var(--cx-signal); }
+.cx-plate svg .f-gearfill { fill: var(--cx-text); }
+.cx-plate svg .f-shine { fill: #fff; opacity: 0; }
+.cx-plate svg .f-flash { fill: #fff; opacity: 0; pointer-events: none; }
+.cx-plate svg :is(.f-cube, .f-cursor, .f-head, .f-ball, .f-gear, .f-screw, .hot, .type, .f-shine) { transform-box: fill-box; transform-origin: 50% 50%; }
+.cx-plate svg :is(.f-cursor, .f-head) { transform-origin: 0 0; }
+
+/* ── complejo (hover / foco / táctil centrado) ── */
+.cx-plate:is(:hover, :focus-visible, .live) svg .dr { stroke-opacity: .8; }
+/* 01 web 3D: el cubo toma materiales, flota; la órbita gira y el cursor lo arrastra */
+.cx-plate:is(:hover, :focus-visible, .live) svg .f1 { fill-opacity: .9; }
+.cx-plate:is(:hover, :focus-visible, .live) svg .f2 { fill-opacity: .2; }
+.cx-plate:is(:hover, :focus-visible, .live) svg .f3 { fill-opacity: .09; }
+.cx-plate:is(:hover, :focus-visible, .live) svg .f-cube { animation: cxp-float 2.8s var(--cx-ease) infinite; }
+.cx-plate:is(:hover, :focus-visible, .live) svg .f-orbit .dr { stroke: var(--cx-accent); animation: cxp-march 1s linear infinite; }
+.cx-plate:is(:hover, :focus-visible, .live) svg .f-cursor { animation: cxp-drag 2.8s var(--cx-ease) infinite; }
+.cx-plate:is(:hover, :focus-visible, .live) svg .hot { animation: cxp-ping 1.4s var(--cx-ease) infinite; }
+/* 02 video: la bola recorre su trayectoria entre fotogramas clave; el cabezal avanza a la vez */
+.cx-plate:is(:hover, :focus-visible, .live) svg .f-ball { fill-opacity: 1; animation: cxp-ball 2.6s cubic-bezier(.65, 0, .35, 1) infinite; }
+.cx-plate:is(:hover, :focus-visible, .live) svg .f-head { animation: cxp-head 2.6s linear infinite; }
+.cx-plate:is(:hover, :focus-visible, .live) svg .ghost { stroke: var(--cx-accent); stroke-opacity: .5; }
+/* 03 imágenes: el frasco toma vidrio y brillo; disparo de flash */
+.cx-plate:is(:hover, :focus-visible, .live) svg .f-glass { fill-opacity: .16; }
+.cx-plate:is(:hover, :focus-visible, .live) svg .f-shine { animation: cxp-shine 2.4s var(--cx-ease) infinite; }
+.cx-plate:is(:hover, :focus-visible, .live) svg .f-flash { animation: cxp-flash .7s ease-out 1; }
+.cx-plate:is(:hover, :focus-visible, .live) svg .ray { stroke: var(--cx-accent); stroke-opacity: .7; }
+/* 04 IA: señales recorren la red; nodos de salida se encienden; escribe */
+.cx-plate:is(:hover, :focus-visible, .live) svg .pulse { opacity: 1; animation: cxp-pulse 1.1s linear infinite; }
+.cx-plate:is(:hover, :focus-visible, .live) svg .node.out { fill: var(--cx-accent); }
+.cx-plate:is(:hover, :focus-visible, .live) svg .type { animation: cxp-type 1s ease-in-out infinite; }
+.cx-plate svg .t2 { animation-delay: .15s !important; } .cx-plate svg .t3 { animation-delay: .3s !important; }
+/* 05 técnicos: el engranaje gira y los tornillos bajan a su sitio (ensamble) */
+.cx-plate svg .f-screw { transition: transform 1s cubic-bezier(.65, 0, .35, 1); }
+.cx-plate:is(:hover, :focus-visible, .live) svg .f-gearfill { fill-opacity: .12; }
+.cx-plate:is(:hover, :focus-visible, .live) svg .f-gear { animation: cxp-spin 9s linear infinite; }
+.cx-plate:is(:hover, :focus-visible, .live) svg .f-screw { transform: translateY(56px); }
+
+@keyframes cxp-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes cxp-march { to { stroke-dashoffset: -14; } }
+@keyframes cxp-drag { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-30px); } }
+@keyframes cxp-ping { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.7); } }
+@keyframes cxp-ball { 0% { transform: translate(0, 0); } 30% { transform: translate(50.5px, -51.3px); } 60% { transform: translate(114.2px, -58.6px); } 90%, 100% { transform: translate(180px, -26px); } }
+@keyframes cxp-head { 0% { transform: translateX(0); } 30% { transform: translateX(50.5px); } 60% { transform: translateX(114.2px); } 90%, 100% { transform: translateX(180px); } }
+@keyframes cxp-shine { 0% { transform: translateX(0); opacity: 0; } 30% { opacity: .55; } 70% { opacity: .35; } 100% { transform: translateX(30px); opacity: 0; } }
+@keyframes cxp-flash { 0% { opacity: .45; } 100% { opacity: 0; } }
+@keyframes cxp-pulse { from { stroke-dashoffset: .12; } to { stroke-dashoffset: -.88; } }
+@keyframes cxp-type { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes cxp-spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 899px) { .cx-plates { grid-template-columns: repeat(2, minmax(0, 1fr)); } .cx-plate, .cx-plate-b { grid-column: span 1; } .cx-plate:last-child:nth-child(odd) { grid-column: 1 / -1; } }
+@media (max-width: 560px) {
+  .cx-plates { grid-template-columns: minmax(0, 1fr); } .cx-plate:last-child:nth-child(odd) { grid-column: auto; }
+  .cx-plate-fig { padding: 30px 16px 0; } .cx-plate-fig svg { max-height: 160px; }
+  .cx-plate-txt { padding: 10px 16px 18px; }
+  .cx-plate-go { grid-column: 2; grid-row: auto; margin-top: 4px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cx-plate svg *, .cx-plate svg .f-screw { animation: none !important; transition: none !important; }
+}

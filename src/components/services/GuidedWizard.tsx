@@ -13,6 +13,7 @@ import { SERVICE_ROOTS, buildServiceBranch } from '../../data/services/serviceBr
 import { Diagram, MediaVisual } from './OptionVisuals';
 import { ShowcaseScene } from './ShowcaseScene';
 import { ShowcaseStrip } from './ShowcaseStrip';
+import { GoalPlates } from './GoalPlates';
 import { IntroHero } from './hero/IntroHero';
 import { CaseStudyView } from './CaseStudyView';
 import { LiveDemoView, LIVE_DEMOS } from './LiveDemoView';
@@ -207,6 +208,7 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
           {/* ciclo 32: pantalla de inicio que se convierte en el hero ("de lo complejo a lo esencial") */}
           {rootChoice !== 'no-se' && <IntroHero lang={en ? 'en' : 'es'} />}
           <div id="cx-goals" style={{ scrollMarginTop: 90, paddingTop: 72 }} />
+          <i className="cx-thread" aria-hidden="true" />
           <span className="cx-eyebrow">{en ? '3D · Web · AI — quote in 1 minute' : '3D · Web · IA — cotiza en 1 minuto'}</span>
           <h2 style={{
             fontSize: 'clamp(2.2rem, 5vw, 3.5rem)', fontWeight: 700,
@@ -224,34 +226,9 @@ export function GuidedWizard({ onComplete, onProgress, lang = 'es', homeSignal =
               <ExternalIcon size={13} />
             </a>
           </div>
-          <div className="cx-root-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
-            {ROOT_OPTIONS.filter(o => o.id !== 'no-se').map((o, i) => {
-              const t = optText('__root', o);
-              return (
-                <button key={o.id}
-                  onClick={() => { setRootChoice(o.id); setAnswers({}); setLevel(o.id === 'no-se' ? 1 : 2); }}
-                  className={`cx-option ds-anim ds-anim-${(i % 3) + 1}`}
-                  style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 14, padding: '20px 22px',
-                    background: 'var(--cx-card)', backdropFilter: 'blur(12px)',
-                    border: '1px solid var(--cx-border)', borderRadius: 20,
-                    cursor: 'pointer', font: 'inherit', textAlign: 'left',
-                    transition: 'transform 0.25s cubic-bezier(0.25,0.8,0.4,1), box-shadow 0.25s',
-                  }}
-                >
-                  <span className="cx-option-idx" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
-                  <span className="cx-option-icon" style={{ color: 'var(--cx-accent)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-                    <TreeIcon name={o.icon ?? ''} size={22} />
-                  </span>
-                  <div>
-                    <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--cx-text)', letterSpacing: '-0.01em' }}>{t.label}</div>
-                    <div style={{ fontSize: 13, color: 'var(--cx-muted)', marginTop: 3, lineHeight: 1.4 }}>{t.desc}</div>
-                  </div>
-                  <span className="cx-option-arrow" aria-hidden="true">→</span>
-                </button>
-              );
-            })}
-          </div>
+          {/* ciclo 37: láminas técnicas (esencial → complejo) en vez de cajas con icono */}
+          <GoalPlates lang={en ? 'en' : 'es'} options={ROOT_OPTIONS.filter(o => o.id !== 'no-se').map(o => ({ id: o.id, ...optText('__root', o) }))}
+            onPick={(id) => { setRootChoice(id); setAnswers({}); setLevel(2); }} />
           <div style={{ textAlign: 'center', marginTop: 24 }}>
             <button onClick={() => setRootChoice('no-se')} className="cx-softbtn"
               style={{ font: '500 15px inherit', color: 'var(--cx-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 20px' }}>
