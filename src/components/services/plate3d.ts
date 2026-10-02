@@ -256,7 +256,8 @@ function figTech(p: Pal): Fig {
 }
 const BUILD: Record<string, (p: Pal) => Fig> = { 'web-3d': figWeb, 'video-anim': figVideo, imagenes: figProduct, ia: figIA, otros: figTech };
 
-export function createPlate3D() {
+/** Un lienzo 3D (renderer + escena) que anima UNA lámina a la vez. */
+function makeSlot() {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.toneMapping = THREE.NoToneMapping; renderer.setClearColor(0, 0);
@@ -355,6 +356,9 @@ export function createPlate3D() {
   window.addEventListener('resize', onResize);
 
   return {
+    plate: () => active?.plate ?? null,
+    leaving: () => !!active && active.dir < 0,
+    progress: () => active?.P ?? 0,
     enter(plate: HTMLElement, id: string) {
       const svg = plate.querySelector('.cx-plate-fig svg') as SVGSVGElement | null; if (!svg) return;
       if (active && active.plate !== plate) { active.svg.style.clipPath = ''; active.plate.classList.remove('p3d-live'); active = null; }
@@ -364,5 +368,25 @@ export function createPlate3D() {
     },
     leave(plate: HTMLElement) { if (active && active.plate === plate) { active.dir = -1; kick(); } },
     dispose() { cancelAnimationFrame(raf); window.removeEventListener('resize', onResize); canvas.remove(); wipe.remove(); env.dispose(); pm.dispose(); renderer.dispose(); },
+  };
+}
+
+/**
+ * Ciclo 43: DOS lienzos. Al pasar de una lámina a otra, la que se deja termina su salida (3D → lineart → 2D)
+ * en su propio lienzo mientras la nueva empieza la entrada en el otro; antes el único lienzo cortaba la salida.
+ * El segundo lienzo se crea solo cuando hace falta.
+ */
+export function createPlate3D() {
+  const slots = [makeSlot()];
+  return {
+    enter(plate: HTMLElement, id: string) {
+      let s = slots.find((x) => x.plate() === plate) ?? slots.find((x) => !x.plate());
+      if (!s && slots.length < 2) { s = makeSlot(); slots.push(s); }
+      // los dos ocupados (cambios muy rápidos): se recicla el que va saliendo y está más cerca de terminar
+      if (!s) s = slots.filter((x) => x.leaving()).sort((a, b) => a.progress() - b.progress())[0] ?? slots[0];
+      s.enter(plate, id);
+    },
+    leave(plate: HTMLElement) { slots.find((x) => x.plate() === plate)?.leave(plate); },
+    dispose() { slots.forEach((x) => x.dispose()); },
   };
 }

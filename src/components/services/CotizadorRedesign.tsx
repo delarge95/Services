@@ -8,6 +8,7 @@ import { BrandLockup } from './hero/BrandLockup';
 import { NAME_ES_DISPLAY, SERVICE_ROOTS_EN, UNIT_ES_DISPLAY, esDisplay } from '../../data/services/i18nMore';
 import './cotizador-brand.css';
 import { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import * as THREE from 'three';
 import { SERVICES } from '../../data/services/catalogCore';
 import { getRateCard } from '../../data/services/formula';
@@ -399,6 +400,22 @@ export function CotizadorRedesign() {
     return () => { mo.disconnect(); window.removeEventListener('scroll', upd); window.removeEventListener('resize', upd); clearTimeout(t); };
   }, []);
   const brandWideRef = useRef(false);
+  // ciclo 43: la marca se pinta en NEGATIVO de lo que tenga detrás (blanco sobre oscuro, negro sobre blanco).
+  // La barra es pegajosa (crea su propio contexto de apilado y ahí un blend no ve la página), así que se dibuja
+  // una copia fija en <body> con mix-blend-mode: difference justo encima de la marca real (que queda invisible
+  // pero sigue siendo el botón y la zona de hover).
+  const brandSrcRef = useRef<HTMLSpanElement>(null);
+  const [brandPos, setBrandPos] = useState<{ l: number; t: number } | null>(null);
+  useEffect(() => {
+    const el = brandSrcRef.current; if (!el) return;
+    let raf = 0;
+    const upd = () => { raf = 0; const r = el.getBoundingClientRect(); setBrandPos((p) => (p && Math.abs(p.l - r.left) < 0.5 && Math.abs(p.t - r.top) < 0.5 ? p : { l: r.left, t: r.top })); };
+    const on = () => { if (!raf) raf = requestAnimationFrame(upd); };
+    const ro = new ResizeObserver(on); ro.observe(el); if (el.parentElement) ro.observe(el.parentElement);
+    window.addEventListener('scroll', on, { passive: true }); window.addEventListener('resize', on); upd();
+    const t = setInterval(on, 800);   // la barra puede moverse sin scroll ni resize (cambio de vista, idioma…)
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); clearInterval(t); window.removeEventListener('scroll', on); window.removeEventListener('resize', on); };
+  }, []);
   const introJustEnded = useRef(false);
   const themeAdopted = useRef(false);
   /** true si se llegó por el wizard (historial con draft) → muestra 'Editar detalles'. */
@@ -880,9 +897,13 @@ export function CotizadorRedesign() {
           <button onClick={goHome} className="cx-brand" aria-label={BRAND.name}
             style={{ color: 'var(--cx-text)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
             {/* ciclo 34: sin monograma hasta que se decida la marca (exploración en curso) */}
-            <span onMouseEnter={() => setBrandHover(true)} onMouseLeave={() => setBrandHover(false)} style={{ display: 'inline-flex' }}>
+            <span ref={brandSrcRef} className={brandPos ? 'cx-brand-src' : undefined} onMouseEnter={() => setBrandHover(true)} onMouseLeave={() => setBrandHover(false)} style={{ display: 'inline-flex' }}>
               <BrandLockup state={brandWide || (brandHover && window.innerWidth > 768) ? 'name' : 'mark'} height={13} />
             </span>
+            {brandPos && createPortal(
+              <span className="cx-brand-neg" data-noprint aria-hidden="true" style={{ left: brandPos.l, top: brandPos.t }}>
+                <BrandLockup state={brandWide || (brandHover && window.innerWidth > 768) ? 'name' : 'mark'} height={13} />
+              </span>, document.body)}
           </button>
         </div>
         <button type="button" className="cx-nav-menu" aria-expanded={navOpen} aria-controls="cx-nav-right" onClick={() => setNavOpen((o) => !o)}

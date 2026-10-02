@@ -209,3 +209,10 @@
   .cx-nav :is(.cx-nav-right, .cx-navback, .cx-home) { transition: opacity .35s ease, transform .35s cubic-bezier(.22, 1, .36, 1); }
   .cx-nav:not(.nav-show) :is(.cx-nav-right, .cx-navback, .cx-home) { opacity: 0; transform: translateY(-8px); pointer-events: none; }
 }
+
+/* ── ciclo 43 · marca en negativo de su fondo (copia fija con difference; ver CotizadorRedesign) ── */
+.cx-brand-src { opacity: 0; }
+.cx-brand-neg { position: fixed; z-index: 55; display: inline-flex; color: #fff; mix-blend-mode: difference; pointer-events: none; }
+html[data-cx-intro] .cx-brand-neg { opacity: 0; }
+html[data-cx-intro] .cx-brand-src { opacity: 1; }
+@media print { .cx-brand-neg { display: none; } .cx-brand-src { opacity: 1; } }
