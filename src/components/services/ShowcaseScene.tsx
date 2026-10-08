@@ -498,6 +498,19 @@ async function buildTool(ctx: Ctx): Promise<Built> {
 }
 
 // ─── minijuego (vista superior) ───
+// Ciclo 44: progresión por NIVELES de proyecto (S → M → L → XL, como las tallas del cotizador), obstáculos con
+// comportamientos distintos, HERRAMIENTAS que se recogen (láser de inspección, abanico, pulso, escudo QA, imán),
+// combos, pantalla completa y cierre con llamada a cotizar un juego así. Todo puntúa en múltiplos de 10.
+type GKind = 'coin' | 'rock' | 'zig' | 'heavy' | 'gate' | 'dart' | 'tool';
+type ToolId = 'laser' | 'fan' | 'pulse' | 'shield' | 'magnet';
+const TOOL_COLOR: Record<ToolId, number> = { laser: 0x5ac8fa, fan: 0xa78bfa, pulse: 0xffd166, shield: 0x34d399, magnet: 0xf472b6 };
+const LEVELS = [
+  { at: 0, speed: 2.6, every: 0.85, mix: { coin: 0.55, rock: 0.45 } },
+  { at: 20, speed: 3.1, every: 0.72, mix: { coin: 0.45, rock: 0.25, zig: 0.2, tool: 0.1 } },
+  { at: 45, speed: 3.6, every: 0.6, mix: { coin: 0.4, rock: 0.15, zig: 0.15, heavy: 0.1, gate: 0.1, tool: 0.1 } },
+  { at: 75, speed: 4.1, every: 0.5, mix: { coin: 0.35, rock: 0.12, zig: 0.15, heavy: 0.1, gate: 0.1, dart: 0.1, tool: 0.08 } },
+] as const;
+
 async function buildGame(ctx: Ctx): Promise<Built> {
   const group = new THREE.Group();
   const drone = await droneFor('variado');
@@ -506,29 +519,38 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   group.add(holder);
   const fxDisposables: { dispose: () => void }[] = [];
   const rotors = makeRotors(drone, fxDisposables);
-  const { w, h } = ctx.size();
-  const viewH = 7, aspect = w / h, viewW = viewH * aspect;
+  const viewH = 7; let viewW = viewH * (ctx.size().w / ctx.size().h), lastAspect = 0;
   const cam = new THREE.OrthographicCamera(-viewW / 2, viewW / 2, viewH / 2, -viewH / 2, 0.1, 50);
   cam.position.set(0, 20, 0); cam.up.set(0, 0, -1); cam.lookAt(0, 0, 0);
   const disposables: { dispose: () => void }[] = [];
+  const std = (color: number, emissive: number, o: Partial<THREE.MeshStandardMaterialParameters> = {}) => new THREE.MeshStandardMaterial({ color, emissive, roughness: 0.6, flatShading: true, ...o });
   const coinGeo = new THREE.TorusGeometry(0.36, 0.13, 12, 28); const coinMat = new THREE.MeshStandardMaterial({ color: 0xff7a3d, emissive: 0xb8410f, emissiveIntensity: 0.9, metalness: 0.4, roughness: 0.3 });
-  const rockGeo = new THREE.IcosahedronGeometry(0.5, 0); const rockMat = new THREE.MeshStandardMaterial({ color: 0x8b95a3, emissive: 0x2a2f38, roughness: 0.7, flatShading: true });
-  disposables.push(coinGeo, coinMat, rockGeo, rockMat);
+  const rockGeo = new THREE.IcosahedronGeometry(0.5, 0); const rockMat = std(0x8b95a3, 0x2a2f38, { roughness: 0.7 });
+  const zigGeo = new THREE.OctahedronGeometry(0.42, 0); const zigMat = std(0x5ac8fa, 0x0f4c66);
+  const heavyGeo = new THREE.IcosahedronGeometry(0.82, 0); const heavyMat = std(0x5b616c, 0x1a1d22, { roughness: 0.8 });
+  const gateGeo = new THREE.BoxGeometry(0.95, 0.5, 0.55); const gateMat = std(0x9aa3b0, 0x24282f);
+  const dartGeo = new THREE.ConeGeometry(0.22, 0.9, 6); const dartMat = std(0xff3b30, 0x7a120c);
+  const toolGeo = new THREE.OctahedronGeometry(0.3, 0);
+  const toolMats = Object.fromEntries((Object.keys(TOOL_COLOR) as ToolId[]).map((k) => [k, new THREE.MeshStandardMaterial({ color: TOOL_COLOR[k], emissive: TOOL_COLOR[k], emissiveIntensity: 0.7, roughness: 0.25, metalness: 0.2 })])) as Record<ToolId, THREE.MeshStandardMaterial>;
+  const shotGeo = new THREE.BoxGeometry(0.09, 0.09, 0.42); const shotMat = new THREE.MeshBasicMaterial({ color: 0x9be7ff });
+  const warnGeo = new THREE.PlaneGeometry(0.1, 1); const warnMat = new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.5, depthWrite: false });
+  const shieldGeo = new THREE.RingGeometry(0.95, 1.05, 48); const shieldMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false });
+  disposables.push(coinGeo, coinMat, rockGeo, rockMat, zigGeo, zigMat, heavyGeo, heavyMat, gateGeo, gateMat, dartGeo, dartMat, toolGeo, ...Object.values(toolMats), shotGeo, shotMat, warnGeo, warnMat, shieldGeo, shieldMat);
+  dartGeo.rotateX(Math.PI / 2); // la punta mira hacia el dron
+  const shieldRing = new THREE.Mesh(shieldGeo, shieldMat); shieldRing.rotation.x = -Math.PI / 2; shieldRing.position.y = 0.2; shieldRing.visible = false; holder.add(shieldRing);
   // suelo con retícula para dar sensación de avance
-  const grid = new THREE.GridHelper(40, 40, 0x2b3038, 0x1c2026); (grid.material as THREE.Material).transparent = true; (grid.material as THREE.Material).opacity = 0.6;
+  const grid = new THREE.GridHelper(80, 80, 0x2b3038, 0x1c2026); (grid.material as THREE.Material).transparent = true; (grid.material as THREE.Material).opacity = 0.6;
   grid.position.y = -1.2; group.add(grid); disposables.push(grid.geometry, grid.material as THREE.Material);
 
   // ── FX (ciclo 29) ──
   type Particle = { m: THREE.Mesh; v: THREE.Vector3; life: number; max: number; spin: number };
-  type RingFx = { m: THREE.Mesh; life: number; max: number };
+  type RingFx = { m: THREE.Mesh; life: number; max: number; grow: number };
   const particles: Particle[] = [];
   const rings: RingFx[] = [];
   const sparkGeo = new THREE.OctahedronGeometry(0.07, 0);
   const shardGeo = new THREE.TetrahedronGeometry(0.13, 0);
   const ringGeo = new THREE.RingGeometry(0.42, 0.5, 40);
   fxDisposables.push(sparkGeo, shardGeo, ringGeo);
-  const sparkMat = () => new THREE.MeshBasicMaterial({ color: 0xffb066, transparent: true });
-  const shardMat = () => new THREE.MeshStandardMaterial({ color: 0x8b95a3, roughness: 0.7, flatShading: true, transparent: true });
   let shake = 0, flash = 0;
   const floatText = (pos: THREE.Vector3, text: string, cls: string) => {
     const { w: W, h: H } = ctx.size();
@@ -537,54 +559,52 @@ async function buildGame(ctx: Ctx): Promise<Built> {
     d.style.left = `${(p.x * 0.5 + 0.5) * W}px`; d.style.top = `${(-p.y * 0.5 + 0.5) * H}px`;
     setTimeout(() => d.remove(), 900);
   };
-  const burstCoin = (pos: THREE.Vector3) => {
-    for (let k = 0; k < 18; k++) {
-      const a = (k / 18) * Math.PI * 2 + Math.random() * 0.3, sp = 2.5 + Math.random() * 2.5;
-      const m = new THREE.Mesh(sparkGeo, sparkMat());
+  const ringFx = (pos: THREE.Vector3, color: number, max = 0.45, grow = 2.4) => {
+    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.copy(pos).setY(0.3);
+    group.add(ring); rings.push({ m: ring, life: 0, max, grow });
+  };
+  const burst = (pos: THREE.Vector3, color: number, n: number, shard: boolean) => {
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + Math.random() * 0.4, sp = 1.8 + Math.random() * 3;
+      const m = new THREE.Mesh(shard ? shardGeo : sparkGeo, shard ? new THREE.MeshStandardMaterial({ color, roughness: 0.7, flatShading: true, transparent: true }) : new THREE.MeshBasicMaterial({ color, transparent: true }));
       m.position.copy(pos).setY(0.4);
       group.add(m);
-      particles.push({ m, v: new THREE.Vector3(Math.cos(a) * sp, 0, Math.sin(a) * sp), life: 0, max: 0.45 + Math.random() * 0.25, spin: 8 });
+      particles.push({ m, v: new THREE.Vector3(Math.cos(a) * sp, 0, Math.sin(a) * sp), life: 0, max: 0.45 + Math.random() * 0.3, spin: 6 + Math.random() * 6 });
     }
-    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xff7a3d, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
-    ring.rotation.x = -Math.PI / 2; ring.position.copy(pos).setY(0.3);
-    group.add(ring); rings.push({ m: ring, life: 0, max: 0.45 });
-    floatText(pos, '+10', 'good');
-  };
-  const burstRock = (pos: THREE.Vector3) => {
-    for (let k = 0; k < 14; k++) {
-      const a = Math.random() * Math.PI * 2, sp = 1.5 + Math.random() * 3;
-      const m = new THREE.Mesh(shardGeo, shardMat());
-      m.position.copy(pos).setY(0.3);
-      group.add(m);
-      particles.push({ m, v: new THREE.Vector3(Math.cos(a) * sp, 0, Math.sin(a) * sp), life: 0, max: 0.6 + Math.random() * 0.3, spin: 6 + Math.random() * 6 });
-    }
-    const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
-    ring.rotation.x = -Math.PI / 2; ring.position.copy(pos).setY(0.3);
-    group.add(ring); rings.push({ m: ring, life: 0, max: 0.35 });
-    shake = 0.35; flash = 1;
-    floatText(pos, '−1 ♥', 'bad');
   };
   const flashEl = el(ctx.overlay, 'sc-hit-flash');
   const camHome = cam.position.clone();
 
-  type Obj = { m: THREE.Mesh; coin: boolean; v: number };
-  const objs: Obj[] = [];
-  let score = 0, lives = 3, playing = false, over = false, spawnT = 0, speed = 2.6, best = 0;
+  type Obj = { m: THREE.Mesh; kind: GKind; v: number; hp: number; r: number; x0: number; ph: number; tool?: ToolId };
+  type Shot = { m: THREE.Mesh; vx: number; vz: number };
+  type Warn = { m: THREE.Mesh; x: number; t: number };
+  const objs: Obj[] = [], shots: Shot[] = [], warns: Warn[] = [];
+  let score = 0, lives = 3, playing = false, over = false, spawnT = 0, speed = 2.6, best = 0, elapsed = 0, level = 0;
+  let pulsePending = false, toolT = 0;
+  let streak = 0, mult = 1, gateCd = 0, fireT = 0, shield = false, weapon: ToolId | null = null, weaponT = 0, magnetT = 0;
   const target = new THREE.Vector3();
   const hud = el(ctx.overlay, 'sc-hud');
+  const toolHud = el(ctx.overlay, 'sc-tool');
+  const lvlEl = el(ctx.overlay, 'sc-lvl');
   const screen = el(ctx.overlay, 'sc-game-screen');
   const en = ctx.lang === 'en';
   const L = en
-    ? { play: '▶ Play', how: 'Move the drone with your mouse or finger. Catch the orange rings (+10), dodge the rocks (−1 life).', over: 'Game over', again: '↻ Play again', pts: 'pts', best: 'best',
+    ? { play: '▶ Play', how: 'Steer the drone. Catch rings (+10, combos up to ×3), grab tools and dodge obstacles. Every few seconds the project levels up: S → M → L → XL.', over: 'Game over', again: '↻ Play again', pts: 'pts', best: 'best',
         rank: 'Leaderboard', local: 'on this device', global: 'all players', empty: 'No scores yet: be the first.', name: 'Your name', company: 'Team or brand (optional)',
         save: 'Save to the leaderboard', saved: 'Saved', savedLocal: 'Saved on this device', place: 'Position', blocked: 'That name is not allowed.', slow: 'Wait a few seconds and try again.', invalid: 'This score could not be saved.',
-        cta: '' }
-    : { play: '▶ Jugar', how: 'Mueve el dron con el ratón o el dedo. Atrapa los anillos naranjas (+10) y esquiva las rocas (−1 vida).', over: 'Fin del juego', again: '↻ Jugar otra vez', pts: 'pts', best: 'récord',
+        cta: 'A game like this with your product? Get a quote →', reached: 'You reached level', fs: 'Full screen', lvl: 'Level',
+        lv: ['Project S · warm-up', 'Project M · bugs and tools appear', 'Project L · walls and heavy parts', 'Project XL · rush delivery'],
+        tools: { laser: 'Inspection laser', fan: 'Spread scan', pulse: 'Pulse', shield: 'QA shield', magnet: 'Magnet' } as Record<ToolId, string> }
+    : { play: '▶ Jugar', how: 'Mueve el dron. Atrapa anillos (+10, combos hasta ×3), recoge herramientas y esquiva obstáculos. Cada pocos segundos el proyecto sube de nivel: S → M → L → XL.', over: 'Fin del juego', again: '↻ Jugar otra vez', pts: 'pts', best: 'récord',
         rank: 'Ranking', local: 'en este dispositivo', global: 'todos los jugadores', empty: 'Aún no hay puntajes: sé el primero.', name: 'Tu nombre', company: 'Equipo o marca (opcional)',
         save: 'Guardar en el ranking', saved: 'Guardado', savedLocal: 'Guardado en este dispositivo', place: 'Puesto', blocked: 'Ese nombre no está permitido.', slow: 'Espera unos segundos e inténtalo otra vez.', invalid: 'No se pudo guardar este puntaje.',
-        cta: '' };
+        cta: '¿Un juego así con tu producto? Cotízalo →', reached: 'Llegaste al nivel', fs: 'Pantalla completa', lvl: 'Nivel',
+        lv: ['Proyecto S · calentamiento', 'Proyecto M · aparecen bugs y herramientas', 'Proyecto L · muros y piezas pesadas', 'Proyecto XL · entrega urgente'],
+        tools: { laser: 'Láser de inspección', fan: 'Escaneo en abanico', pulse: 'Pulso', shield: 'Escudo QA', magnet: 'Imán' } as Record<ToolId, string> };
+  const TIERS = ['S', 'M', 'L', 'XL'];
   const esc = (t: string) => t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-  let lbState: LbState | null = null, lastId: string | undefined, startAt = 0;
+  let lbState: LbState | null = null, startAt = 0;
   const lbHtml = (n: number, hiRank?: number) => {
     const st = lbState;
     const head = `<div class="sc-lb-h"><b>${L.rank}</b><small>Top 10</small></div>`;
@@ -592,18 +612,20 @@ async function buildGame(ctx: Ctx): Promise<Built> {
     const rows = st.scores.slice(0, n).map((e, k) => `<li class="${hiRank === k + 1 ? 'me' : ''}"><i>${k + 1}</i><span>${esc(e.name)}${e.company ? `<em>${esc(e.company)}</em>` : ''}</span><b>${e.score}</b></li>`).join('');
     return `<div class="sc-lb">${head}${rows ? `<ol>${rows}</ol>` : `<p>${L.empty}</p>`}</div>`;
   };
+  const toolLegend = () => `<div class="sc-legend">${(Object.keys(TOOL_COLOR) as ToolId[]).map((k) => `<span><i style="background:#${TOOL_COLOR[k].toString(16).padStart(6, '0')}"></i>${L.tools[k]}</span>`).join('')}</div>`;
   const showStart = () => {
-    screen.innerHTML = `<div class="sc-gs-main"><button type="button" class="sc-gs-play" data-act="play">${L.play}</button><span>${L.how}</span></div>${lbHtml(5)}`;
+    screen.innerHTML = `<div class="sc-gs-main"><button type="button" class="sc-gs-play" data-act="play">${L.play}</button><span>${L.how}</span>${toolLegend()}</div>${lbHtml(5)}`;
     screen.style.display = 'flex';
   };
   const showOver = (finalScore: number, durationMs: number) => {
     const remembered = (() => { try { return JSON.parse(localStorage.getItem('cx-lb-me') ?? '{}') as { name?: string; company?: string }; } catch { return {}; } })();
     const canSave = finalScore >= 10;
-    screen.innerHTML = `<div class="sc-gs-main"><strong>${L.over}: ${finalScore} ${L.pts}</strong>
+    screen.innerHTML = `<div class="sc-gs-main"><strong>${L.over}: ${finalScore} ${L.pts}</strong><small class="sc-gs-lv">${L.reached} ${TIERS[level]}</small>
       ${canSave ? `<form class="sc-lb-form"><input name="name" maxlength="24" required minlength="2" placeholder="${L.name}" value="${esc(remembered.name ?? '')}" aria-label="${L.name}">
       <input name="company" maxlength="32" placeholder="${L.company}" value="${esc(remembered.company ?? '')}" aria-label="${L.company}">
       <button type="submit">${L.save}</button><small class="sc-lb-msg" aria-live="polite"></small></form>` : ''}
-      <button type="button" class="sc-gs-play" data-act="play">${L.again}</button></div>${lbHtml(10)}`;
+      <button type="button" class="sc-gs-play" data-act="play">${L.again}</button>
+      <button type="button" class="sc-gs-cta" data-act="quote">${L.cta}</button></div>${lbHtml(10)}`;
     screen.style.display = 'flex';
     const form = screen.querySelector('form') as HTMLFormElement | null;
     form?.addEventListener('submit', async (ev) => {
@@ -620,17 +642,51 @@ async function buildGame(ctx: Ctx): Promise<Built> {
       if (!res.error) form.querySelectorAll('input,button').forEach((x) => ((x as HTMLInputElement).disabled = true)); else btn.disabled = false;
     });
   };
-  void lastId;
-  const renderHud = () => { hud.innerHTML = `<b>${score}</b> ${L.pts} · ${'♥'.repeat(lives)}<em>${'♥'.repeat(3 - lives)}</em>${best ? ` · ${L.best} ${best}` : ''}`; };
+  const renderHud = () => {
+    hud.innerHTML = `<b>${score}</b> ${L.pts}${mult > 1 ? ` <span class="sc-mult">×${mult}</span>` : ''} · ${'♥'.repeat(Math.max(0, lives))}<em>${'♥'.repeat(Math.max(0, 3 - lives))}</em> · ${L.lvl} <b>${TIERS[level]}</b>${best ? ` · ${L.best} ${best}` : ''}`;
+  };
+  const renderTool = () => {
+    const parts: string[] = [];
+    if (weapon) parts.push(`<span style="--c:#${TOOL_COLOR[weapon].toString(16).padStart(6, '0')}"><i></i>${L.tools[weapon]} ${Math.ceil(weaponT)}s</span>`);
+    if (magnetT > 0) parts.push(`<span style="--c:#f472b6"><i></i>${L.tools.magnet} ${Math.ceil(magnetT)}s</span>`);
+    if (shield) parts.push(`<span style="--c:#34d399"><i></i>${L.tools.shield}</span>`);
+    toolHud.innerHTML = parts.join('');
+  };
+  const banner = (k: number) => {
+    lvlEl.innerHTML = `<b>${TIERS[k]}</b><span>${L.lv[k]}</span>`;
+    lvlEl.classList.remove('on'); void lvlEl.offsetWidth; lvlEl.classList.add('on');
+  };
+  // pantalla completa (si el navegador lo permite)
+  const wrap = ctx.overlay.parentElement as HTMLElement | null;
+  if (wrap && document.fullscreenEnabled) {
+    const fsBtn = el(ctx.overlay, 'sc-fs', '⛶');
+    fsBtn.setAttribute('role', 'button'); fsBtn.tabIndex = 0;
+    fsBtn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fsBtn.click(); } }); fsBtn.setAttribute('title', L.fs); fsBtn.setAttribute('aria-label', L.fs);
+    fsBtn.addEventListener('click', () => { if (document.fullscreenElement) void document.exitFullscreen(); else void wrap.requestFullscreen().catch(() => {}); });
+  }
   showStart(); renderHud();
   fetchTop().then((st) => { lbState = st; if (!playing && !over) showStart(); });
-  const start = () => {
+  const clearAll = () => {
     for (const o of objs) group.remove(o.m); objs.length = 0;
-    score = 0; lives = 3; speed = 2.6; over = false; playing = true; screen.style.display = 'none'; renderHud();
+    for (const s of shots) group.remove(s.m); shots.length = 0;
+    for (const w of warns) group.remove(w.m); warns.length = 0;
+  };
+  const start = () => {
+    clearAll();
+    score = 0; lives = 3; speed = LEVELS[0].speed; over = false; playing = true; elapsed = 0; level = 0; streak = 0; mult = 1;
+    gateCd = 0; shield = false; weapon = null; weaponT = 0; magnetT = 0; shieldRing.visible = false;
+    screen.style.display = 'none'; renderHud(); renderTool(); banner(0);
     startAt = performance.now();
     ctx.canvas.style.cursor = 'none'; ctx.canvas.style.touchAction = 'none';
   };
-  screen.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('[data-act="play"]')) start(); });
+  screen.addEventListener('click', (e) => {
+    const act = (e.target as HTMLElement).closest('[data-act]')?.getAttribute('data-act');
+    if (act === 'play') start();
+    if (act === 'quote') {
+      if (document.fullscreenElement) void document.exitFullscreen();
+      window.dispatchEvent(new CustomEvent('cx-open-quote', { detail: { kind: 'wizard', rootChoice: 'web-3d', subChoice: 'web-app', answers: { 'tipo-app': 'juego' } } }));
+    }
+  });
   const onMove = (e: PointerEvent) => {
     const r = ctx.canvas.getBoundingClientRect();
     target.set(((e.clientX - r.left) / r.width - 0.5) * viewW, 0, ((e.clientY - r.top) / r.height - 0.5) * viewH);
@@ -639,10 +695,74 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   };
   ctx.canvas.addEventListener('pointermove', onMove);
   ctx.canvas.addEventListener('pointerdown', onMove);
+
+  const addObj = (kind: GKind, x: number, extra: Partial<Obj> = {}) => {
+    const geo = { coin: coinGeo, rock: rockGeo, zig: zigGeo, heavy: heavyGeo, gate: gateGeo, dart: dartGeo, tool: toolGeo }[kind];
+    const mat = kind === 'tool' ? toolMats[extra.tool!] : { coin: coinMat, rock: rockMat, zig: zigMat, heavy: heavyMat, gate: gateMat, dart: dartMat, tool: coinMat }[kind];
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, 0, -viewH / 2 - 0.8);
+    group.add(m);
+    const v = kind === 'dart' ? speed * 2.6 : kind === 'heavy' ? speed * 0.7 : kind === 'gate' ? speed * 0.85 : speed * (0.8 + Math.random() * 0.5);
+    const r = { coin: 0.75, rock: 0.7, zig: 0.65, heavy: 1.0, gate: 0.62, dart: 0.55, tool: 0.7 }[kind];
+    const o: Obj = { m, kind, v, hp: kind === 'heavy' ? 3 : 1, r, x0: x, ph: Math.random() * Math.PI * 2, ...extra };
+    objs.push(o); return o;
+  };
+  const spawn = () => {
+    const lv = LEVELS[level], mix = lv.mix as Record<string, number>;
+    let pick = Math.random(), kind: GKind = 'coin';
+    for (const [k, w] of Object.entries(mix)) { if (pick < w) { kind = k as GKind; break; } pick -= w; }
+    if (kind === 'gate' && gateCd > 0) kind = 'rock';
+    const xr = () => (Math.random() - 0.5) * (viewW - 1.8);
+    if (kind === 'gate') {
+      // muro con un hueco: se atraviesa o se abre con el láser
+      const gap = 2.4, gx = (Math.random() - 0.5) * (viewW - gap - 2);
+      for (let x = -viewW / 2 + 0.5; x < viewW / 2; x += 1.0) if (Math.abs(x - gx) > gap / 2) addObj('gate', x);
+      gateCd = 3.5; return 1.0;
+    }
+    if (kind === 'dart') {
+      // aviso: una línea roja marca el carril 0,7 s antes
+      const x = xr(), m = new THREE.Mesh(warnGeo, warnMat); m.rotation.x = -Math.PI / 2; m.scale.y = viewH; m.position.set(x, -0.5, 0);
+      group.add(m); warns.push({ m, x, t: 0.7 }); return 0;
+    }
+    if (kind === 'tool') {
+      const ids = Object.keys(TOOL_COLOR) as ToolId[];
+      addObj('tool', xr(), { tool: ids[Math.floor(Math.random() * ids.length)] }); return 0;
+    }
+    addObj(kind, xr()); return 0;
+  };
+  const gain = (pos: THREE.Vector3, base: number, cls = 'good') => { const p = base * mult; score += p; floatText(pos, `+${p}`, cls); };
+  const destroy = (o: Obj, i: number) => {
+    group.remove(o.m); objs.splice(i, 1);
+    burst(o.m.position, o.kind === 'zig' ? 0x5ac8fa : 0x9be7ff, 10, false); ringFx(o.m.position, 0x5ac8fa, 0.35);
+    gain(o.m.position, 10, 'scan');
+  };
+  const takeHit = (o: Obj) => {
+    if (shield) { shield = false; shieldRing.visible = false; burst(o.m.position, 0x34d399, 12, false); ringFx(o.m.position, 0x34d399); floatText(o.m.position, 'QA ✓', 'scan'); renderTool(); return; }
+    lives -= 1; streak = 0; mult = 1;
+    burst(o.m.position, 0x8b95a3, 14, true); ringFx(o.m.position, 0xff3b30, 0.35);
+    shake = 0.35; flash = 1; floatText(o.m.position, '−1 ♥', 'bad');
+  };
+  const pickTool = (o: Obj) => {
+    const t = o.tool!;
+    ringFx(o.m.position, TOOL_COLOR[t], 0.5); burst(o.m.position, TOOL_COLOR[t], 12, false); floatText(o.m.position, L.tools[t], 'scan');
+    if (t === 'laser' || t === 'fan') { weapon = t; weaponT = 8; fireT = 0; }
+    else if (t === 'magnet') magnetT = 8;
+    else if (t === 'shield') { shield = true; shieldRing.visible = true; }
+    else if (t === 'pulse') pulsePending = true;   // se aplica tras recorrer los objetos
+    renderTool();
+  };
+  const fire = () => {
+    const dirs = weapon === 'fan' ? [-0.32, 0, 0.32] : [0];
+    for (const a of dirs) {
+      const m = new THREE.Mesh(shotGeo, shotMat); m.position.copy(holder.position).setY(0.3); m.position.z -= 0.6; m.rotation.y = -a;
+      group.add(m); shots.push({ m, vx: Math.sin(a) * 12, vz: -Math.cos(a) * 12 });
+    }
+  };
   let lastX = 0;
   return {
     group, camera: cam, interactive: false,
     dispose: () => {
+      clearAll();
       disposables.forEach((d) => d.dispose());
       fxDisposables.forEach((d) => d.dispose());
       particles.forEach((p) => (p.m.material as THREE.Material).dispose());
@@ -651,14 +771,16 @@ async function buildGame(ctx: Ctx): Promise<Built> {
       ctx.canvas.style.cursor = ''; ctx.canvas.style.touchAction = '';
     },
     update: (dt, t) => {
+      // encuadre: la altura visible es fija; el ancho sigue a la forma del lienzo (pantalla completa incluida)
+      const { w, h } = ctx.size(), asp = w / h;
+      if (Math.abs(asp - lastAspect) > 1e-3) { lastAspect = asp; viewW = viewH * asp; cam.left = -viewW / 2; cam.right = viewW / 2; cam.updateProjectionMatrix(); }
       grid.position.z = (t * speed) % 1;
       holder.position.lerp(playing ? target : new THREE.Vector3(Math.sin(t) * 1.5, 0, 1.5), Math.min(1, dt * 8));
       const vx = (holder.position.x - lastX) / Math.max(dt, 1e-3); lastX = holder.position.x;
       holder.rotation.z = THREE.MathUtils.clamp(-vx * 0.04, -0.4, 0.4);
-      // vuelo: rotores girando (desenfoque) + leve flotación/escala de "altura"
       rotors.spin(dt, playing ? 34 : 22, playing ? 1 : 0.7);
       holder.scale.setScalar(1 + Math.sin(t * 3.2) * 0.025);
-      // FX: partículas, anillos, sacudida y destello
+      shieldRing.rotation.z += dt * 1.5; shieldMat.opacity = 0.55 + Math.sin(t * 6) * 0.25;
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i]; p.life += dt;
         const k = p.life / p.max;
@@ -671,40 +793,73 @@ async function buildGame(ctx: Ctx): Promise<Built> {
       for (let i = rings.length - 1; i >= 0; i--) {
         const r = rings[i]; r.life += dt;
         const k = r.life / r.max;
-        r.m.scale.setScalar(1 + k * 2.4);
+        r.m.scale.setScalar(1 + k * r.grow);
         (r.m.material as THREE.MeshBasicMaterial).opacity = 1 - k;
         if (k >= 1) { group.remove(r.m); (r.m.material as THREE.Material).dispose(); rings.splice(i, 1); }
       }
       if (shake > 0) { shake = Math.max(0, shake - dt); const a = shake * 0.5; cam.position.set(camHome.x + (Math.random() - 0.5) * a, camHome.y, camHome.z + (Math.random() - 0.5) * a); }
       else cam.position.copy(camHome);
       if (flash > 0) { flash = Math.max(0, flash - dt * 3); flashEl.style.opacity = String(flash * 0.55); }
-      drone.visible = !(flash > 0.2 && Math.floor(t * 20) % 2 === 0); // parpadeo al chocar
+      drone.visible = !(flash > 0.2 && Math.floor(t * 20) % 2 === 0);
       if (!playing) return;
+      // progresión: el proyecto sube de talla con el tiempo
+      elapsed += dt;
+      const nl = LEVELS.reduce((a, l, k) => (elapsed >= l.at ? k : a), 0);
+      if (nl !== level) { level = nl; banner(level); renderHud(); }
+      speed = LEVELS[level].speed + (elapsed - LEVELS[level].at) * 0.012;
+      gateCd = Math.max(0, gateCd - dt);
       spawnT -= dt;
-      if (spawnT <= 0) {
-        const coin = Math.random() < 0.55;
-        const m = new THREE.Mesh(coin ? coinGeo : rockGeo, coin ? coinMat : rockMat);
-        m.position.set((Math.random() - 0.5) * (viewW - 1.6), 0, -viewH / 2 - 0.6);
-        group.add(m); objs.push({ m, coin, v: speed * (0.8 + Math.random() * 0.5) });
-        spawnT = Math.max(0.35, 0.9 - score / 600);
+      if (spawnT <= 0) spawnT = LEVELS[level].every * (0.85 + Math.random() * 0.3) + spawn();
+      for (let i = warns.length - 1; i >= 0; i--) {
+        const wn = warns[i]; wn.t -= dt; (wn.m.material as THREE.MeshBasicMaterial).opacity = 0.25 + 0.35 * Math.abs(Math.sin(t * 18));
+        if (wn.t <= 0) { group.remove(wn.m); warns.splice(i, 1); addObj('dart', wn.x); }
       }
-      speed = Math.min(6, speed + dt * 0.05);
+      // herramientas activas
+      if (weapon) { weaponT -= dt; fireT -= dt; if (fireT <= 0) { fire(); fireT = weapon === 'fan' ? 0.3 : 0.2; } if (weaponT <= 0) weapon = null; }
+      if (magnetT > 0) magnetT = Math.max(0, magnetT - dt);
+      toolT -= dt; if (toolT <= 0 && (weapon || magnetT > 0)) { toolT = 0.25; renderTool(); }
+      for (let i = shots.length - 1; i >= 0; i--) {
+        const s = shots[i]; s.m.position.x += s.vx * dt; s.m.position.z += s.vz * dt;
+        let gone = s.m.position.z < -viewH / 2 - 1.5;
+        for (let j = objs.length - 1; j >= 0 && !gone; j--) {
+          const o = objs[j]; if (o.kind === 'coin' || o.kind === 'tool') continue;
+          if (Math.hypot(o.m.position.x - s.m.position.x, o.m.position.z - s.m.position.z) < o.r * 0.75) {
+            gone = true; o.hp -= 1;
+            if (o.hp <= 0) destroy(o, j); else { burst(o.m.position, 0x9be7ff, 5, false); o.m.scale.setScalar(0.8 + 0.1 * o.hp); }
+          }
+        }
+        if (gone) { group.remove(s.m); shots.splice(i, 1); }
+      }
+      let changed = false;
       for (let i = objs.length - 1; i >= 0; i--) {
         const o = objs[i];
         o.m.position.z += o.v * dt;
-        o.m.rotation.x += dt * 2; o.m.rotation.y += dt * 1.4;
-        const hit = Math.hypot(o.m.position.x - holder.position.x, o.m.position.z - holder.position.z) < (o.coin ? 0.75 : 0.7);
-        if (hit || o.m.position.z > viewH / 2 + 1) {
+        if (o.kind === 'zig') o.m.position.x = o.x0 + Math.sin(elapsed * 2.4 + o.ph) * 1.4;
+        if (o.kind === 'coin' && magnetT > 0) { const d = holder.position.clone().sub(o.m.position); const dl = d.length(); if (dl < 3.6) o.m.position.addScaledVector(d.normalize(), dt * 7); }
+        if (o.kind !== 'dart' && o.kind !== 'gate') { o.m.rotation.x += dt * 2; o.m.rotation.y += dt * 1.4; }
+        const hit = Math.hypot(o.m.position.x - holder.position.x, o.m.position.z - holder.position.z) < o.r;
+        if (hit || o.m.position.z > viewH / 2 + 1.2) {
           group.remove(o.m); objs.splice(i, 1);
           if (hit) {
-            if (o.coin) { score += 10; burstCoin(o.m.position); } else { lives -= 1; burstRock(o.m.position); }
-            renderHud();
-            hud.classList.remove('pulse-good', 'pulse-bad'); void hud.offsetWidth; hud.classList.add(o.coin ? 'pulse-good' : 'pulse-bad');
+            changed = true;
+            if (o.kind === 'coin') {
+              streak += 1; mult = Math.min(3, 1 + Math.floor(streak / 5));
+              gain(o.m.position, 10); burst(o.m.position, 0xffb066, 16, false); ringFx(o.m.position, 0xff7a3d);
+              hud.classList.remove('pulse-good', 'pulse-bad'); void hud.offsetWidth; hud.classList.add('pulse-good');
+            } else if (o.kind === 'tool') pickTool(o);
+            else { takeHit(o); hud.classList.remove('pulse-good', 'pulse-bad'); void hud.offsetWidth; hud.classList.add('pulse-bad'); }
           }
         }
       }
+      if (pulsePending) {
+        // onda radial: limpia los obstáculos cercanos
+        pulsePending = false; ringFx(holder.position, 0xffd166, 0.6, 9);
+        for (let i = objs.length - 1; i >= 0; i--) { const q = objs[i]; if (q.kind !== 'coin' && q.kind !== 'tool' && q.m.position.distanceTo(holder.position) < 3.2) destroy(q, i); }
+        changed = true;
+      }
+      if (changed) renderHud();
       if (lives <= 0 && !over) {
-        over = true; playing = false; best = Math.max(best, score);
+        over = true; playing = false; best = Math.max(best, score); weapon = null; magnetT = 0; renderTool();
         ctx.canvas.style.cursor = ''; ctx.canvas.style.touchAction = '';
         showOver(score, performance.now() - startAt); renderHud();
       }
@@ -748,7 +903,8 @@ export function ShowcaseScene({ kind, selected, hovered, lang = 'es', height = 3
     const rim = new THREE.DirectionalLight(0xffb58a, 1.4); rim.position.set(3, 2.5, -4); scene.add(rim);
     const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
     camera.position.set(0, 1.6, 6.2); camera.lookAt(0, 0, 0);
-    const size = () => ({ w: mount.clientWidth || 600, h: height });
+    // ciclo 44: en pantalla completa el lienzo toma el alto de la pantalla
+    const size = () => { const fs = !!document.fullscreenElement?.contains(mount); return { w: mount.clientWidth || 600, h: fs ? (mount.clientHeight || window.innerHeight) : height }; };
     const resize = () => { const { w, h } = size(); renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); };
     resize();
     const ro = new ResizeObserver(resize); ro.observe(mount);
@@ -898,6 +1054,27 @@ export function ShowcaseScene({ kind, selected, hovered, lang = 'es', height = 3
         .sc-lb-form input { font: inherit; font-size: 12.5px; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--cx-border-strong); background: var(--cx-tile); color: var(--cx-text); }
         .sc-lb-form button { font: 600 12.5px var(--cx-sans, system-ui); padding: 7px 10px; border-radius: 8px; border: 1px solid var(--cx-accent-border); background: var(--cx-accent-soft); color: var(--cx-accent); cursor: pointer; }
         .sc-lb-msg { font-size: 11.5px; color: var(--cx-muted); min-height: 14px; }
+        /* ciclo 44 · niveles, herramientas, pantalla completa y llamada a cotizar */
+        .sc-wrap:fullscreen { width: 100vw; height: 100vh; border-radius: 0; background: var(--cx-bg, #0b0c0e); }
+        .sc-wrap:fullscreen > div:first-child { height: 100vh !important; }
+        .sc-fs { position: absolute; right: 10px; top: 8px; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; cursor: pointer; pointer-events: auto;
+          font: 600 16px/1 system-ui; color: var(--cx-text); background: var(--cx-card-solid); border: 1px solid var(--cx-border-strong); z-index: 3; }
+        .sc-fs:hover { border-color: var(--cx-accent); color: var(--cx-accent); }
+        .sc-mult { color: #ffd166; font-weight: 700; }
+        .sc-tool { position: absolute; left: 10px; top: 40px; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+        .sc-tool span { display: inline-flex; align-items: center; gap: 6px; font: 600 11px var(--cx-mono, monospace); color: var(--cx-text); background: var(--cx-card-solid); padding: 3px 8px; border-radius: 7px; border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); }
+        .sc-tool i { width: 8px; height: 8px; transform: rotate(45deg); background: var(--c); }
+        .sc-lvl { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 2px; pointer-events: none; opacity: 0; text-align: center; }
+        .sc-lvl b { font: 800 44px/1 var(--cx-display, system-ui); color: var(--cx-accent); text-shadow: 0 6px 30px rgba(0,0,0,.5); }
+        .sc-lvl span { font: 600 12px var(--cx-mono, monospace); letter-spacing: .12em; text-transform: uppercase; color: var(--cx-text); background: var(--cx-card-solid); padding: 3px 9px; border-radius: 6px; }
+        .sc-lvl.on { animation: sc-lvl 2.2s cubic-bezier(.16,1,.3,1) both; }
+        @keyframes sc-lvl { 0% { opacity: 0; transform: translate(-50%, -40%) scale(.85); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%); } }
+        .sc-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; font: 500 10.5px var(--cx-mono, monospace); color: var(--cx-muted); }
+        .sc-legend span { display: inline-flex; align-items: center; gap: 5px; } .sc-legend i { width: 7px; height: 7px; transform: rotate(45deg); }
+        .sc-gs-lv { font: 600 11px var(--cx-mono, monospace); letter-spacing: .1em; text-transform: uppercase; color: var(--cx-accent); }
+        .sc-gs-cta { font: 600 12.5px var(--cx-sans, system-ui); padding: 6px 4px; border: 0; background: none; color: var(--cx-accent); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+        .sc-float.scan { color: #9be7ff; }
+        @media (prefers-reduced-motion: reduce) { .sc-lvl.on { animation-duration: .01s; } }
         .sc-float { position: absolute; transform: translate(-50%, -50%); font: 800 16px var(--cx-display, system-ui); pointer-events: none; animation: sc-float .9s cubic-bezier(.2,.8,.2,1) forwards; text-shadow: 0 2px 10px rgba(0,0,0,.5); }
         .sc-float.good { color: #ffb066; } .sc-float.bad { color: #ff5a4f; }
         @keyframes sc-float { 0% { opacity: 0; transform: translate(-50%, -30%) scale(.7); } 20% { opacity: 1; transform: translate(-50%, -60%) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -180%) scale(1); } }
