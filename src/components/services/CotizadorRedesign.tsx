@@ -11,6 +11,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import * as THREE from 'three';
 import { SERVICES } from '../../data/services/catalogCore';
+import { deliveryDays, JORNADA } from '../../data/services/variableEffects';
 import { getRateCard } from '../../data/services/formula';
 import { computeQuoteContinuous, minContinuousPrice } from '../../data/services/continuousQuote';
 import { CotizadorChat } from './chat/CotizadorChat';
@@ -649,16 +650,15 @@ export function CotizadorRedesign() {
   // Ciclo 10 — regla de entrega con extras (extraída del aside para
   // reusarla en el desglose): lo MÁS CONSERVADOR de cada extremo —
   // min = el mayor de los mínimos, max = el mayor de los máximos.
+  // ciclo 44c: el plazo sale de las HORAS (una persona, servicios en serie): Σ horas ÷ horas/día + revisión;
+  // la urgencia sube el ritmo (12 h/día) y «crítico» quita la espera de revisión
   const entregaDias = useMemo<[number, number] | null>(() => {
-    const rangos = [
-      svc?.entregaDiasEs,
-      ...extraQuotes.map(e => SERVICES.find(s => s.id === e.pick.serviceId)?.entregaDiasEs),
-    ].filter((r): r is [number, number] => Array.isArray(r));
-    if (!rangos.length) return null;
-    return extraQuotes.length === 0
-      ? rangos[0]
-      : [Math.max(...rangos.map(r => r[0])), Math.max(...rangos.map(r => r[1]))];
-  }, [svc, extraQuotes]);
+    if (!quote) return null;
+    if (svc?.id === 'RET-01') return null;   // el retainer es mensual, no tiene fecha de entrega
+    const hMin = quote.hoursMin + extraQuotes.reduce((a, e) => a + e.quote.hoursMin, 0);
+    const hMax = quote.hoursMax + extraQuotes.reduce((a, e) => a + e.quote.hoursMax, 0);
+    return deliveryDays(hMin, hMax, urgencyPct);
+  }, [quote, svc, extraQuotes, urgencyPct]);
 
   // Ciclo 11: respuestas clave del wizard (nivel de detalle, piezas, acabados)
   // para la línea "Config: ..." del desglose — solo si existen.
@@ -1078,8 +1078,13 @@ export function CotizadorRedesign() {
                       <div className="cx-deliv" style={{ marginTop: 24, padding: 14, borderRadius: 14, background: 'var(--cx-tile)' }}>
                         <div style={{ fontSize: 11, fontWeight: 500, color: 'var(--cx-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{lang === 'es' ? 'Entrega' : EN.delivery}</div>
                         <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--cx-text)', marginTop: 2 }}>
-                          {dias ? `${dias[0]}–${dias[1]} ${lang === 'en' ? 'days' : 'días'}` : '—'}
+                          {dias ? `${dias[0] === dias[1] ? dias[0] : `${dias[0]}–${dias[1]}`} ${lang === 'en' ? 'business days' : 'días hábiles'}` : '—'}
                         </div>
+                        {dias && <div style={{ fontSize: 11.5, color: 'var(--cx-muted)', marginTop: 4, lineHeight: 1.4 }}>
+                          {lang === 'en'
+                            ? (urgencyPct ? `Priority pace: ${JORNADA.horasDiaMax} h/day${urgencyPct >= 50 ? ', same-day reviews' : ''}.` : `${JORNADA.horasDia} h/day + ${JORNADA.diasRevision} review days. "Soon" speeds it up to ${JORNADA.horasDiaMax} h/day.`)
+                            : (urgencyPct ? `Ritmo prioritario: ${JORNADA.horasDiaMax} h/día${urgencyPct >= 50 ? ', revisiones el mismo día' : ''}.` : `${JORNADA.horasDia} h/día + ${JORNADA.diasRevision} días de revisión. «Pronto» lo acelera a ${JORNADA.horasDiaMax} h/día.`)}
+                        </div>}
                       </div>
                     );
                   })()}

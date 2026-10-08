@@ -61,7 +61,7 @@ describe('continuousQuote — banda y coherencia', () => {
 
   it('respeta el mínimo de proyecto y los descuentos', () => {
     const q = computeQuoteContinuous('RTA-01', { tipoSuperficie: 1 }, 'COP', { firstClientLaunch: true })!;
-    expect(q.totalMin).toBeGreaterThanOrEqual(400000);
+    expect(q.totalMin).toBeGreaterThanOrEqual(50000);   // ciclo 44c: trabajos desde COP 50.000
     expect(q.discountPct).toBeLessThan(0);
   });
 

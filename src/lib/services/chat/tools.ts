@@ -106,7 +106,7 @@ export function quoteTool(id: string, vals: Record<string, unknown>, currency: C
     ok: true, servicio: id, nombre: displayName(id), moneda: currency,
     rango: { min: q.totalMin, max: q.totalMax },
     rangoTexto: q.totalMax > q.totalMin ? `${fmtMoney(currency, q.totalMin)} – ${fmtMoney(currency, q.totalMax)} ${currency}` : `${fmtMoney(currency, q.totalMin)} ${currency} (proyecto mínimo)`,
-    horasEstimadas: q.hoursPoint, entregaDiasHabiles: s.entregaDiasEs ?? null,
+    horasEstimadas: q.hoursPoint, entregaDiasHabiles: q.entregaDias ?? s.entregaDiasEs ?? null,
     valoresUsados: v, tusDatos: given, avisos: errors,
     contrato: currency === 'COP' ? 'Contrato nacional (Colombia), tarifas del mercado colombiano' : 'Contrato internacional, tarifas del mercado internacional',
     accion: openQuoteAction(id, Object.fromEntries(given.map((k) => [k, v[k]]))),

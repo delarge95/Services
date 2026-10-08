@@ -1,0 +1,494 @@
+{
+  "_doc": "Fuente de verdad de los EFECTOS de las variables (ciclo 44c). Editar desde el Excel (hoja Efectos) e importar con verificacion-cotizacion/importar-excel.py. porUnidad: horas por cada unidad por encima de «incluidas». extra: horas propias al cumplirse «cuando». reemplaza: las horas del proyecto son las de la opción elegida.",
+  "jornada": {
+    "horasDia": 8,
+    "horasDiaMin": 4,
+    "horasDiaMax": 12,
+    "diasRevision": 2,
+    "_doc": "Plazo = horas ÷ horasDia + diasRevision. Urgencia «pronto» y «crítico» trabajan a horasDiaMax; «crítico» además sin días de espera de revisión."
+  },
+  "servicios": {
+    "RND-01": [
+      {
+        "var": "numImagenes",
+        "kind": "porUnidad",
+        "incluidas": 1,
+        "horas": [
+          0.8,
+          1.4
+        ],
+        "rateClass": "RC-ART",
+        "origen": "catálogo: (18.5 h talla L − 6.5 h talla S) ÷ (12 − 1) u = 1.1 h/u"
+      },
+      {
+        "var": "setDressing",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          2.9,
+          4.3
+        ],
+        "rateClass": "RC-ART",
+        "origen": "motor anterior: activarlo sumaba 3.6 h en el escenario por defecto"
+      },
+      {
+        "var": "modeloAportado",
+        "kind": "extra",
+        "cuando": false,
+        "horas": [
+          3,
+          6
+        ],
+        "rateClass": "RC-RTA",
+        "origen": "sin modelo del cliente se modela: RTA-01 rt1-model S 2–4 h + rt1-uv S 1–2 h"
+      }
+    ],
+    "RND-02": [
+      {
+        "var": "duracion",
+        "kind": "porUnidad",
+        "incluidas": 2,
+        "horas": [
+          0.3,
+          0.4
+        ],
+        "rateClass": "RC-ART",
+        "origen": "catálogo: (48 h talla L − 18.5 h talla S) ÷ (90 − 2) u = 0.3 h/u"
+      },
+      {
+        "var": "simulaciones",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          2.8,
+          4.2
+        ],
+        "rateClass": "RC-ART",
+        "origen": "motor anterior: activarlo sumaba 3.5 h en el escenario por defecto"
+      },
+      {
+        "var": "audioSync",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          8.7,
+          13.1
+        ],
+        "rateClass": "RC-ART",
+        "origen": "motor anterior: activarlo sumaba 10.9 h en el escenario por defecto"
+      }
+    ],
+    "RTA-02": [
+      {
+        "var": "numHotspots",
+        "kind": "porUnidad",
+        "incluidas": 1,
+        "horas": [
+          1.2,
+          2
+        ],
+        "rateClass": "RC-RTA",
+        "origen": "catálogo: (60 h talla L − 12.5 h talla S) ÷ (30 − 1) u = 1.6 h/u"
+      }
+    ],
+    "WEB-01": [
+      {
+        "var": "numHotspots",
+        "kind": "porUnidad",
+        "incluidas": 0,
+        "horas": [
+          1.3,
+          2.1
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "catálogo: (65 h talla L − 13.8 h talla S) ÷ (30 − 0) u = 1.7 h/u"
+      }
+    ],
+    "WEB-02": [
+      {
+        "var": "numEscenas",
+        "kind": "porUnidad",
+        "incluidas": 1,
+        "horas": [
+          1.2,
+          2
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "catálogo: (18 h talla L − 3.5 h talla S) ÷ (10 − 1) u = 1.6 h/u"
+      }
+    ],
+    "WEB-05": [
+      {
+        "var": "numSecciones",
+        "kind": "porUnidad",
+        "incluidas": 2,
+        "horas": [
+          1.8,
+          3
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "catálogo: (46.5 h talla L − 15.5 h talla S) ÷ (15 − 2) u = 2.4 h/u"
+      }
+    ],
+    "WEB-07": [
+      {
+        "var": "numProductos",
+        "kind": "porUnidad",
+        "incluidas": 1,
+        "horas": [
+          0.7,
+          1.2
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "catálogo: (122.5 h talla L − 30 h talla S) ÷ (100 − 1) u = 0.9 h/u"
+      },
+      {
+        "var": "filtros",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          9.4,
+          14.2
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "motor anterior: activarlo sumaba 11.8 h en el escenario por defecto"
+      },
+      {
+        "var": "carrito",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          9.4,
+          14.2
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "motor anterior: activarlo sumaba 11.8 h en el escenario por defecto"
+      },
+      {
+        "var": "cmsCatalogo",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          9.4,
+          14.2
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "motor anterior: activarlo sumaba 11.8 h en el escenario por defecto"
+      }
+    ],
+    "WEB-08": [
+      {
+        "var": "numSlides",
+        "kind": "porUnidad",
+        "incluidas": 3,
+        "horas": [
+          1,
+          1.7
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "catálogo: (47.5 h talla L − 11.5 h talla S) ÷ (30 − 3) u = 1.3 h/u"
+      },
+      {
+        "var": "tiene3D",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          2.6,
+          4
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "motor anterior: activarlo sumaba 3.3 h en el escenario por defecto"
+      }
+    ],
+    "CON-01": [
+      {
+        "var": "numSesiones",
+        "kind": "porUnidad",
+        "incluidas": 1,
+        "horas": [
+          0.7,
+          1.2
+        ],
+        "rateClass": "RC-CON",
+        "origen": "catálogo: (24 h talla L − 5.8 h talla S) ÷ (20 − 1) u = 1 h/u"
+      }
+    ],
+    "TEX-01": [
+      {
+        "var": "numSets",
+        "kind": "porUnidad",
+        "incluidas": 1,
+        "horas": [
+          1,
+          1.7
+        ],
+        "rateClass": "RC-RTA",
+        "origen": "catálogo: (50 h talla L − 11.5 h talla S) ÷ (30 − 1) u = 1.3 h/u"
+      },
+      {
+        "var": "noai",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          4,
+          10
+        ],
+        "rateClass": "RC-RTA",
+        "origen": "solo procedural (sin IA): CATALOGO §F1 «sistema procedural» exige más setup; inferido, calibrar"
+      }
+    ],
+    "PIPE-01": [
+      {
+        "var": "numScripts",
+        "kind": "porUnidad",
+        "incluidas": 1,
+        "horas": [
+          1.9,
+          3.1
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "catálogo: (55 h talla L − 8 h talla S) ÷ (20 − 1) u = 2.5 h/u"
+      },
+      {
+        "var": "interfaz",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          3.4,
+          5.2
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "motor anterior: activarlo sumaba 4.3 h en el escenario por defecto"
+      }
+    ],
+    "VFX-04": [
+      {
+        "var": "numEfectos",
+        "kind": "porUnidad",
+        "incluidas": 1,
+        "horas": [
+          4.4,
+          7.4
+        ],
+        "rateClass": "RC-ART",
+        "origen": "catálogo: (45 h talla XL − 3.5 h talla S) ÷ (8 − 1) u = 5.9 h/u"
+      }
+    ],
+    "VFX-03": [
+      {
+        "var": "formatos",
+        "kind": "porUnidad",
+        "incluidas": 1,
+        "horas": [
+          4.3,
+          7.2
+        ],
+        "rateClass": "RC-ART",
+        "origen": "catálogo: (29 h talla L − 6 h talla S) ÷ (5 − 1) u = 5.8 h/u"
+      },
+      {
+        "var": "reutilizable",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          4,
+          6
+        ],
+        "rateClass": "RC-ART",
+        "origen": "motor anterior: activarlo sumaba 5 h en el escenario por defecto"
+      }
+    ],
+    "RTA-03": [
+      {
+        "var": "numLoops",
+        "kind": "porUnidad",
+        "incluidas": 1,
+        "horas": [
+          4,
+          6.6
+        ],
+        "rateClass": "RC-RTA",
+        "origen": "catálogo: (63.5 h talla L − 16 h talla S) ÷ (10 − 1) u = 5.3 h/u"
+      },
+      {
+        "var": "rig",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          3.3,
+          4.9
+        ],
+        "rateClass": "RC-RTA",
+        "origen": "motor anterior: activarlo sumaba 4.1 h en el escenario por defecto"
+      }
+    ],
+    "RTA-04": [
+      {
+        "var": "numEstados",
+        "kind": "porUnidad",
+        "incluidas": 2,
+        "horas": [
+          2.6,
+          4.3
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "catálogo: (86.5 h talla L − 24.5 h talla S) ÷ (20 − 2) u = 3.4 h/u"
+      },
+      {
+        "var": "rig",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          4.5,
+          6.7
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "motor anterior: activarlo sumaba 5.6 h en el escenario por defecto"
+      }
+    ],
+    "VFX-01": [
+      {
+        "var": "duracionVfx",
+        "kind": "porUnidad",
+        "incluidas": 2,
+        "horas": [
+          0.2,
+          0.3
+        ],
+        "rateClass": "RC-ART",
+        "origen": "catálogo: (38.5 h talla L − 10.8 h talla S) ÷ (120 − 2) u = 0.2 h/u"
+      }
+    ],
+    "VFX-02": [
+      {
+        "var": "duracionFx",
+        "kind": "porUnidad",
+        "incluidas": 2,
+        "horas": [
+          0.4,
+          0.6
+        ],
+        "rateClass": "RC-ART",
+        "origen": "catálogo: (81 h talla XL − 24.5 h talla S) ÷ (120 − 2) u = 0.5 h/u"
+      },
+      {
+        "var": "tieneFX",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          6.7,
+          10.1
+        ],
+        "rateClass": "RC-ART",
+        "origen": "motor anterior: activarlo sumaba 8.4 h en el escenario por defecto"
+      }
+    ],
+    "WEB-04": [
+      {
+        "var": "auth",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          33.4,
+          50.2
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "motor anterior: activarlo sumaba 41.8 h en el escenario por defecto"
+      }
+    ],
+    "WEB-06": [
+      {
+        "var": "scores",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          19,
+          28.6
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "motor anterior: activarlo sumaba 23.8 h en el escenario por defecto"
+      }
+    ],
+    "WEB-03": [
+      {
+        "var": "bridge",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          5.3,
+          7.9
+        ],
+        "rateClass": "RC-WEB",
+        "origen": "motor anterior: activarlo sumaba 6.6 h en el escenario por defecto"
+      }
+    ],
+    "AI-01": [
+      {
+        "var": "acciones",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          17.4,
+          26.2
+        ],
+        "rateClass": "RC-AI",
+        "origen": "motor anterior: activarlo sumaba 21.8 h en el escenario por defecto"
+      }
+    ],
+    "AI-02": [
+      {
+        "var": "datosPrivados",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          15.4,
+          23
+        ],
+        "rateClass": "RC-AI",
+        "origen": "motor anterior: activarlo sumaba 19.2 h en el escenario por defecto"
+      }
+    ],
+    "AI-03": [
+      {
+        "var": "aprobacionHumana",
+        "kind": "extra",
+        "cuando": true,
+        "horas": [
+          7.5,
+          11.3
+        ],
+        "rateClass": "RC-AI",
+        "origen": "motor anterior: activarlo sumaba 9.4 h en el escenario por defecto"
+      }
+    ],
+    "RET-01": [
+      {
+        "var": "plan",
+        "kind": "reemplaza",
+        "opciones": {
+          "Lite (4 h/mes)": {
+            "horas": 4,
+            "rateClass": "RC-RTA"
+          },
+          "Standard (8 h/mes)": {
+            "horas": 8,
+            "rateClass": "RC-RTA"
+          },
+          "Pro (16 h/mes)": {
+            "horas": 16,
+            "rateClass": "RC-RTA"
+          },
+          "Business (40 h/mes)": {
+            "horas": 40,
+            "rateClass": "RC-CON"
+          },
+          "Enterprise (80 h/mes)": {
+            "horas": 80,
+            "rateClass": "RC-CON"
+          }
+        },
+        "origen": "horas del plan (catalogCore ret-*; Enterprise 80 h)"
+      }
+    ]
+  }
+}

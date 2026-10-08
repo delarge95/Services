@@ -504,12 +504,15 @@ async function buildTool(ctx: Ctx): Promise<Built> {
 type GKind = 'coin' | 'rock' | 'zig' | 'heavy' | 'gate' | 'dart' | 'tool';
 type ToolId = 'laser' | 'fan' | 'pulse' | 'shield' | 'magnet';
 const TOOL_COLOR: Record<ToolId, number> = { laser: 0x5ac8fa, fan: 0xa78bfa, pulse: 0xffd166, shield: 0x34d399, magnet: 0xf472b6 };
+// ciclo 44c: cada nivel aleja un poco la cámara (view = alto visible) y acelera; en XL la velocidad y la frecuencia
+// siguen subiendo SIN techo, de modo que casi nadie pase de ~3–4 min de partida
 const LEVELS = [
-  { at: 0, speed: 2.6, every: 0.85, mix: { coin: 0.55, rock: 0.45 } },
-  { at: 20, speed: 3.1, every: 0.72, mix: { coin: 0.45, rock: 0.25, zig: 0.2, tool: 0.1 } },
-  { at: 45, speed: 3.6, every: 0.6, mix: { coin: 0.4, rock: 0.15, zig: 0.15, heavy: 0.1, gate: 0.1, tool: 0.1 } },
-  { at: 75, speed: 4.1, every: 0.5, mix: { coin: 0.35, rock: 0.12, zig: 0.15, heavy: 0.1, gate: 0.1, dart: 0.1, tool: 0.08 } },
+  { at: 0, speed: 2.8, every: 0.8, view: 7, mix: { coin: 0.55, rock: 0.45 } },
+  { at: 20, speed: 3.6, every: 0.66, view: 7.8, mix: { coin: 0.45, rock: 0.25, zig: 0.2, tool: 0.1 } },
+  { at: 45, speed: 4.5, every: 0.54, view: 8.6, mix: { coin: 0.4, rock: 0.15, zig: 0.15, heavy: 0.1, gate: 0.1, tool: 0.1 } },
+  { at: 75, speed: 5.8, every: 0.44, view: 9.6, mix: { coin: 0.35, rock: 0.12, zig: 0.15, heavy: 0.1, gate: 0.1, dart: 0.1, tool: 0.08 } },
 ] as const;
+const XL_ACCEL = 0.09;   // +0,09 de velocidad por segundo en XL, constante y sin techo
 
 async function buildGame(ctx: Ctx): Promise<Built> {
   const group = new THREE.Group();
@@ -519,13 +522,13 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   group.add(holder);
   const fxDisposables: { dispose: () => void }[] = [];
   const rotors = makeRotors(drone, fxDisposables);
-  const viewH = 7; let viewW = viewH * (ctx.size().w / ctx.size().h), lastAspect = 0;
+  let viewH = 7; let viewW = viewH * (ctx.size().w / ctx.size().h), lastAspect = 0;
   const cam = new THREE.OrthographicCamera(-viewW / 2, viewW / 2, viewH / 2, -viewH / 2, 0.1, 50);
   cam.position.set(0, 20, 0); cam.up.set(0, 0, -1); cam.lookAt(0, 0, 0);
   const disposables: { dispose: () => void }[] = [];
   const std = (color: number, emissive: number, o: Partial<THREE.MeshStandardMaterialParameters> = {}) => new THREE.MeshStandardMaterial({ color, emissive, roughness: 0.6, flatShading: true, ...o });
   const coinGeo = new THREE.TorusGeometry(0.36, 0.13, 12, 28); const coinMat = new THREE.MeshStandardMaterial({ color: 0xff7a3d, emissive: 0xb8410f, emissiveIntensity: 0.9, metalness: 0.4, roughness: 0.3 });
-  // ciclo 44b: código de color único — ROJO = daño (con púas o franjas de peligro y halo rojo), VERDE = se recoge
+  // ciclo 44b/c: ROJO = daño (púas o franjas de peligro); lo que se recoge brilla (anillos naranjas, insignias de herramienta)
   const spiky = (r: number, n: number) => {   // núcleo + púas: silueta de «peligro» legible desde arriba
     const core = new THREE.IcosahedronGeometry(r, 0), parts: THREE.BufferGeometry[] = [core.toNonIndexed()];
     for (let k = 0; k < n; k++) {
@@ -546,9 +549,6 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   const heavyGeo = spiky(0.6, 7); const heavyMat = std(0x9e1b14, 0x3a0705, { roughness: 0.7 });
   const gateGeo = new THREE.BoxGeometry(0.95, 0.5, 0.55); const gateMat = new THREE.MeshStandardMaterial({ map: stripes, emissive: 0x3a0705, roughness: 0.6 });
   const dartGeo = new THREE.ConeGeometry(0.22, 0.9, 6); const dartMat = std(0xff3b30, 0x7a120c);
-  const haloGeo = new THREE.RingGeometry(0.62, 0.74, 40);
-  const haloGood = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false });
-  const haloBad = new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
   // iconos de herramientas: insignia redonda (vista desde arriba) con el símbolo de la herramienta
   const TOOL_GLYPH: Record<ToolId, string> = { laser: '⇡', fan: '⋔', pulse: '◎', shield: '⛨', magnet: 'U' };
   const toolTex = Object.fromEntries((Object.keys(TOOL_COLOR) as ToolId[]).map((k) => {
@@ -565,7 +565,7 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   const shotGeo = new THREE.BoxGeometry(0.09, 0.09, 0.42); const shotMat = new THREE.MeshBasicMaterial({ color: 0x9be7ff });
   const warnGeo = new THREE.PlaneGeometry(0.1, 1); const warnMat = new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.5, depthWrite: false });
   const shieldGeo = new THREE.RingGeometry(0.95, 1.05, 48); const shieldMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false });
-  disposables.push(stripes, haloGeo, haloGood, haloBad, ...Object.values(toolTex), coinGeo, coinMat, rockGeo, rockMat, zigGeo, zigMat, heavyGeo, heavyMat, gateGeo, gateMat, dartGeo, dartMat, toolGeo, ...Object.values(toolMats), shotGeo, shotMat, warnGeo, warnMat, shieldGeo, shieldMat);
+  disposables.push(stripes, ...Object.values(toolTex), coinGeo, coinMat, rockGeo, rockMat, zigGeo, zigMat, heavyGeo, heavyMat, gateGeo, gateMat, dartGeo, dartMat, toolGeo, ...Object.values(toolMats), shotGeo, shotMat, warnGeo, warnMat, shieldGeo, shieldMat);
   dartGeo.rotateX(Math.PI / 2); // la punta mira hacia el dron
   const shieldRing = new THREE.Mesh(shieldGeo, shieldMat); shieldRing.rotation.x = -Math.PI / 2; shieldRing.position.y = 0.2; shieldRing.visible = false; holder.add(shieldRing);
   // suelo con retícula para dar sensación de avance
@@ -620,17 +620,17 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   const screen = el(ctx.overlay, 'sc-game-screen');
   const en = ctx.lang === 'en';
   const L = en
-    ? { play: '▶ Play', how: 'Steer the drone. Green halo = grab it. Red = it hurts. Chain rings for combos up to ×3. The project levels up: S → M → L → XL.', over: 'Game over', again: '↻ Play again', pts: 'pts', best: 'best',
+    ? { play: '▶ Play', how: 'Steer the drone. Glowing items = grab them. Red = it hurts. Chain rings for combos up to ×3. The project levels up: S → M → L → XL.', over: 'Game over', again: '↻ Play again', pts: 'pts', best: 'best',
         rank: 'Leaderboard', local: 'on this device', global: 'all players', empty: 'No scores yet: be the first.', name: 'Your name', company: 'Team or brand (optional)',
         save: 'Save to the leaderboard', saved: 'Saved', savedLocal: 'Saved on this device', place: 'Position', blocked: 'That name is not allowed.', slow: 'Wait a few seconds and try again.', invalid: 'This score could not be saved.',
-        cta: 'A game like this with your product? Get a quote →', grab: 'GRAB · green halo', avoid: 'AVOID · red = damage', ringLbl: 'Ring +10',
+        cta: 'A game like this with your product? Get a quote →', grab: 'GRAB', avoid: 'AVOID · red = damage', ringLbl: 'Ring +10',
         haz: ['Spiked rock (−1 ♥)', 'Bug: zigzags', 'Heavy part: 3 laser hits', 'Hazard wall: fly through the gap', 'Dart: warns its lane in red'], reached: 'You reached level', fs: 'Full screen', lvl: 'Level',
         lv: ['Project S · warm-up', 'Project M · bugs and tools appear', 'Project L · walls and heavy parts', 'Project XL · rush delivery'],
         tools: { laser: 'Inspection laser', fan: 'Spread scan', pulse: 'Pulse', shield: 'QA shield', magnet: 'Magnet' } as Record<ToolId, string> }
-    : { play: '▶ Jugar', how: 'Mueve el dron. Halo verde = recógelo. Rojo = hace daño. Encadena anillos para combos hasta ×3. El proyecto sube de nivel: S → M → L → XL.', over: 'Fin del juego', again: '↻ Jugar otra vez', pts: 'pts', best: 'récord',
+    : { play: '▶ Jugar', how: 'Mueve el dron. Lo que brilla = recógelo. Rojo = hace daño. Encadena anillos para combos hasta ×3. El proyecto sube de nivel: S → M → L → XL.', over: 'Fin del juego', again: '↻ Jugar otra vez', pts: 'pts', best: 'récord',
         rank: 'Ranking', local: 'en este dispositivo', global: 'todos los jugadores', empty: 'Aún no hay puntajes: sé el primero.', name: 'Tu nombre', company: 'Equipo o marca (opcional)',
         save: 'Guardar en el ranking', saved: 'Guardado', savedLocal: 'Guardado en este dispositivo', place: 'Puesto', blocked: 'Ese nombre no está permitido.', slow: 'Espera unos segundos e inténtalo otra vez.', invalid: 'No se pudo guardar este puntaje.',
-        cta: '¿Un juego así con tu producto? Cotízalo →', grab: 'RECOGE · halo verde', avoid: 'EVITA · rojo = daño', ringLbl: 'Anillo +10',
+        cta: '¿Un juego así con tu producto? Cotízalo →', grab: 'RECOGE', avoid: 'EVITA · rojo = daño', ringLbl: 'Anillo +10',
         haz: ['Roca con púas (−1 ♥)', 'Bug: avanza en zigzag', 'Pieza pesada: 3 disparos', 'Muro de peligro: pasa por el hueco', 'Dardo: avisa su carril en rojo'], reached: 'Llegaste al nivel', fs: 'Pantalla completa', lvl: 'Nivel',
         lv: ['Proyecto S · calentamiento', 'Proyecto M · aparecen bugs y herramientas', 'Proyecto L · muros y piezas pesadas', 'Proyecto XL · entrega urgente'],
         tools: { laser: 'Láser de inspección', fan: 'Escaneo en abanico', pulse: 'Pulso', shield: 'Escudo QA', magnet: 'Imán' } as Record<ToolId, string> };
@@ -744,12 +744,6 @@ async function buildGame(ctx: Ctx): Promise<Built> {
     const m = new THREE.Mesh(geo, mat);
     m.position.set(x, 0, -viewH / 2 - 0.8);
     if (kind === 'tool') m.rotation.x = -Math.PI / 2;
-    if (kind !== 'gate' && kind !== 'dart') {
-      const good = kind === 'coin' || kind === 'tool';
-      const halo = new THREE.Mesh(haloGeo, good ? haloGood : haloBad); halo.rotation.x = -Math.PI / 2;
-      halo.scale.setScalar(kind === 'heavy' ? 1.45 : good ? 1 : 0.9);
-      halo.userData.halo = true; halo.position.y = -0.45; group.add(halo); m.userData.halo = halo;
-    }
     group.add(m);
     const v = kind === 'dart' ? speed * 2.6 : kind === 'heavy' ? speed * 0.7 : kind === 'gate' ? speed * 0.85 : speed * (0.8 + Math.random() * 0.5);
     const r = { coin: 0.75, rock: 0.7, zig: 0.65, heavy: 1.0, gate: 0.62, dart: 0.55, tool: 0.7 }[kind];
@@ -822,7 +816,12 @@ async function buildGame(ctx: Ctx): Promise<Built> {
     update: (dt, t) => {
       // encuadre: la altura visible es fija; el ancho sigue a la forma del lienzo (pantalla completa incluida)
       const { w, h } = ctx.size(), asp = w / h;
-      if (Math.abs(asp - lastAspect) > 1e-3) { lastAspect = asp; viewW = viewH * asp; cam.left = -viewW / 2; cam.right = viewW / 2; cam.updateProjectionMatrix(); }
+      // la cámara se aleja con el nivel (transición suave)
+      const vT = playing ? LEVELS[level].view : LEVELS[0].view, vN = viewH + (vT - viewH) * Math.min(1, dt * 1.2);
+      if (Math.abs(asp - lastAspect) > 1e-3 || Math.abs(vN - viewH) > 1e-4) {
+        lastAspect = asp; viewH = vN; viewW = viewH * asp;
+        cam.left = -viewW / 2; cam.right = viewW / 2; cam.top = viewH / 2; cam.bottom = -viewH / 2; cam.updateProjectionMatrix();
+      }
       grid.position.z = (t * speed) % 1;
       holder.position.lerp(playing ? target : new THREE.Vector3(Math.sin(t) * 1.5, 0, 1.5), Math.min(1, dt * 8));
       const vx = (holder.position.x - lastX) / Math.max(dt, 1e-3); lastX = holder.position.x;
@@ -855,10 +854,11 @@ async function buildGame(ctx: Ctx): Promise<Built> {
       elapsed += dt;
       const nl = LEVELS.reduce((a, l, k) => (elapsed >= l.at ? k : a), 0);
       if (nl !== level) { level = nl; banner(level); renderHud(); }
-      speed = LEVELS[level].speed + (elapsed - LEVELS[level].at) * 0.012;
+      const inLv = elapsed - LEVELS[level].at, isXL = level === LEVELS.length - 1;
+      speed = LEVELS[level].speed + inLv * (isXL ? XL_ACCEL : 0.02);
       gateCd = Math.max(0, gateCd - dt);
       spawnT -= dt;
-      if (spawnT <= 0) spawnT = LEVELS[level].every * (0.85 + Math.random() * 0.3) + spawn();
+      if (spawnT <= 0) spawnT = Math.max(0.2, LEVELS[level].every - (isXL ? inLv * 0.0025 : 0)) * (0.85 + Math.random() * 0.3) + spawn();
       for (let i = warns.length - 1; i >= 0; i--) {
         const wn = warns[i]; wn.t -= dt; (wn.m.material as THREE.MeshBasicMaterial).opacity = 0.25 + 0.35 * Math.abs(Math.sin(t * 18));
         if (wn.t <= 0) { group.remove(wn.m); warns.splice(i, 1); addObj('dart', wn.x); }
@@ -887,8 +887,7 @@ async function buildGame(ctx: Ctx): Promise<Built> {
         if (o.kind === 'coin' && magnetT > 0) { const d = holder.position.clone().sub(o.m.position); const dl = d.length(); if (dl < 3.6) o.m.position.addScaledVector(d.normalize(), dt * 7); }
         if (o.kind === 'tool') o.m.scale.setScalar(1 + Math.sin(elapsed * 6) * 0.08);
         else if (o.kind !== 'dart' && o.kind !== 'gate') { o.m.rotation.y += dt * (o.kind === 'coin' ? 1.4 : 2.2); if (o.kind === 'coin') o.m.rotation.x += dt * 2; }
-        const hl = o.m.userData.halo as THREE.Mesh | undefined;
-        if (hl) { hl.position.x = o.m.position.x; hl.position.z = o.m.position.z; hl.rotation.z += dt * 0.8; }
+
         const hit = Math.hypot(o.m.position.x - holder.position.x, o.m.position.z - holder.position.z) < o.r;
         if (hit || o.m.position.z > viewH / 2 + 1.2) {
           unlink(o.m); objs.splice(i, 1);
@@ -1123,12 +1122,12 @@ export function ShowcaseScene({ kind, selected, hovered, lang = 'es', height = 3
         @keyframes sc-lvl { 0% { opacity: 0; transform: translate(-50%, -40%) scale(.85); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%); } }
         .sc-legend2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; text-align: left; font: 500 11px var(--cx-sans, system-ui); color: var(--cx-text); }
         .sc-legend2 > div { display: grid; gap: 4px; align-content: start; padding: 8px 10px; border-radius: 10px; background: var(--cx-card-solid); }
-        .sc-legend2 .good { border: 1px solid #34d39966; } .sc-legend2 .bad { border: 1px solid #ff3b3066; }
-        .sc-legend2 b { font: 700 10px var(--cx-mono, monospace); letter-spacing: .1em; } .sc-legend2 .good b { color: #34d399; } .sc-legend2 .bad b { color: #ff5a4f; }
+        .sc-legend2 .good { border: 1px solid var(--cx-border-strong); } .sc-legend2 .bad { border: 1px solid #ff3b3066; }
+        .sc-legend2 b { font: 700 10px var(--cx-mono, monospace); letter-spacing: .1em; } .sc-legend2 .good b { color: var(--cx-accent); } .sc-legend2 .bad b { color: #ff5a4f; }
         .sc-legend2 span { display: flex; align-items: center; gap: 7px; }
         .sc-legend2 i { flex: 0 0 auto; width: 16px; height: 16px; display: grid; place-items: center; font: 700 10px system-ui; font-style: normal; }
-        .sc-legend2 .ring { border-radius: 50%; border: 3px solid #ff7a3d; box-shadow: 0 0 0 2px #34d39988; width: 12px; height: 12px; }
-        .sc-legend2 .badge { border-radius: 50%; border: 2px solid var(--c); color: var(--c); background: #0b1410; box-shadow: 0 0 0 2px #34d39988; }
+        .sc-legend2 .ring { border-radius: 50%; border: 3px solid #ff7a3d; width: 12px; height: 12px; }
+        .sc-legend2 .badge { border-radius: 50%; border: 2px solid var(--c); color: var(--c); background: #0b1410; }
         .sc-legend2 .haz { background: #e0352b; clip-path: polygon(50% 0, 62% 30%, 100% 35%, 70% 58%, 80% 100%, 50% 75%, 20% 100%, 30% 58%, 0 35%, 38% 30%); }
         .sc-legend2 .h1 { background: #ff4f8b; } .sc-legend2 .h2 { background: #9e1b14; width: 18px; height: 18px; }
         .sc-legend2 .h3 { clip-path: none; height: 10px; background: repeating-linear-gradient(-45deg, #ff3b30 0 4px, #1a0c0c 4px 8px); }

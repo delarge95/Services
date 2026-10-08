@@ -51,14 +51,14 @@ export function getRateCard(currency: Currency): RateCardDef {
     (Object.keys(RATE_CLASSES) as RateClass[]).map((rc) => [rc, { ...RATE_CLASSES[rc][key] }]),
   ) as RateCardDef['rates'];
   if (currency === 'COP') {
-    return { currency: 'COP', rates, roundStep: () => 1000, minProject: 400000 };
+    return { currency: 'COP', rates, roundStep: () => 1000, minProject: 50000 };   // ciclo 44c: trabajos desde COP 50.000 (XS)
   }
   return {
     currency: 'USD',
     rates,
     roundStep: (v) => (v < 500 ? 10 : v <= 2000 ? 50 : 100),
     // Mínimo internacional: ~1 día de trabajo al piso del mercado (no 400 k COP / TRM).
-    minProject: 250,
+    minProject: 15,   // ciclo 44c: ≈ COP 50.000 a la TRM de referencia
   };
 }
 

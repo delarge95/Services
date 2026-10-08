@@ -27,6 +27,7 @@ import { getRateCard, LAUNCH_DISCOUNT, quotedRate } from './rateCard';
 import { SERVICES } from './catalogCore';
 import type { ServiceDef } from './catalogCore';
 import { SERVICE_VARIABLES } from './serviceVariables';
+import { hasEffect, effectHours, deliveryDays } from './variableEffects';
 
 export const LEVELS: LevelId[] = ['XS', 'S', 'M', 'L', 'XL'];
 
@@ -93,6 +94,7 @@ export function derivarPosicion(serviceId: string, vals: Vals): number {
   for (const v of config.variables) {
     const val = vals[v.id];
     if (val === undefined || val === null) continue;
+    if (hasEffect(serviceId, v.id)) continue;   // ciclo 44c: sus horas van aparte (variableEffects), no suben la talla
     if (v.type === 'number' && v.tierMap?.length) {
       ps.push(numericPosition(Number(val), { min: v.min, max: v.max, tierMap: v.tierMap as { maxVal: number; tier: LevelId }[] }));
     } else if (v.type === 'select' && typeof val === 'string') {
@@ -143,7 +145,7 @@ export function computeQuoteContinuous(
 ): ContinuousQuote | null {
   const svc = SERVICES.find((s) => s.id === serviceId);
   if (!svc) return null;
-  return quoteAtPosition(svc, Math.max(derivarPosicion(serviceId, vals), minSupportedPosition(svc)), currency, opts);
+  return quoteAtPosition(svc, Math.max(derivarPosicion(serviceId, vals), minSupportedPosition(svc)), currency, opts, vals);
 }
 
 type QuoteOpts = Parameters<typeof computeQuoteContinuous>[3];
@@ -171,11 +173,14 @@ export function minContinuousPrice(serviceId: string, currency: Currency): numbe
   return q.totalMin > 0 ? q.totalMin : null;
 }
 
-function quoteAtPosition(svc: ServiceDef, p: number, currency: Currency, opts: NonNullable<QuoteOpts>): ContinuousQuote {
+function quoteAtPosition(svc: ServiceDef, p: number, currency: Currency, opts: NonNullable<QuoteOpts>, vals: Vals = {}): ContinuousQuote {
   const card = getRateCard(currency);
 
   let hours = 0, raw = 0;
-  for (const st of svc.subtasks) {
+  const fx = effectHours(svc.id, vals);
+  if (fx.replace) {   // ciclo 44c: p. ej. retainer — las horas son las del plan elegido
+    hours = fx.replace.hours; raw = hours * quotedRate(fx.replace.rateClass, currency);
+  } else for (const st of svc.subtasks) {
     if (st.optional) continue;
     const rate = card.rates[st.rateClass as RateClass];
     if (!rate) continue;
@@ -183,6 +188,7 @@ function quoteAtPosition(svc: ServiceDef, p: number, currency: Currency, opts: N
     hours += h;
     raw += h * quotedRate(st.rateClass as RateClass, currency); // piso→techo según RATE_POSITION
   }
+  for (const l of fx.lines) { hours += l.hours; raw += l.hours * quotedRate(l.rateClass, currency); }   // por unidad + extras
 
   let pct = 0;
   if (opts.firstClientLaunch && LAUNCH_DISCOUNT.activo) pct -= opts.launchPct ?? LAUNCH_DISCOUNT.defaultPct;
@@ -205,7 +211,8 @@ function quoteAtPosition(svc: ServiceDef, p: number, currency: Currency, opts: N
     subtotalMin: Math.floor((raw * (1 - s)) / step) * step,
     subtotalMax: Math.ceil((raw * (1 + s)) / step) * step,
     discountPct: pct, totalMin, totalMax,
-    entregaDias: svc.entregaDiasEs,
+    // ciclo 44c: el plazo sale de las horas (no es un rango fijo por servicio); el retainer es mensual
+    entregaDias: fx.replace ? svc.entregaDiasEs : deliveryDays(hours * (1 - s), hours * (1 + s), opts.urgencyPct ?? 0),
     entregables: svc.entregablesEs ?? [],
     noIncluye: svc.noIncluyeEs ?? [],
     notesEs: [`Estimación central ±${Math.round(s * 100)} % (confianza ${svc.confidence}). Rango orientativo, no cotización.`],
@@ -224,12 +231,12 @@ export function breakdownContinuous(serviceId: string, vals: Vals, currency: Cur
   const svc = SERVICES.find((s) => s.id === serviceId);
   if (!svc) return [];
   const p = Math.max(derivarPosicion(serviceId, vals), minSupportedPosition(svc));
-  return svc.subtasks
-    .filter((st) => !st.optional)
-    .map((st) => {
-      const hours = midHoursAt(st.hours, p);
-      const rate = quotedRate(st.rateClass as RateClass, currency);
-      return { id: st.id, nameEs: st.nameEs, rateClass: st.rateClass as RateClass, hours: Math.round(hours * 10) / 10, rate, cost: Math.round(hours * rate) };
+  const fx = effectHours(serviceId, vals);
+  const base = fx.replace ? [fx.replace] : svc.subtasks.filter((st) => !st.optional).map((st) => ({ id: st.id, nameEs: st.nameEs, rateClass: st.rateClass as RateClass, hours: midHoursAt(st.hours, p) }));
+  return [...base, ...fx.lines]
+    .map((l) => {
+      const rate = quotedRate(l.rateClass, currency);
+      return { id: l.id, nameEs: l.nameEs, rateClass: l.rateClass, hours: Math.round(l.hours * 10) / 10, rate, cost: Math.round(l.hours * rate) };
     })
     .filter((l) => l.hours > 0);
 }
