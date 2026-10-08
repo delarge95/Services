@@ -6,7 +6,7 @@
  */
 const fromEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.PUBLIC_COTIZADOR_CHAT_URL;
 
-export const CHAT_ENDPOINT: string = fromEnv ?? '';
+export const CHAT_ENDPOINT: string = fromEnv ?? 'https://cotizador-chat.delarge95.workers.dev/chat';   // ciclo 44: worker desplegado
 
 /** Tiempo máximo de espera de la IA antes de responder en modo básico. */
 export const CHAT_TIMEOUT_MS = 15000;
