@@ -599,7 +599,7 @@ function QuestionCard({ q, answers, onAnswer, lang, branchId, compact = false }:
 
       {/* CARDS */}
       {/* ciclo 26: vista 3D en vivo de la opción señalada/elegida */}
-      {q.type === 'cards' && q.choicePreview && <ShowcaseScene kind={q.choicePreview === 'interaction' ? 'interaction' : 'app-type'} selected={typeof current === 'string' ? current : undefined} hovered={hoverOpt} lang={lang} />}
+      {q.type === 'cards' && q.choicePreview && <ShowcaseScene kind={q.choicePreview === 'interaction' ? 'interaction' : 'app-type'} selected={typeof current === 'string' ? current : undefined} hovered={hoverOpt} lang={lang} height={current === 'juego' ? 470 : undefined} />}
       {/* ciclo 26: asset producido de la opción elegida (cuando exista) */}
       {q.type === 'cards' && (() => { const o = q.options?.find(x => x.id === current && x.visual); return o?.visual ? <MediaVisual v={o.visual} /> : null; })()}
       {q.type === 'cards' && q.options && (

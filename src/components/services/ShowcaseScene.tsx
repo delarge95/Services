@@ -525,17 +525,47 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   const disposables: { dispose: () => void }[] = [];
   const std = (color: number, emissive: number, o: Partial<THREE.MeshStandardMaterialParameters> = {}) => new THREE.MeshStandardMaterial({ color, emissive, roughness: 0.6, flatShading: true, ...o });
   const coinGeo = new THREE.TorusGeometry(0.36, 0.13, 12, 28); const coinMat = new THREE.MeshStandardMaterial({ color: 0xff7a3d, emissive: 0xb8410f, emissiveIntensity: 0.9, metalness: 0.4, roughness: 0.3 });
-  const rockGeo = new THREE.IcosahedronGeometry(0.5, 0); const rockMat = std(0x8b95a3, 0x2a2f38, { roughness: 0.7 });
-  const zigGeo = new THREE.OctahedronGeometry(0.42, 0); const zigMat = std(0x5ac8fa, 0x0f4c66);
-  const heavyGeo = new THREE.IcosahedronGeometry(0.82, 0); const heavyMat = std(0x5b616c, 0x1a1d22, { roughness: 0.8 });
-  const gateGeo = new THREE.BoxGeometry(0.95, 0.5, 0.55); const gateMat = std(0x9aa3b0, 0x24282f);
+  // ciclo 44b: código de color único — ROJO = daño (con púas o franjas de peligro y halo rojo), VERDE = se recoge
+  const spiky = (r: number, n: number) => {   // núcleo + púas: silueta de «peligro» legible desde arriba
+    const core = new THREE.IcosahedronGeometry(r, 0), parts: THREE.BufferGeometry[] = [core.toNonIndexed()];
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2, c = new THREE.ConeGeometry(r * 0.32, r * 0.75, 5);
+      c.rotateZ(-Math.PI / 2); c.translate(r * 1.15, 0, 0); c.rotateY(a); parts.push(c.toNonIndexed());
+    }
+    const pos: number[] = []; parts.forEach((g) => { pos.push(...(g.getAttribute('position').array as Float32Array)); g.dispose(); });
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
+  };
+  const stripes = (() => {   // franjas de peligro rojo/negro para los muros
+    const cv = document.createElement('canvas'); cv.width = 64; cv.height = 64; const g2 = cv.getContext('2d')!;
+    g2.fillStyle = '#1a0c0c'; g2.fillRect(0, 0, 64, 64); g2.fillStyle = '#ff3b30';
+    for (let k = -64; k < 128; k += 32) { g2.beginPath(); g2.moveTo(k, 0); g2.lineTo(k + 16, 0); g2.lineTo(k - 48, 64); g2.lineTo(k - 64, 64); g2.closePath(); g2.fill(); }
+    const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; tx.wrapS = tx.wrapT = THREE.RepeatWrapping; return tx;
+  })();
+  const rockGeo = spiky(0.36, 6); const rockMat = std(0xe0352b, 0x5c0d08, { roughness: 0.55 });
+  const zigGeo = spiky(0.3, 8); const zigMat = std(0xff4f8b, 0x6b0f2e, { roughness: 0.45 });
+  const heavyGeo = spiky(0.6, 7); const heavyMat = std(0x9e1b14, 0x3a0705, { roughness: 0.7 });
+  const gateGeo = new THREE.BoxGeometry(0.95, 0.5, 0.55); const gateMat = new THREE.MeshStandardMaterial({ map: stripes, emissive: 0x3a0705, roughness: 0.6 });
   const dartGeo = new THREE.ConeGeometry(0.22, 0.9, 6); const dartMat = std(0xff3b30, 0x7a120c);
-  const toolGeo = new THREE.OctahedronGeometry(0.3, 0);
-  const toolMats = Object.fromEntries((Object.keys(TOOL_COLOR) as ToolId[]).map((k) => [k, new THREE.MeshStandardMaterial({ color: TOOL_COLOR[k], emissive: TOOL_COLOR[k], emissiveIntensity: 0.7, roughness: 0.25, metalness: 0.2 })])) as Record<ToolId, THREE.MeshStandardMaterial>;
+  const haloGeo = new THREE.RingGeometry(0.62, 0.74, 40);
+  const haloGood = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false });
+  const haloBad = new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
+  // iconos de herramientas: insignia redonda (vista desde arriba) con el símbolo de la herramienta
+  const TOOL_GLYPH: Record<ToolId, string> = { laser: '⇡', fan: '⋔', pulse: '◎', shield: '⛨', magnet: 'U' };
+  const toolTex = Object.fromEntries((Object.keys(TOOL_COLOR) as ToolId[]).map((k) => {
+    const cv = document.createElement('canvas'); cv.width = cv.height = 128; const g2 = cv.getContext('2d')!;
+    const hex = `#${TOOL_COLOR[k].toString(16).padStart(6, '0')}`;
+    g2.fillStyle = '#0b1410'; g2.beginPath(); g2.arc(64, 64, 58, 0, Math.PI * 2); g2.fill();
+    g2.lineWidth = 10; g2.strokeStyle = hex; g2.stroke();
+    g2.fillStyle = hex; g2.font = '700 70px system-ui, sans-serif'; g2.textAlign = 'center'; g2.textBaseline = 'middle'; g2.fillText(TOOL_GLYPH[k], 64, 70);
+    const tx = new THREE.CanvasTexture(cv); tx.colorSpace = THREE.SRGBColorSpace; return [k, tx];
+  })) as Record<ToolId, THREE.CanvasTexture>;
+  const badgeGeo = new THREE.PlaneGeometry(0.78, 0.78);
+  const toolGeo = badgeGeo;
+  const toolMats = Object.fromEntries((Object.keys(TOOL_COLOR) as ToolId[]).map((k) => [k, new THREE.MeshBasicMaterial({ map: toolTex[k], transparent: true, depthWrite: false })])) as Record<ToolId, THREE.MeshBasicMaterial>;
   const shotGeo = new THREE.BoxGeometry(0.09, 0.09, 0.42); const shotMat = new THREE.MeshBasicMaterial({ color: 0x9be7ff });
   const warnGeo = new THREE.PlaneGeometry(0.1, 1); const warnMat = new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.5, depthWrite: false });
   const shieldGeo = new THREE.RingGeometry(0.95, 1.05, 48); const shieldMat = new THREE.MeshBasicMaterial({ color: 0x34d399, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false });
-  disposables.push(coinGeo, coinMat, rockGeo, rockMat, zigGeo, zigMat, heavyGeo, heavyMat, gateGeo, gateMat, dartGeo, dartMat, toolGeo, ...Object.values(toolMats), shotGeo, shotMat, warnGeo, warnMat, shieldGeo, shieldMat);
+  disposables.push(stripes, haloGeo, haloGood, haloBad, ...Object.values(toolTex), coinGeo, coinMat, rockGeo, rockMat, zigGeo, zigMat, heavyGeo, heavyMat, gateGeo, gateMat, dartGeo, dartMat, toolGeo, ...Object.values(toolMats), shotGeo, shotMat, warnGeo, warnMat, shieldGeo, shieldMat);
   dartGeo.rotateX(Math.PI / 2); // la punta mira hacia el dron
   const shieldRing = new THREE.Mesh(shieldGeo, shieldMat); shieldRing.rotation.x = -Math.PI / 2; shieldRing.position.y = 0.2; shieldRing.visible = false; holder.add(shieldRing);
   // suelo con retícula para dar sensación de avance
@@ -590,16 +620,18 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   const screen = el(ctx.overlay, 'sc-game-screen');
   const en = ctx.lang === 'en';
   const L = en
-    ? { play: '▶ Play', how: 'Steer the drone. Catch rings (+10, combos up to ×3), grab tools and dodge obstacles. Every few seconds the project levels up: S → M → L → XL.', over: 'Game over', again: '↻ Play again', pts: 'pts', best: 'best',
+    ? { play: '▶ Play', how: 'Steer the drone. Green halo = grab it. Red = it hurts. Chain rings for combos up to ×3. The project levels up: S → M → L → XL.', over: 'Game over', again: '↻ Play again', pts: 'pts', best: 'best',
         rank: 'Leaderboard', local: 'on this device', global: 'all players', empty: 'No scores yet: be the first.', name: 'Your name', company: 'Team or brand (optional)',
         save: 'Save to the leaderboard', saved: 'Saved', savedLocal: 'Saved on this device', place: 'Position', blocked: 'That name is not allowed.', slow: 'Wait a few seconds and try again.', invalid: 'This score could not be saved.',
-        cta: 'A game like this with your product? Get a quote →', reached: 'You reached level', fs: 'Full screen', lvl: 'Level',
+        cta: 'A game like this with your product? Get a quote →', grab: 'GRAB · green halo', avoid: 'AVOID · red = damage', ringLbl: 'Ring +10',
+        haz: ['Spiked rock (−1 ♥)', 'Bug: zigzags', 'Heavy part: 3 laser hits', 'Hazard wall: fly through the gap', 'Dart: warns its lane in red'], reached: 'You reached level', fs: 'Full screen', lvl: 'Level',
         lv: ['Project S · warm-up', 'Project M · bugs and tools appear', 'Project L · walls and heavy parts', 'Project XL · rush delivery'],
         tools: { laser: 'Inspection laser', fan: 'Spread scan', pulse: 'Pulse', shield: 'QA shield', magnet: 'Magnet' } as Record<ToolId, string> }
-    : { play: '▶ Jugar', how: 'Mueve el dron. Atrapa anillos (+10, combos hasta ×3), recoge herramientas y esquiva obstáculos. Cada pocos segundos el proyecto sube de nivel: S → M → L → XL.', over: 'Fin del juego', again: '↻ Jugar otra vez', pts: 'pts', best: 'récord',
+    : { play: '▶ Jugar', how: 'Mueve el dron. Halo verde = recógelo. Rojo = hace daño. Encadena anillos para combos hasta ×3. El proyecto sube de nivel: S → M → L → XL.', over: 'Fin del juego', again: '↻ Jugar otra vez', pts: 'pts', best: 'récord',
         rank: 'Ranking', local: 'en este dispositivo', global: 'todos los jugadores', empty: 'Aún no hay puntajes: sé el primero.', name: 'Tu nombre', company: 'Equipo o marca (opcional)',
         save: 'Guardar en el ranking', saved: 'Guardado', savedLocal: 'Guardado en este dispositivo', place: 'Puesto', blocked: 'Ese nombre no está permitido.', slow: 'Espera unos segundos e inténtalo otra vez.', invalid: 'No se pudo guardar este puntaje.',
-        cta: '¿Un juego así con tu producto? Cotízalo →', reached: 'Llegaste al nivel', fs: 'Pantalla completa', lvl: 'Nivel',
+        cta: '¿Un juego así con tu producto? Cotízalo →', grab: 'RECOGE · halo verde', avoid: 'EVITA · rojo = daño', ringLbl: 'Anillo +10',
+        haz: ['Roca con púas (−1 ♥)', 'Bug: avanza en zigzag', 'Pieza pesada: 3 disparos', 'Muro de peligro: pasa por el hueco', 'Dardo: avisa su carril en rojo'], reached: 'Llegaste al nivel', fs: 'Pantalla completa', lvl: 'Nivel',
         lv: ['Proyecto S · calentamiento', 'Proyecto M · aparecen bugs y herramientas', 'Proyecto L · muros y piezas pesadas', 'Proyecto XL · entrega urgente'],
         tools: { laser: 'Láser de inspección', fan: 'Escaneo en abanico', pulse: 'Pulso', shield: 'Escudo QA', magnet: 'Imán' } as Record<ToolId, string> };
   const TIERS = ['S', 'M', 'L', 'XL'];
@@ -612,9 +644,18 @@ async function buildGame(ctx: Ctx): Promise<Built> {
     const rows = st.scores.slice(0, n).map((e, k) => `<li class="${hiRank === k + 1 ? 'me' : ''}"><i>${k + 1}</i><span>${esc(e.name)}${e.company ? `<em>${esc(e.company)}</em>` : ''}</span><b>${e.score}</b></li>`).join('');
     return `<div class="sc-lb">${head}${rows ? `<ol>${rows}</ol>` : `<p>${L.empty}</p>`}</div>`;
   };
-  const toolLegend = () => `<div class="sc-legend">${(Object.keys(TOOL_COLOR) as ToolId[]).map((k) => `<span><i style="background:#${TOOL_COLOR[k].toString(16).padStart(6, '0')}"></i>${L.tools[k]}</span>`).join('')}</div>`;
+  const GLYPH: Record<ToolId, string> = { laser: '⇡', fan: '⋔', pulse: '◎', shield: '⛨', magnet: 'U' };
+  const hx = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
+  const toolLegend = () => `<div class="sc-legend2">
+    <div class="good"><b>${L.grab}</b>
+      <span><i class="ring"></i>${L.ringLbl}</span>
+      ${(Object.keys(TOOL_COLOR) as ToolId[]).map((k) => `<span><i class="badge" style="--c:${hx(TOOL_COLOR[k])}">${GLYPH[k]}</i>${L.tools[k]}</span>`).join('')}</div>
+    <div class="bad"><b>${L.avoid}</b>
+      ${L.haz.map((h, k) => `<span><i class="haz h${k}"></i>${h}</span>`).join('')}</div></div>`;
   const showStart = () => {
-    screen.innerHTML = `<div class="sc-gs-main"><button type="button" class="sc-gs-play" data-act="play">${L.play}</button><span>${L.how}</span>${toolLegend()}</div>${lbHtml(5)}`;
+    // ciclo 44b: la portada del juego cabe sin scroll — leyenda completa y el top 3 en una línea (el ranking entero sale al terminar)
+    const top3 = lbState?.scores.slice(0, 3).map((e, k) => `<span><i>${k + 1}</i>${esc(e.name)} <b>${e.score}</b></span>`).join('') ?? '';
+    screen.innerHTML = `<div class="sc-gs-main"><button type="button" class="sc-gs-play" data-act="play">${L.play}</button><span>${L.how}</span>${toolLegend()}${top3 ? `<div class="sc-top3"><small>${L.rank}</small>${top3}</div>` : ''}</div>`;
     screen.style.display = 'flex';
   };
   const showOver = (finalScore: number, durationMs: number) => {
@@ -666,8 +707,9 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   }
   showStart(); renderHud();
   fetchTop().then((st) => { lbState = st; if (!playing && !over) showStart(); });
+  const unlink = (m: THREE.Mesh) => { group.remove(m); const h = m.userData.halo as THREE.Mesh | undefined; if (h) group.remove(h); };
   const clearAll = () => {
-    for (const o of objs) group.remove(o.m); objs.length = 0;
+    for (const o of objs) unlink(o.m); objs.length = 0;
     for (const s of shots) group.remove(s.m); shots.length = 0;
     for (const w of warns) group.remove(w.m); warns.length = 0;
   };
@@ -701,6 +743,13 @@ async function buildGame(ctx: Ctx): Promise<Built> {
     const mat = kind === 'tool' ? toolMats[extra.tool!] : { coin: coinMat, rock: rockMat, zig: zigMat, heavy: heavyMat, gate: gateMat, dart: dartMat, tool: coinMat }[kind];
     const m = new THREE.Mesh(geo, mat);
     m.position.set(x, 0, -viewH / 2 - 0.8);
+    if (kind === 'tool') m.rotation.x = -Math.PI / 2;
+    if (kind !== 'gate' && kind !== 'dart') {
+      const good = kind === 'coin' || kind === 'tool';
+      const halo = new THREE.Mesh(haloGeo, good ? haloGood : haloBad); halo.rotation.x = -Math.PI / 2;
+      halo.scale.setScalar(kind === 'heavy' ? 1.45 : good ? 1 : 0.9);
+      halo.userData.halo = true; halo.position.y = -0.45; group.add(halo); m.userData.halo = halo;
+    }
     group.add(m);
     const v = kind === 'dart' ? speed * 2.6 : kind === 'heavy' ? speed * 0.7 : kind === 'gate' ? speed * 0.85 : speed * (0.8 + Math.random() * 0.5);
     const r = { coin: 0.75, rock: 0.7, zig: 0.65, heavy: 1.0, gate: 0.62, dart: 0.55, tool: 0.7 }[kind];
@@ -732,7 +781,7 @@ async function buildGame(ctx: Ctx): Promise<Built> {
   };
   const gain = (pos: THREE.Vector3, base: number, cls = 'good') => { const p = base * mult; score += p; floatText(pos, `+${p}`, cls); };
   const destroy = (o: Obj, i: number) => {
-    group.remove(o.m); objs.splice(i, 1);
+    unlink(o.m); objs.splice(i, 1);
     burst(o.m.position, o.kind === 'zig' ? 0x5ac8fa : 0x9be7ff, 10, false); ringFx(o.m.position, 0x5ac8fa, 0.35);
     gain(o.m.position, 10, 'scan');
   };
@@ -836,10 +885,13 @@ async function buildGame(ctx: Ctx): Promise<Built> {
         o.m.position.z += o.v * dt;
         if (o.kind === 'zig') o.m.position.x = o.x0 + Math.sin(elapsed * 2.4 + o.ph) * 1.4;
         if (o.kind === 'coin' && magnetT > 0) { const d = holder.position.clone().sub(o.m.position); const dl = d.length(); if (dl < 3.6) o.m.position.addScaledVector(d.normalize(), dt * 7); }
-        if (o.kind !== 'dart' && o.kind !== 'gate') { o.m.rotation.x += dt * 2; o.m.rotation.y += dt * 1.4; }
+        if (o.kind === 'tool') o.m.scale.setScalar(1 + Math.sin(elapsed * 6) * 0.08);
+        else if (o.kind !== 'dart' && o.kind !== 'gate') { o.m.rotation.y += dt * (o.kind === 'coin' ? 1.4 : 2.2); if (o.kind === 'coin') o.m.rotation.x += dt * 2; }
+        const hl = o.m.userData.halo as THREE.Mesh | undefined;
+        if (hl) { hl.position.x = o.m.position.x; hl.position.z = o.m.position.z; hl.rotation.z += dt * 0.8; }
         const hit = Math.hypot(o.m.position.x - holder.position.x, o.m.position.z - holder.position.z) < o.r;
         if (hit || o.m.position.z > viewH / 2 + 1.2) {
-          group.remove(o.m); objs.splice(i, 1);
+          unlink(o.m); objs.splice(i, 1);
           if (hit) {
             changed = true;
             if (o.kind === 'coin') {
@@ -1069,6 +1121,23 @@ export function ShowcaseScene({ kind, selected, hovered, lang = 'es', height = 3
         .sc-lvl span { font: 600 12px var(--cx-mono, monospace); letter-spacing: .12em; text-transform: uppercase; color: var(--cx-text); background: var(--cx-card-solid); padding: 3px 9px; border-radius: 6px; }
         .sc-lvl.on { animation: sc-lvl 2.2s cubic-bezier(.16,1,.3,1) both; }
         @keyframes sc-lvl { 0% { opacity: 0; transform: translate(-50%, -40%) scale(.85); } 15% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 75% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -60%); } }
+        .sc-legend2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; text-align: left; font: 500 11px var(--cx-sans, system-ui); color: var(--cx-text); }
+        .sc-legend2 > div { display: grid; gap: 4px; align-content: start; padding: 8px 10px; border-radius: 10px; background: var(--cx-card-solid); }
+        .sc-legend2 .good { border: 1px solid #34d39966; } .sc-legend2 .bad { border: 1px solid #ff3b3066; }
+        .sc-legend2 b { font: 700 10px var(--cx-mono, monospace); letter-spacing: .1em; } .sc-legend2 .good b { color: #34d399; } .sc-legend2 .bad b { color: #ff5a4f; }
+        .sc-legend2 span { display: flex; align-items: center; gap: 7px; }
+        .sc-legend2 i { flex: 0 0 auto; width: 16px; height: 16px; display: grid; place-items: center; font: 700 10px system-ui; font-style: normal; }
+        .sc-legend2 .ring { border-radius: 50%; border: 3px solid #ff7a3d; box-shadow: 0 0 0 2px #34d39988; width: 12px; height: 12px; }
+        .sc-legend2 .badge { border-radius: 50%; border: 2px solid var(--c); color: var(--c); background: #0b1410; box-shadow: 0 0 0 2px #34d39988; }
+        .sc-legend2 .haz { background: #e0352b; clip-path: polygon(50% 0, 62% 30%, 100% 35%, 70% 58%, 80% 100%, 50% 75%, 20% 100%, 30% 58%, 0 35%, 38% 30%); }
+        .sc-legend2 .h1 { background: #ff4f8b; } .sc-legend2 .h2 { background: #9e1b14; width: 18px; height: 18px; }
+        .sc-legend2 .h3 { clip-path: none; height: 10px; background: repeating-linear-gradient(-45deg, #ff3b30 0 4px, #1a0c0c 4px 8px); }
+        .sc-legend2 .h4 { clip-path: polygon(50% 0, 100% 100%, 0 100%); background: #ff3b30; }
+        .sc-gs-main { max-width: 440px !important; }
+        .sc-top3 { display: flex; flex-wrap: wrap; justify-content: center; align-items: baseline; gap: 4px 12px; font: 500 11.5px var(--cx-sans, system-ui); color: var(--cx-muted); }
+        .sc-top3 small { font: 600 10px var(--cx-mono, monospace); letter-spacing: .1em; text-transform: uppercase; color: var(--cx-faint); }
+        .sc-top3 i { font: 600 10px var(--cx-mono, monospace); font-style: normal; color: var(--cx-accent); margin-right: 4px; } .sc-top3 b { color: var(--cx-text); font-family: var(--cx-mono, monospace); }
+        @media (max-width: 560px) { .sc-legend2 { grid-template-columns: 1fr; } }
         .sc-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; font: 500 10.5px var(--cx-mono, monospace); color: var(--cx-muted); }
         .sc-legend span { display: inline-flex; align-items: center; gap: 5px; } .sc-legend i { width: 7px; height: 7px; transform: rotate(45deg); }
         .sc-gs-lv { font: 600 11px var(--cx-mono, monospace); letter-spacing: .1em; text-transform: uppercase; color: var(--cx-accent); }
