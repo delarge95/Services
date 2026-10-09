@@ -512,7 +512,9 @@ const LEVELS = [
   { at: 45, speed: 4.5, every: 0.54, view: 8.6, mix: { coin: 0.4, rock: 0.15, zig: 0.15, heavy: 0.1, gate: 0.1, tool: 0.1 } },
   { at: 75, speed: 5.8, every: 0.44, view: 9.6, mix: { coin: 0.35, rock: 0.12, zig: 0.15, heavy: 0.1, gate: 0.1, dart: 0.1, tool: 0.08 } },
 ] as const;
-const XL_ACCEL = 0.09;   // +0,09 de velocidad por segundo en XL, constante y sin techo
+// ciclo 45: ACELERACIÓN CONSTANTE desde el primer segundo (cada segundo más rápido que el anterior), sin techo;
+// en XL la aceleración se duplica. Todo lo que está en pantalla se mueve a la velocidad ACTUAL.
+const ACCEL = 0.08, XL_ACCEL = 0.16;
 
 async function buildGame(ctx: Ctx): Promise<Built> {
   const group = new THREE.Group();
@@ -684,7 +686,9 @@ async function buildGame(ctx: Ctx): Promise<Built> {
     });
   };
   const renderHud = () => {
-    hud.innerHTML = `<b>${score}</b> ${L.pts}${mult > 1 ? ` <span class="sc-mult">×${mult}</span>` : ''} · ${'♥'.repeat(Math.max(0, lives))}<em>${'♥'.repeat(Math.max(0, 3 - lives))}</em> · ${L.lvl} <b>${TIERS[level]}</b>${best ? ` · ${L.best} ${best}` : ''}`;
+    hud.innerHTML = `<div class="sc-h-lives" aria-label="${lives} ♥">${Array.from({ length: 3 }, (_, k) => `<i class="${k < lives ? 'on' : ''}">♥</i>`).join('')}</div>
+      <div class="sc-h-score"><b>${score}</b><small>${L.pts}${mult > 1 ? ` <span class="sc-mult">×${mult}</span>` : ''}</small></div>
+      <div class="sc-h-meta">${L.lvl} <b>${TIERS[level]}</b>${best ? ` · ${L.best} ${best}` : ''}</div>`;
   };
   const renderTool = () => {
     const parts: string[] = [];
@@ -745,7 +749,7 @@ async function buildGame(ctx: Ctx): Promise<Built> {
     m.position.set(x, 0, -viewH / 2 - 0.8);
     if (kind === 'tool') m.rotation.x = -Math.PI / 2;
     group.add(m);
-    const v = kind === 'dart' ? speed * 2.6 : kind === 'heavy' ? speed * 0.7 : kind === 'gate' ? speed * 0.85 : speed * (0.8 + Math.random() * 0.5);
+    const v = kind === 'dart' ? 2.6 : kind === 'heavy' ? 0.7 : kind === 'gate' ? 0.85 : 0.8 + Math.random() * 0.5;   // factor × velocidad actual
     const r = { coin: 0.75, rock: 0.7, zig: 0.65, heavy: 1.0, gate: 0.62, dart: 0.55, tool: 0.7 }[kind];
     const o: Obj = { m, kind, v, hp: kind === 'heavy' ? 3 : 1, r, x0: x, ph: Math.random() * Math.PI * 2, ...extra };
     objs.push(o); return o;
@@ -855,10 +859,11 @@ async function buildGame(ctx: Ctx): Promise<Built> {
       const nl = LEVELS.reduce((a, l, k) => (elapsed >= l.at ? k : a), 0);
       if (nl !== level) { level = nl; banner(level); renderHud(); }
       const inLv = elapsed - LEVELS[level].at, isXL = level === LEVELS.length - 1;
-      speed = LEVELS[level].speed + inLv * (isXL ? XL_ACCEL : 0.02);
+      speed = LEVELS[0].speed + elapsed * ACCEL + (isXL ? inLv * (XL_ACCEL - ACCEL) : 0);
       gateCd = Math.max(0, gateCd - dt);
       spawnT -= dt;
-      if (spawnT <= 0) spawnT = Math.max(0.2, LEVELS[level].every - (isXL ? inLv * 0.0025 : 0)) * (0.85 + Math.random() * 0.3) + spawn();
+      // la frecuencia sube con la velocidad (mismo espaciado en pantalla), con un mínimo de 0,2 s
+      if (spawnT <= 0) spawnT = Math.max(0.2, LEVELS[level].every * (LEVELS[level].speed / speed) * 1.15) * (0.85 + Math.random() * 0.3) + spawn();
       for (let i = warns.length - 1; i >= 0; i--) {
         const wn = warns[i]; wn.t -= dt; (wn.m.material as THREE.MeshBasicMaterial).opacity = 0.25 + 0.35 * Math.abs(Math.sin(t * 18));
         if (wn.t <= 0) { group.remove(wn.m); warns.splice(i, 1); addObj('dart', wn.x); }
@@ -882,7 +887,7 @@ async function buildGame(ctx: Ctx): Promise<Built> {
       let changed = false;
       for (let i = objs.length - 1; i >= 0; i--) {
         const o = objs[i];
-        o.m.position.z += o.v * dt;
+        o.m.position.z += o.v * speed * dt;
         if (o.kind === 'zig') o.m.position.x = o.x0 + Math.sin(elapsed * 2.4 + o.ph) * 1.4;
         if (o.kind === 'coin' && magnetT > 0) { const d = holder.position.clone().sub(o.m.position); const dl = d.length(); if (dl < 3.6) o.m.position.addScaledVector(d.normalize(), dt * 7); }
         if (o.kind === 'tool') o.m.scale.setScalar(1 + Math.sin(elapsed * 6) * 0.08);
@@ -1112,7 +1117,7 @@ export function ShowcaseScene({ kind, selected, hovered, lang = 'es', height = 3
           font: 600 16px/1 system-ui; color: var(--cx-text); background: var(--cx-card-solid); border: 1px solid var(--cx-border-strong); z-index: 3; }
         .sc-fs:hover { border-color: var(--cx-accent); color: var(--cx-accent); }
         .sc-mult { color: #ffd166; font-weight: 700; }
-        .sc-tool { position: absolute; left: 10px; top: 40px; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+        .sc-tool { position: absolute; left: 10px; top: 92px; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
         .sc-tool span { display: inline-flex; align-items: center; gap: 6px; font: 600 11px var(--cx-mono, monospace); color: var(--cx-text); background: var(--cx-card-solid); padding: 3px 8px; border-radius: 7px; border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); }
         .sc-tool i { width: 8px; height: 8px; transform: rotate(45deg); background: var(--c); }
         .sc-lvl { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); display: grid; justify-items: center; gap: 2px; pointer-events: none; opacity: 0; text-align: center; }
@@ -1148,6 +1153,16 @@ export function ShowcaseScene({ kind, selected, hovered, lang = 'es', height = 3
         @keyframes sc-float { 0% { opacity: 0; transform: translate(-50%, -30%) scale(.7); } 20% { opacity: 1; transform: translate(-50%, -60%) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -180%) scale(1); } }
         .sc-hit-flash { position: absolute; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, transparent 40%, rgba(255,59,48,.55)); }
         .sc-hud.pulse-good { animation: sc-pg .4s; } .sc-hud.pulse-bad { animation: sc-pb .4s; }
+        /* ciclo 45: vida y puntaje grandes */
+        .sc-hud { display: grid; grid-template-columns: auto auto; align-items: center; gap: 2px 14px; padding: 8px 12px !important; border-radius: 12px !important;
+          background: color-mix(in srgb, var(--cx-card-solid) 88%, transparent) !important; border: 1px solid var(--cx-border-strong); }
+        .sc-h-lives { display: flex; gap: 3px; } .sc-h-lives i { font: 400 26px/1 system-ui; font-style: normal; color: color-mix(in srgb, var(--cx-text) 18%, transparent); transition: transform .25s, color .25s; }
+        .sc-h-lives i.on { color: #ff3b4e; text-shadow: 0 0 12px rgba(255,59,78,.55); }
+        .sc-h-score { display: flex; align-items: baseline; gap: 5px; } .sc-h-score b { font: 800 28px/1 var(--cx-mono, monospace); color: var(--cx-accent); }
+        .sc-h-score small { font: 600 12px var(--cx-mono, monospace); color: var(--cx-muted); }
+        .sc-h-meta { grid-column: 1 / -1; font: 600 11px var(--cx-mono, monospace); letter-spacing: .08em; text-transform: uppercase; color: var(--cx-muted); }
+        .sc-h-meta b { color: var(--cx-text); }
+        .sc-hud.pulse-bad .sc-h-lives { animation: sc-lives .5s; } @keyframes sc-lives { 30% { transform: scale(1.35); } }
         @keyframes sc-pg { 50% { transform: scale(1.12); box-shadow: 0 0 0 3px rgba(255,122,61,.5); } }
         @keyframes sc-pb { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
         .sc-game-screen strong { font: 700 20px var(--cx-display, system-ui); color: var(--cx-accent); }

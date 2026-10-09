@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom';
 import * as THREE from 'three';
 import { SERVICES } from '../../data/services/catalogCore';
 import { deliveryDays, JORNADA } from '../../data/services/variableEffects';
+import { optionVisual, FAMILY_PHOTO } from '../../data/services/optionVisuals';
 import { getRateCard } from '../../data/services/formula';
 import { computeQuoteContinuous, minContinuousPrice } from '../../data/services/continuousQuote';
 import { CotizadorChat } from './chat/CotizadorChat';
@@ -182,6 +183,13 @@ function ServiceCard({ svc, currency, onPick, index, lang }: {
         background: 'radial-gradient(circle at var(--glare-x,50%) var(--glare-y,50%), rgba(255,122,61,0.08) 0%, transparent 60%)',
         opacity: 0, transition: 'opacity 0.3s',
       }} className="card-glare" />
+      {/* ciclo 45: miniatura del X500 por familia (render propio, tools/visuales) */}
+      {FAMILY_PHOTO[svc.family] && (
+        <picture style={{ display: 'block', margin: '-22px -20px 8px', aspectRatio: '16 / 10', overflow: 'hidden', background: '#0b0c0e' }}>
+          <source srcSet={`${FAMILY_PHOTO[svc.family]}.avif`} type="image/avif" />
+          <img src={`${FAMILY_PHOTO[svc.family]}.webp`} alt="" loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        </picture>
+      )}
       <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--cx-accent)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
         {lang === 'en' ? EN.families[svc.family] ?? svc.family : FAMILY_LABELS[svc.family] ?? svc.family}
       </span>
@@ -268,6 +276,20 @@ function VariableControl({ v, value, onValue, lang, serviceId }: {
               {(lang === 'en' ? VARS_EN[serviceId]?.[v.id]?.help : undefined) ?? v.ayudaEs}
             </div>
           ) : null}
+          {(() => {   // ciclo 45: visual de la opción (render real del X500)
+            const ov = optionVisual(`${serviceId}.${v.id}`, v.opciones!.map((o) => o.valorEs), val);
+            if (!ov) return null;
+            return (
+              <figure className="cx-optvis" style={{ margin: '0 0 10px', position: 'relative', aspectRatio: '16 / 9', maxWidth: 320, overflow: 'hidden', background: '#0b0c0e', border: '1px solid var(--cx-border)' }}>
+                {ov.v.kind === 'video'
+                  ? <video key={ov.v.src} src={ov.v.src} autoPlay muted loop playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  : <picture key={ov.v.src}><source srcSet={ov.v.src} type="image/avif" /><img src={ov.v.fallback ?? ov.v.src} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /></picture>}
+                <figcaption style={{ position: 'absolute', left: 8, bottom: 8, right: 8, font: '500 11.5px var(--cx-sans, system-ui)', color: '#edeee8', textShadow: '0 1px 6px rgba(0,0,0,.8)' }}>
+                  {!ov.exact && <b style={{ color: '#ff9a66' }}>{lang === 'en' ? 'Reference · ' : 'Referencia · '}</b>}{ov.v.label[lang === 'en' ? 1 : 0]}{ov.v.ia ? (lang === 'en' ? ' · AI-generated' : ' · Generada con IA') : ''}
+                </figcaption>
+              </figure>
+            );
+          })()}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {v.opciones.map((o: { valorEs: string }) => (
               <button key={o.valorEs} onClick={() => onValue(o.valorEs)}
