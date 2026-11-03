@@ -9,6 +9,7 @@
  *  - "¿qué servicios hay?" → catálogo real agrupado por línea.
  * Todo número sale de catalogCore / serviceVariables / rateCard: nada inventado.
  */
+import { URGENCY_PCT } from '../quoteSummary';
 import { SERVICES } from '../../../data/services/catalogCore';
 import type { ServiceDef } from '../../../data/services/catalogCore';
 import { SERVICE_VARIABLES } from '../../../data/services/serviceVariables';
@@ -191,7 +192,7 @@ export function answerWithQuote(input: string, ctx: AssistantContext): string | 
   }
   if (asks(q, TIME_KW) && !asks(q, PRICE_KW)) {
     return svc.entregaDiasEs
-      ? `${displayName(svc)}: ${svc.entregaDiasEs[0]}–${svc.entregaDiasEs[1]} días hábiles desde el anticipo y el material completo. Con urgencia (+25 % / +50 %) se acorta según disponibilidad.`
+      ? `${displayName(svc)}: ${svc.entregaDiasEs[0]}–${svc.entregaDiasEs[1]} días hábiles desde el anticipo y el material completo. Con urgencia (+${URGENCY_PCT.pronto} % / +${URGENCY_PCT.critico} %) se acorta según disponibilidad.`
       : `El plazo de ${svc.nameEs} se acuerda en el brief según alcance.`;
   }
   if (asks(q, PRICE_KW) || Object.keys(given).length > 0 || mentioned) return quoteAnswer(svc, vals, ctx, given);

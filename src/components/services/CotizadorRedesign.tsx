@@ -24,7 +24,7 @@ import { EN, CATALOG_EN, VARS_EN, EXTRA_LABELS_EN, EXTRA_NOTAS_EN } from '../../
 import type { Lang } from '../../data/services/i18n';
 import type { Currency } from '../../data/services/types';
 import type { WizardPick, WizardQuotePlan } from '../../data/services/treeToQuote';
-import { bundlePct, esquemaPago, RONDAS_NOTA } from '../../lib/services/quoteSummary';
+import { bundlePct, esquemaPago, RONDAS_NOTA, URGENCY_PCT } from '../../lib/services/quoteSummary';
 import type { FormalQuote } from '../../lib/services/formalQuote';
 import { installSmoothScroll } from '../../lib/services/smoothScroll';
 import { encodeShare, decodeShare, quoteId } from '../../lib/services/share';
@@ -582,7 +582,7 @@ export function CotizadorRedesign() {
     : [];
   const tier = useMemo(() => serviceId ? derivarTier(serviceId, vals) : null, [serviceId, vals]);
   // D1 ciclo 2.1: urgencia alineada a docs (+30/+50); descuento lanzamiento −25% se conserva.
-  const urgencyPct = urgency === '72h' ? 30 : urgency === '24h' ? 50 : 0;
+  const urgencyPct = urgency === '72h' ? URGENCY_PCT.pronto : urgency === '24h' ? URGENCY_PCT.critico : 0;
   const quoteOpts = useMemo(() => ({
     firstClientLaunch: firstClient, batchUnits: quantity > 1 ? quantity : undefined, urgencyPct,
   }), [firstClient, quantity, urgencyPct]);

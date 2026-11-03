@@ -1,3 +1,4 @@
+import { pagoTexto, urgenciaTexto } from '../quoteSummary';
 import { GLOSSARY } from '../../../data/services/glossary';
 import { CONTACT_EMAIL } from '../share';
 
@@ -68,17 +69,17 @@ const INTENTS: Intent[] = [
   {
     id: 'urgencia',
     kw: ['urgente', 'rapido', 'apurado', 'pronto posible', 'fecha limite', 'viernes', 'manana', 'esta semana'],
-    answer: (c) => `Plazos: estándar entra a cola normal${c.entrega ? ` (tu configuración: ${c.entrega})` : ''}; “Pronto” +25% y “Crítico” +50% según disponibilidad — se confirman por chat/email antes de iniciar.`,
+    answer: (c) => `Plazos: estándar entra a cola normal${c.entrega ? ` (tu configuración: ${c.entrega})` : ''}; ${urgenciaTexto(false)} según disponibilidad — se confirman por chat/email antes de iniciar.`,
   },
   {
     id: 'pago',
     kw: ['pago', 'anticipo', '50', 'factura', 'transferencia', 'nequi', 'paypal', 'metodo'],
-    answer: () => 'Esquema 50% anticipo para agendar y 50% contra entrega. Facturación electrónica normal. Los costos de API/servidores de IA los paga el cliente (BYOK).',
+    answer: () => `${pagoTexto(false)} Facturación electrónica normal. Los costos de API/servidores de IA los paga el cliente (BYOK).`,
   },
   {
     id: 'proceso',
     kw: ['proceso', 'como funciona', 'pasos', 'que sigue', 'despues de cotizar'],
-    answer: () => 'Flujo: cotizas aquí → brief corto (<24 h respuesta) → anticipo 50% → producción con avances → 2 rondas incluidas → entrega + guía. Todo detallado en “Cómo trabajamos” al final de la página.',
+    answer: () => 'Flujo: cotizas aquí → brief corto (<24 h respuesta) → anticipo (según el monto) → producción con avances → 2 rondas incluidas → entrega + guía. Todo detallado en “Cómo trabajamos” al final de la página.',
   },
   {
     id: 'revisiones',

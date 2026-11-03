@@ -11,6 +11,7 @@
  *  R5. Fuera de alcance → se dice con honestidad y se redirige (sin inventar).
  *  R6. La conversación recuerda el último servicio ("¿y con 10?").
  */
+import { urgenciaTexto, URGENCY_PCT } from '../quoteSummary';
 import { SERVICES } from '../../../data/services/catalogCore';
 import { SERVICE_VARIABLES } from '../../../data/services/serviceVariables';
 import type { Currency } from '../../../data/services/types';
@@ -139,7 +140,7 @@ const GENERAL_EN: Record<string, string> = {
   whitelabel: 'Yes, white-label work with agencies: you are the face to your client and I am your invisible technical team.',
   contacto: 'Write to 3d@alexwoodcock.me or use the WhatsApp button under the estimate. Replies in less than 24 h.',
   archivos: 'You can drop your files in the 📎 area of the result: format and size are checked in your browser (nothing is uploaded). STEP/Blender/GLB are ideal sources.',
-  urgencia: 'Timelines: standard goes into the normal queue; "Soon" +25% and "Critical" +50% depending on availability — confirmed by chat/email before starting.',
+  urgencia: `Timelines: standard goes into the normal queue; ${urgenciaTexto(true)} depending on availability — confirmed by chat/email before starting.`,
 };
 
 export function basicReply(input: string, ctx: BasicContext): AssistantReply {
@@ -194,7 +195,7 @@ export function basicReply(input: string, ctx: BasicContext): AssistantReply {
   if (has(q, K.needs) || (en && has(q, K_EN.needs))) {
     const d = svcId ? serviceDetails(svcId) : null;
     const extra = d && !('error' in d) ? T(`\nPara ${nameIn(svcId!, en)} ayuda tener: referencias visuales, archivos fuente si existen (CAD/3D), y estos datos: ${d.variables.slice(0, 3).map((v) => qText(svcId!, v.id, en)).join('; ')}.`, `\nFor ${nameIn(svcId!, en)} it helps to have: visual references, source files if any (CAD/3D), and: ${d.variables.slice(0, 3).map((v) => qText(svcId!, v.id, en)).join('; ')}.`) : '';
-    return { text: T('Para empezar: una descripción breve del objetivo, referencias y la fecha límite. Con eso respondo en menos de 24 h y, si avanzamos, se agenda con 50 % de anticipo.', 'To start: a short description of the goal, references and the deadline. I reply within 24 h and, if we go ahead, the slot is booked with a 50% deposit.') + extra, actions: svcId ? [openQuoteAction(svcId, {}, T('Abrir en el cotizador', 'Open in the estimator'))!].filter(Boolean) : [], chips: [], serviceId: svcId, source: 'rules' };
+    return { text: T('Para empezar: una descripción breve del objetivo, referencias y la fecha límite. Con eso respondo en menos de 24 h y, si avanzamos, se agenda con un anticipo (según el monto).', 'To start: a short description of the goal, references and the deadline. I reply within 24 h and, if we go ahead, the slot is booked with a deposit (depending on the amount).') + extra, actions: svcId ? [openQuoteAction(svcId, {}, T('Abrir en el cotizador', 'Open in the estimator'))!].filter(Boolean) : [], chips: [], serviceId: svcId, source: 'rules' };
   }
   // reglas comerciales generales (pago, proceso, revisiones, contacto…) si no se pide precio
   if (general && ['pago', 'proceso', 'revisiones', 'whitelabel', 'contacto', 'archivos', 'urgencia'].includes(general) && !has(q, K.price) && !(en && has(q, K_EN.price))) {
@@ -281,7 +282,7 @@ export function basicReply(input: string, ctx: BasicContext): AssistantReply {
     const t = s.entregaDiasEs
       ? T(`${s.entregaDiasEs[0]}–${s.entregaDiasEs[1]} días hábiles según el alcance`, `${s.entregaDiasEs[0]}–${s.entregaDiasEs[1]} business days depending on scope`)
       : T('se acuerda en el brief según el alcance', 'agreed in the brief depending on scope');
-    return { text: T(`${name}: ${t}, contados desde el anticipo y el material completo. Con tus datos son ≈ ${qt.horasEstimadas} h de trabajo. Con urgencia (+25 % / +50 %) se acorta según disponibilidad.`, `${name}: ${t}, counted from the deposit and complete materials. With your values it is ≈ ${qt.horasEstimadas} h of work. With urgency (+25% / +50%) it gets shorter depending on availability.`), actions: [openQuoteAction(svcId, vals, openLbl)!].filter(Boolean), chips: en ? ['How much is it?'] : ['¿Cuánto cuesta?'], serviceId: svcId, source: 'rules' };
+    return { text: T(`${name}: ${t}, contados desde el anticipo y el material completo. Con tus datos son ≈ ${qt.horasEstimadas} h de trabajo. Con urgencia (+${URGENCY_PCT.pronto} % / +${URGENCY_PCT.critico} %) se acorta según disponibilidad.`, `${name}: ${t}, counted from the deposit and complete materials. With your values it is ≈ ${qt.horasEstimadas} h of work. With urgency (+${URGENCY_PCT.pronto}% / +${URGENCY_PCT.critico}%) it gets shorter depending on availability.`), actions: [openQuoteAction(svcId, vals, openLbl)!].filter(Boolean), chips: en ? ['How much is it?'] : ['¿Cuánto cuesta?'], serviceId: svcId, source: 'rules' };
   }
   // R3 — cotización (por defecto cuando hay servicio)
   const r = quoteTool(svcId, vals, cur);

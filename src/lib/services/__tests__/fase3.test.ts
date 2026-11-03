@@ -72,7 +72,7 @@ describe('S12: intenciones del chat', () => {
 
   it('reconoce precio, urgencia, pago y contacto (sin acentos)', () => {
     expect(matchIntent('por que es tan caro', baseCtx)).toMatch(/rango|precio/i);
-    expect(matchIntent('es urgente, para el viernes', baseCtx)).toMatch(/\+25%|\+50%/);
+    expect(matchIntent('es urgente, para el viernes', baseCtx)).toMatch(/\+30%|\+50%/);
     expect(matchIntent('como es lo del pago y anticipo', baseCtx)).toContain('50%');
     expect(matchIntent('quiero hablar con una persona', baseCtx)).toContain('contacto@ag-serv.com');
   });

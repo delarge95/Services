@@ -8,6 +8,7 @@
  * se rechazan con un error explícito (la IA debe preguntar en vez de adivinar).
  * Salidas JSON-serializables (viajan del worker al modelo).
  */
+import { pagoTexto, urgenciaTexto } from '../quoteSummary';
 import { NAME_ES_DISPLAY } from '../../../data/services/i18nMore';
 import { SERVICES } from '../../../data/services/catalogCore';
 import { SERVICE_VARIABLES } from '../../../data/services/serviceVariables';
@@ -139,9 +140,9 @@ export const CURRENCY_NOTE = `COP = contrato nacional (cliente en Colombia, tari
 
 /** Reglas comerciales FIJAS que el asistente puede citar (fuente: chatIntents/ProcesoFaq). */
 export const BUSINESS_FACTS = [
-  'Pago: 50 % de anticipo para agendar y 50 % contra entrega.',
+  pagoTexto(false),
   'Incluye 2 rondas de revisión; cambios fuera de alcance se estiman y aprueban antes.',
-  'Urgencia: +25 % (pronto) o +50 % (crítico), según disponibilidad.',
+  `Urgencia: ${urgenciaTexto(false)}, según disponibilidad.`,
   'Costos de API/servidores de IA los paga el cliente (BYOK).',
   'Respuesta a contacto en menos de 24 h.',
   'Toda cifra del cotizador es un rango orientativo, no una cotización formal.',

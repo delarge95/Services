@@ -58,7 +58,7 @@ export function getRateCard(currency: Currency): RateCardDef {
     rates,
     roundStep: (v) => (v < 500 ? 10 : v <= 2000 ? 50 : 100),
     // Mínimo internacional: ~1 día de trabajo al piso del mercado (no 400 k COP / TRM).
-    minProject: 15,   // ciclo 44c: ≈ COP 50.000 a la TRM de referencia
+    minProject: 15,   // ciclo 44c: ≈ COP 48.000 a la TRM de referencia (el mínimo nacional es COP 50.000)
   };
 }
 
@@ -66,6 +66,6 @@ export const LAUNCH_DISCOUNT = { pctMin: 20, pctMax: 40, defaultPct: 25, activo:
 
 /** TRM oficial (Banco de la República vía dolar.wilkinsonpc.com.co/2026-09-30). Solo para
  *  equivalencias informativas: los precios USD NO se derivan de la TRM (mercado propio). */
-export const TRM_REFERENCIA = { usdCop: 3341.23, fecha: '2026-09-30' };
+export const TRM_REFERENCIA = { usdCop: 3182.99, fecha: '2026-11-03' };   // ciclo 46: Superfinanciera (datos.gov.co 32sa-8pi3), vigencia 31-oct → 3-nov-2026; la anterior era 3341,23 (2026-09-30)
 
 export const LAUNCH_PROGRAM = { id: 'primeros-clientes', activo: true, alcanceEs: 'Primeros 5 proyectos o 2026-12-31.' };

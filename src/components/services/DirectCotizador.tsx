@@ -27,6 +27,7 @@ import { Cotizador3DDemo } from './Cotizador3DDemo';
 import { BRAND, HOW_IT_WORKS } from '../../data/services/branding';
 import { computePriceDrivers } from '../../lib/services/priceWhy';
 import { inventoryLine } from '../../lib/services/fileChecklist';
+import { URGENCY_PCT } from '../../lib/services/quoteSummary';
 import {
   buildSummary,
   decodeShare,
@@ -116,7 +117,7 @@ export function DirectCotizador() {
     return derivarTier(serviceId, vals);
   }, [serviceId, vals]);
 
-  const urgencyPct = urgency === '72h' ? 25 : urgency === '24h' ? 50 : 0;
+  const urgencyPct = urgency === '72h' ? URGENCY_PCT.pronto : urgency === '24h' ? URGENCY_PCT.critico : 0;   // ciclo 46: antes 25 aquí y 30 en la vista guiada
 
   const quoteOpts = useMemo(() => ({
     firstClientLaunch: firstClient,
@@ -409,8 +410,8 @@ export function DirectCotizador() {
             <div style={{ display: 'flex', gap: 8 }}>
               {([
                 { id: 'none' as Urgency, label: 'Sin apuro', desc: 'Cola normal' },
-                { id: '72h' as Urgency, label: 'Pronto', desc: '+25%' },
-                { id: '24h' as Urgency, label: 'Crítico', desc: '+50% · según disponibilidad' },
+                { id: '72h' as Urgency, label: 'Pronto', desc: `+${URGENCY_PCT.pronto}%` },
+                { id: '24h' as Urgency, label: 'Crítico', desc: `+${URGENCY_PCT.critico}% · según disponibilidad` },
               ]).map((o) => (
                 <button key={o.id} onClick={() => setUrgency(o.id)}
                   style={{
