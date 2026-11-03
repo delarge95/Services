@@ -23,6 +23,12 @@ describe('coherencia comercial (cotizador ↔ chat)', () => {
     const r = matchIntent('como es lo del pago y anticipo', { entrega: undefined } as never) ?? '';
     expect(r).toContain('100% anticipado');
   });
+  it('los hechos que van al prompt de la IA no llevan importes (el verificador del worker los rechazaría)', () => {
+    // core.ts → MONEY_RE solo admite importes que salgan de las herramientas; los hechos fijos viajan en el prompt.
+    expect(BUSINESS_FACTS.join(' ')).not.toMatch(/(?:US\$|\$|COP\s?|USD\s?)\s?\d|\d[\d.,]*\s?(?:COP|USD|pesos|d[oó]lares)/i);
+    expect(BUSINESS_FACTS.join(' ')).toContain('100% anticipado');
+    expect(pagoTexto(false, true)).toContain(`USD ${PAGO_UMBRALES_USD[0]}`);   // el chat básico sí puede dar los montos
+  });
   it('TRM de referencia vigente y fechada', () => {
     expect(TRM_REFERENCIA.usdCop).toBeGreaterThan(2500);
     expect(TRM_REFERENCIA.fecha).toMatch(/^\d{4}-\d{2}-\d{2}$/);

@@ -42,6 +42,10 @@ export const urgenciaTexto = (en: boolean) => en
   : `“Pronto” +${URGENCY_PCT.pronto}% y “Crítico” +${URGENCY_PCT.critico}%`;
 
 const cop = (usd: number) => `${(Math.round((usd * TRM_REFERENCIA.usdCop) / 100_000) / 10).toLocaleString('es-CO')} M`;
-export const pagoTexto = (en: boolean) => en
-  ? `Payment depends on the amount: up to USD ${PAGO_UMBRALES_USD[0]} 100% upfront; up to USD ${PAGO_UMBRALES_USD[1].toLocaleString('en-US')}, 50% deposit and 50% on delivery; up to USD ${PAGO_UMBRALES_USD[2].toLocaleString('en-US')}, 40/30/30; above that, biweekly milestones (COP is converted with the reference TRM).`
+/** `montos = false` para el prompt de la IA: el verificador del worker descarta respuestas con importes que no vengan de sus herramientas, así que esa versión no lleva cifras de dinero. */
+export const pagoTexto = (en: boolean, montos = true) => !montos
+  ? (en
+    ? 'Payment depends on the project size: small projects 100% upfront; medium ones 50% deposit and 50% on delivery; large ones 40/30/30; very large ones biweekly milestones.'
+    : 'El pago depende del tamaño del proyecto: los pequeños, 100% anticipado; los medianos, 50% de anticipo y 50% contra entrega; los grandes, 40/30/30; los muy grandes, hitos quincenales.')
+  : en ? `Payment depends on the amount: up to USD ${PAGO_UMBRALES_USD[0]} 100% upfront; up to USD ${PAGO_UMBRALES_USD[1].toLocaleString('en-US')}, 50% deposit and 50% on delivery; up to USD ${PAGO_UMBRALES_USD[2].toLocaleString('en-US')}, 40/30/30; above that, biweekly milestones (COP is converted with the reference TRM).`
   : `El pago depende del monto: hasta USD ${PAGO_UMBRALES_USD[0]} (≈ COP ${cop(PAGO_UMBRALES_USD[0])}) 100% anticipado; hasta USD ${PAGO_UMBRALES_USD[1].toLocaleString('es-CO')} (≈ COP ${cop(PAGO_UMBRALES_USD[1])}), 50% de anticipo y 50% contra entrega; hasta USD ${PAGO_UMBRALES_USD[2].toLocaleString('es-CO')}, 40/30/30; más, hitos quincenales (en COP se convierte con la TRM de referencia).`;

@@ -140,7 +140,7 @@ export const CURRENCY_NOTE = `COP = contrato nacional (cliente en Colombia, tari
 
 /** Reglas comerciales FIJAS que el asistente puede citar (fuente: chatIntents/ProcesoFaq). */
 export const BUSINESS_FACTS = [
-  pagoTexto(false),
+  pagoTexto(false, false),   // sin importes: el verificador del worker los descartaría (ver quoteSummary.pagoTexto)
   'Incluye 2 rondas de revisión; cambios fuera de alcance se estiman y aprueban antes.',
   `Urgencia: ${urgenciaTexto(false)}, según disponibilidad.`,
   'Costos de API/servidores de IA los paga el cliente (BYOK).',
